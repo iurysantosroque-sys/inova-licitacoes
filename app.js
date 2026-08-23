@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, pricingOnlyMissing:false, demo:false
 };
 
 function toast(msg,type='success'){
@@ -166,6 +166,58 @@ function profileName(){ return state.profile?.name || state.user?.user_metadata?
 function itemName(item){ const l=state.licitacoes.find(x=>x.id===item.licitacao_id); return `${l?.numero||'?'} • Item ${item.numero} • ${item.descricao}`; }
 function toLocalDateTime(v){ if(!v)return {data:'',horario:''}; const d=new Date(v); if(Number.isNaN(d.getTime()))return {data:'',horario:''}; const pad=n=>String(n).padStart(2,'0'); return {data:`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,horario:`${pad(d.getHours())}:${pad(d.getMinutes())}`}; }
 function combineDateTime(data,horario){ if(!data)return null; return new Date(`${data}T${horario||'09:00'}:00`).toISOString(); }
+
+function dateBR(v,withTime=false){
+  if(!v)return '-';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())){
+    // Também aceita YYYY-MM-DD sem sofrer inversão de mês/dia.
+    const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if(!m)return String(v);
+    return `${m[3]}/${m[2]}/${m[1]}${withTime&&m[4]?` ${m[4]}:${m[5]||'00'}`:''}`;
+  }
+  return new Intl.DateTimeFormat('pt-BR',{
+    timeZone:'America/Fortaleza',
+    day:'2-digit',
+    month:'2-digit',
+    year:'numeric',
+    ...(withTime?{hour:'2-digit',minute:'2-digit',hour12:false}:{})
+  }).format(d).replace(',','');
+}
+
+function weekdayBR(v){
+  if(!v)return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return '';
+  return new Intl.DateTimeFormat('pt-BR',{
+    timeZone:'America/Fortaleza',
+    weekday:'long'
+  }).format(d);
+}
+
+function proposalDeadlineText(l){
+  if(!l?.proposalEndAt)return 'Prazo não sincronizado';
+  return dateBR(l.proposalEndAt,true);
+}
+
+function tenderStatusInfo(l){
+  const end=l?.proposalEndAt ? new Date(l.proposalEndAt) : null;
+  if(!end || Number.isNaN(end.getTime())){
+    return {label:'Atualizar PNCP',cls:'neutral',detail:'Prazo de propostas não sincronizado'};
+  }
+
+  const ms=end.getTime()-Date.now();
+  if(ms<0){
+    return {label:'Encerrado',cls:'neutral',detail:'Prazo de propostas encerrado'};
+  }
+
+  const hours=Math.ceil(ms/3600000);
+  const days=Math.ceil(ms/86400000);
+  if(hours<=24)return {label:'Fecha hoje',cls:'bad',detail:`Faltam aproximadamente ${hours}h`};
+  if(days<=5)return {label:'Prazo próximo',cls:'warn',detail:`Fecha em ${days} dias`};
+  return {label:'Ativo',cls:'good',detail:`Fecha em ${days} dias`};
+}
+
 
 function bestQuote(itemId){
   const server=state.pricingMap.find(p=>p.item_id===itemId && p.supplier_id);
@@ -503,7 +555,7 @@ function renderPncpSearchResults(results=[]){
           </div>
           <div class="pncp-result-meta">
             <span>Processo: <b>${esc(r.processo||'-')}</b></span>
-            <span>Abertura: <b>${pncpDate(r.dataAberturaProposta)}</b></span>
+            <span>Abre propostas: <b>${pncpDate(r.dataAberturaProposta)}</b></span><span>Fecha propostas: <b>${pncpDate(r.dataEncerramentoProposta)}</b></span>
             <span>Estimado: <b>${pncpMoney(r.valorTotalEstimado)}</b></span>
           </div>
           <button type="button" class="pncp-open-btn" data-pncp-control="${esc(r.numeroControlePNCP||'')}" data-pncp-cnpj="${esc(r.cnpj||'')}" data-pncp-year="${esc(r.anoCompra||'')}" data-pncp-seq="${esc(r.sequencialCompra||'')}">Abrir edital</button>
@@ -547,8 +599,9 @@ function renderPncpPreview(data){
     <div class="pncp-detail-grid">
       <div><span>Processo</span><strong>${esc(t.processo||'-')}</strong></div>
       <div><span>Modalidade</span><strong>${esc(t.modalidadeNome||'-')}</strong></div>
-      <div><span>Abertura</span><strong>${pncpDate(t.dataAberturaProposta)}</strong></div>
-      <div><span>Encerramento</span><strong>${pncpDate(t.dataEncerramentoProposta)}</strong></div>
+      <div><span>Publicação no PNCP</span><strong>${pncpDate(t.dataPublicacaoPncp)}</strong></div>
+      <div><span>Abertura para propostas</span><strong>${pncpDate(t.dataAberturaProposta)}</strong></div>
+      <div><span>Data limite para propostas</span><strong>${pncpDate(t.dataEncerramentoProposta)}</strong></div>
       <div><span>Valor estimado</span><strong>${pncpMoney(t.valorTotalEstimado)}</strong></div>
       <div><span>Controle PNCP</span><strong class="pncp-control-text">${esc(control||'-')}</strong></div>
     </div>
@@ -661,7 +714,11 @@ async function importPncpPreview(){
       state:t.unidadeOrgao?.ufSigla || null,
       platform:t.linkSistemaOrigem ? `PNCP • ${t.modalidadeNome||''}` : 'PNCP',
       object:t.objetoCompra || null,
-      dispute_at:t.dataAberturaProposta || t.dataEncerramentoProposta || null,
+      // dispute_at passa a representar o próximo prazo realmente importante para participação.
+      dispute_at:t.dataEncerramentoProposta || t.dataAberturaProposta || null,
+      publication_at:t.dataPublicacaoPncp || null,
+      proposal_open_at:t.dataAberturaProposta || null,
+      proposal_end_at:t.dataEncerramentoProposta || null,
       pncp_control:t.numeroControlePNCP || null,
       source_url:(()=>{const p=pncpControlParts(t.numeroControlePNCP||'');return p?`https://pncp.gov.br/app/editais/${p.cnpj}/${p.ano}/${p.sequencial}`:(t.linkSistemaOrigem||null)})(),
       created_by:state.user.id
@@ -757,8 +814,28 @@ async function syncPncpItems(){
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
     const rows=Array.isArray(data?.items)?data.items:[];
+    const tenderData=data?.tender||null;
+
+    if(tenderData){
+      const tenderPayload={
+        dispute_at:tenderData.dataEncerramentoProposta || tenderData.dataAberturaProposta || l.raw?.dispute_at || null,
+        publication_at:tenderData.dataPublicacaoPncp || null,
+        proposal_open_at:tenderData.dataAberturaProposta || null,
+        proposal_end_at:tenderData.dataEncerramentoProposta || null,
+        updated_at:new Date().toISOString()
+      };
+
+      const {error:tenderUpdateError}=await supabase
+        .from('tenders')
+        .update(tenderPayload)
+        .eq('id',tenderId);
+
+      if(tenderUpdateError)throw tenderUpdateError;
+    }
+
     if(!rows.length){
-      setPncpSyncStatus('O PNCP não retornou itens para esta contratação.','warn');
+      setPncpSyncStatus('Datas do edital atualizadas, mas o PNCP não retornou itens para esta contratação.','warn');
+      await refreshAll();
       return;
     }
 
@@ -786,13 +863,13 @@ async function syncPncpItems(){
       }
     }
 
-    setPncpSyncStatus(`Itens atualizados: ${updated} revisados e ${inserted} novos cadastrados.`,'success');
-    toast('Itens do PNCP atualizados.');
+    setPncpSyncStatus(`PNCP atualizado: datas sincronizadas, ${updated} itens revisados e ${inserted} novos cadastrados.`,'success');
+    toast('Edital, prazos e itens do PNCP atualizados.');
     await refreshAll();
   }catch(e){
     setPncpSyncStatus(`Erro ao atualizar itens: ${e?.message||e}`,'error');
   }finally{
-    if(btn){btn.disabled=false;btn.textContent='Atualizar itens do PNCP';}
+    if(btn){btn.disabled=false;btn.textContent='Atualizar PNCP';}
   }
 }
 
@@ -1202,31 +1279,103 @@ function renderQuoteImportPreview(){
   }
 
   const tenderItems=state.itens
-    .filter(i=>i.licitacao_id===tenderId)
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
 
   const relatedIds=new Set(
     rows.filter(r=>r.itemId).map(r=>String(r.itemId))
   );
 
-  const missingItems=tenderItems.filter(
-    item=>!relatedIds.has(String(item.id))
-  );
+  const totalTender=tenderItems.length;
+  const relatedTender=tenderItems.filter(i=>relatedIds.has(String(i.id))).length;
+  const missingTender=Math.max(0,totalTender-relatedTender);
+  const progress=totalTender ? Math.round((relatedTender/totalTender)*100) : 0;
+
+  const term=quoteNormalize(state.quoteImportFilter||'');
+
+  const visibleRows=rows.filter(r=>{
+    const matched=state.itens.find(i=>String(i.id)===String(r.itemId));
+    if(state.quoteOnlyUnrelated && matched)return false;
+    if(!term)return true;
+
+    const hay=quoteNormalize([
+      r.description,
+      r.code,
+      r.brand,
+      matched?.numero ? `ITEM ${matched.numero}` : '',
+      matched?.descricao||''
+    ].filter(Boolean).join(' '));
+
+    return hay.includes(term);
+  });
+
+  // Detecta relacionamentos repetidos para avisar visualmente.
+  const itemUseCount=new Map();
+  rows.forEach(r=>{
+    if(!r.itemId)return;
+    const key=String(r.itemId);
+    itemUseCount.set(key,(itemUseCount.get(key)||0)+1);
+  });
 
   el.innerHTML=`
     <div class="quote-preview-head">
       <div>
-        <strong>${rows.length} produto${rows.length===1?'':'s'} da cotação</strong>
+        <strong>${rows.length} produto${rows.length===1?'':'s'} lido${rows.length===1?'':'s'} da cotação</strong>
         <span>
-          ${rows.filter(r=>r.itemId).length} relacionados manualmente
-          • ${missingItems.length} itens do edital ainda sem cotação
+          ${relatedTender} de ${totalTender} itens do edital relacionados
+          • ${missingTender} ainda sem cotação
         </span>
       </div>
       <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
     </div>
 
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:14px 0">
+      <div class="mini-stat">
+        <span>Progresso</span>
+        <strong>${progress}%</strong>
+      </div>
+      <div class="mini-stat">
+        <span>Cotados</span>
+        <strong>${relatedTender}</strong>
+      </div>
+      <div class="mini-stat">
+        <span>Sem cotação</span>
+        <strong>${missingTender}</strong>
+      </div>
+      <div class="mini-stat">
+        <span>Produtos do fornecedor</span>
+        <strong>${rows.length}</strong>
+      </div>
+    </div>
+
     <div class="quote-import-status success" style="margin:14px 0">
-      Pesquise o item do edital pelo nome ou número e selecione a opção correta para cada produto do fornecedor.
+      Pesquise pelo produto, código, marca ou número do item. Os relacionamentos são manuais e ficam ordenados pelo número oficial do edital.
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:center;margin:0 0 14px">
+      <input
+        id="quoteGlobalSearch"
+        type="search"
+        value="${esc(state.quoteImportFilter||'')}"
+        placeholder="Buscar na cotação: produto, código, marca ou item..."
+        autocomplete="off"
+      >
+
+      <button
+        type="button"
+        id="quoteOnlyUnrelatedBtn"
+        class="action-btn ${state.quoteOnlyUnrelated?'active':''}"
+      >
+        ${state.quoteOnlyUnrelated?'✓ Só não relacionados':'Mostrar só não relacionados'}
+      </button>
+
+      <button type="button" id="quoteClearFiltersBtn" class="action-btn">
+        Limpar filtros
+      </button>
+    </div>
+
+    <div class="hint" style="margin:0 0 10px">
+      Exibindo ${visibleRows.length} de ${rows.length} produtos.
     </div>
 
     <div class="table-wrap quote-preview-table">
@@ -1237,16 +1386,20 @@ function renderQuoteImportPreview(){
             <th>Item edital</th>
             <th>Produto do fornecedor</th>
             <th>Pesquisar e relacionar ao item do edital</th>
+            <th>Status</th>
             <th>Preço</th>
             <th>Apresentação</th>
             <th>Equivale a</th>
             <th>Marca</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody>
-          ${rows.map((r,index)=>{
+          ${visibleRows.map(r=>{
+            const index=state.quoteImportRows.indexOf(r);
             const itemMatched=state.itens.find(i=>String(i.id)===String(r.itemId));
             const weak=!itemMatched;
+            const duplicated=itemMatched && (itemUseCount.get(String(itemMatched.id))||0)>1;
 
             return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
               <td>
@@ -1258,7 +1411,15 @@ function renderQuoteImportPreview(){
               </td>
 
               <td>
-                <strong>${esc(r.description)}</strong>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span
+                    data-product-item-badge="${index}"
+                    class="${itemMatched?'badge good':'badge neutral'}"
+                  >
+                    ${itemMatched?`Item ${esc(itemMatched.numero)}`:'Sem item'}
+                  </span>
+                  <strong>${esc(r.description)}</strong>
+                </div>
                 <small>
                   ${r.code?`Cód. ${esc(r.code)} • `:''}
                   ${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}
@@ -1280,13 +1441,25 @@ function renderQuoteImportPreview(){
                   ${quoteItemOptions(tenderId,r.itemId||'',r.itemSearch||'')}
                 </select>
 
-                <small class="${itemMatched?'match-ok':'review-note'}">
+                <small class="${duplicated?'review-note':itemMatched?'match-ok':'review-note'}">
                   ${
-                    itemMatched
-                      ? `Relacionado manualmente ao Item ${esc(itemMatched.numero)}`
-                      : 'Pesquise acima e escolha o item correto do edital'
+                    duplicated
+                      ? `⚠ Item ${esc(itemMatched.numero)} está relacionado a mais de um produto`
+                      : itemMatched
+                        ? `Relacionado manualmente ao Item ${esc(itemMatched.numero)}`
+                        : 'Pesquise acima e escolha o item correto do edital'
                   }
                 </small>
+              </td>
+
+              <td>
+                ${
+                  duplicated
+                    ? '<span class="badge warn">Revisar duplicidade</span>'
+                    : itemMatched
+                      ? '<span class="badge good">Cotado</span>'
+                      : '<span class="badge neutral">Sem relação</span>'
+                }
               </td>
 
               <td>
@@ -1304,6 +1477,17 @@ function renderQuoteImportPreview(){
               <td>
                 <input data-q-field="brand" value="${esc(r.brand||'')}">
               </td>
+
+              <td>
+                <button
+                  type="button"
+                  class="action-btn"
+                  data-clear-quote-relation="${index}"
+                  ${itemMatched?'':'disabled'}
+                >
+                  Limpar relação
+                </button>
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1313,8 +1497,46 @@ function renderQuoteImportPreview(){
 
   $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
 
-  // Busca instantânea dentro da lista de itens do edital.
-  // Ex.: "caixa 500", "cadeado", "item 48", "joelho 25".
+  $('#quoteGlobalSearch')?.addEventListener('input',e=>{
+    syncQuoteRowsFromDom();
+    state.quoteImportFilter=e.target.value||'';
+    renderQuoteImportPreview();
+    const input=$('#quoteGlobalSearch');
+    if(input){
+      input.focus();
+      input.setSelectionRange(input.value.length,input.value.length);
+    }
+  });
+
+  $('#quoteOnlyUnrelatedBtn')?.addEventListener('click',()=>{
+    syncQuoteRowsFromDom();
+    state.quoteOnlyUnrelated=!state.quoteOnlyUnrelated;
+    renderQuoteImportPreview();
+  });
+
+  $('#quoteClearFiltersBtn')?.addEventListener('click',()=>{
+    syncQuoteRowsFromDom();
+    state.quoteImportFilter='';
+    state.quoteOnlyUnrelated=false;
+    renderQuoteImportPreview();
+  });
+
+  document.querySelectorAll('[data-clear-quote-relation]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      syncQuoteRowsFromDom();
+      const index=Number(btn.dataset.clearQuoteRelation);
+      const row=state.quoteImportRows[index];
+      if(!row)return;
+
+      row.itemId='';
+      row.editalItemNumber=null;
+      row.manualMatched=false;
+      row.itemSearch='';
+      renderQuoteImportPreview();
+      toast('Relacionamento removido. O produto voltou para revisão.');
+    });
+  });
+
   document.querySelectorAll('[data-item-search]').forEach(input=>{
     input.addEventListener('input',()=>{
       const rowIndex=Number(input.dataset.itemSearch);
@@ -1324,6 +1546,41 @@ function renderQuoteImportPreview(){
 
       row.itemSearch=input.value;
       select.innerHTML=quoteItemOptions(tenderId,row.itemId||'',input.value);
+    });
+  });
+
+  document.querySelectorAll('[data-item-select]').forEach(select=>{
+    select.addEventListener('change',()=>{
+      const rowIndex=Number(select.dataset.itemSelect);
+      const row=state.quoteImportRows[rowIndex];
+      if(!row)return;
+
+      const previousId=row.itemId||'';
+      const nextId=select.value||'';
+
+      if(nextId){
+        const other=state.quoteImportRows.find((r,i)=>i!==rowIndex && String(r.itemId)===String(nextId));
+        if(other){
+          const item=state.itens.find(i=>String(i.id)===String(nextId));
+          const ok=confirm(
+            `Atenção: o Item ${item?.numero||''} já está relacionado ao produto "${other.description}".\n\n`+
+            `Deseja relacionar também este produto ao mesmo item?`
+          );
+          if(!ok){
+            select.value=previousId;
+            return;
+          }
+        }
+      }
+
+      row.itemId=nextId;
+      row.manualMatched=Boolean(row.itemId);
+
+      const item=state.itens.find(i=>String(i.id)===String(row.itemId));
+      row.editalItemNumber=item ? Number(item.numero) : null;
+
+      // Re-renderiza para atualizar ordem, progresso, status e alertas de duplicidade.
+      renderQuoteImportPreview();
     });
   });
 }
@@ -1388,6 +1645,8 @@ async function readQuoteImportFile(){
       r.manualMatched=false;
     });
     state.quoteImportRows=rows;
+    state.quoteImportFilter='';
+    state.quoteOnlyUnrelated=false;
     setQuoteImportStatus(`${rows.length} linhas identificadas. Use a busca em cada produto para selecionar o item correto do edital.`,'success');
     renderQuoteImportPreview();
   }catch(e){
@@ -1411,6 +1670,38 @@ async function saveImportedQuotes(){
     });
 
   if(!rows.length)return toast('Nenhuma linha válida selecionada. Relacione pelo menos um produto a um item do edital.','error');
+
+  const duplicates=new Map();
+  rows.forEach(r=>{
+    const key=String(r.itemId);
+    if(!duplicates.has(key))duplicates.set(key,[]);
+    duplicates.get(key).push(r);
+  });
+
+  const duplicateGroups=[...duplicates.entries()].filter(([,group])=>group.length>1);
+
+  if(duplicateGroups.length){
+    const details=duplicateGroups
+      .slice(0,8)
+      .map(([itemId,group])=>{
+        const item=state.itens.find(i=>String(i.id)===String(itemId));
+        return `Item ${item?.numero||'?'}: ${group.map(x=>x.description).join(' / ')}`;
+      })
+      .join('\n');
+
+    const more=duplicateGroups.length>8
+      ? `\n... e mais ${duplicateGroups.length-8} duplicidade(s).`
+      : '';
+
+    const proceed=confirm(
+      `ATENÇÃO: existem ${duplicateGroups.length} item(ns) do edital relacionados a mais de um produto.\n\n`+
+      `${details}${more}\n\n`+
+      `Isso pode gerar mais de uma cotação para o mesmo item. Deseja salvar mesmo assim?`
+    );
+
+    if(!proceed)return;
+  }
+
   if(!confirm(`Salvar ${rows.length} cotação${rows.length===1?'':'ões'} para este fornecedor?`))return;
 
   const btn=$('#quoteSaveImportedBtn');
@@ -1492,7 +1783,28 @@ async function refreshAll(){
     lucro_minimo:Number(settings.data?.minimum_profit_amount??500),margem_minima:Number(settings.data?.minimum_margin_percent??10),
     reserva_operacional:Number(settings.data?.operational_reserve_percent??0)
   };
-  state.licitacoes=(tenders.data||[]).map(t=>{const dt=toLocalDateTime(t.dispute_at);return {id:t.id,numero:t.number,processo:t.process_number,orgao:t.agency||'',cidade:[t.city,t.state].filter(Boolean).join('/'),data:dt.data,horario:dt.horario,plataforma:t.platform||'',objeto:t.object||'',pncp_control:t.pncp_control||'',source_url:t.source_url||'',raw:t};});
+  state.licitacoes=(tenders.data||[]).map(t=>{
+    const primary=t.proposal_end_at||t.dispute_at;
+    const dt=toLocalDateTime(primary);
+    return {
+      id:t.id,
+      numero:t.number,
+      processo:t.process_number,
+      orgao:t.agency||'',
+      cidade:[t.city,t.state].filter(Boolean).join('/'),
+      data:dt.data,
+      horario:dt.horario,
+      plataforma:t.platform||'',
+      objeto:t.object||'',
+      pncp_control:t.pncp_control||'',
+      source_url:t.source_url||'',
+      publicationAt:t.publication_at||null,
+      createdAt:t.created_at||null,
+      proposalOpenAt:t.proposal_open_at||null,
+      proposalEndAt:t.proposal_end_at||null,
+      raw:t
+    };
+  });
   state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,cnpj:f.cnpj,contato:f.contact_name,frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
   state.quotes=quotes.data||[];
   const tenderIds=state.licitacoes.map(x=>x.id), quoteIds=state.quotes.map(x=>x.id);
@@ -1617,15 +1929,21 @@ function ensurePricingTenderViewer(){
     box.id='pricingTenderViewer';
     box.style.margin='0 0 18px';
     box.innerHTML=`
-      <div style="display:grid;grid-template-columns:minmax(280px,1fr) auto;gap:12px;align-items:end">
+      <div style="display:grid;grid-template-columns:minmax(280px,1fr) auto auto;gap:12px;align-items:end">
         <label style="display:grid;gap:6px">
           <span>Precificação de qual edital?</span>
           <select id="pricingTenderViewSelect">
             <option value="">Selecione a licitação</option>
           </select>
         </label>
+
         <button type="button" id="pricingTenderViewBtn">Abrir precificação</button>
+
+        <button type="button" id="pricingOnlyMissingBtn" class="action-btn">
+          Mostrar só sem cotação
+        </button>
       </div>
+
       <div id="pricingTenderViewInfo" class="hint" style="margin-top:8px">
         Selecione um edital e clique em Abrir precificação. Os itens dos outros editais ficarão ocultos.
       </div>
@@ -1636,6 +1954,16 @@ function ensurePricingTenderViewer(){
     $('#pricingTenderViewBtn')?.addEventListener('click',()=>{
       const tenderId=$('#pricingTenderViewSelect')?.value||'';
       state.pricingViewTenderId=tenderId;
+      state.pricingOnlyMissing=false;
+      renderPricingByTender();
+    });
+
+    $('#pricingOnlyMissingBtn')?.addEventListener('click',()=>{
+      if(!state.pricingViewTenderId){
+        toast('Abra primeiro a precificação de um edital.','error');
+        return;
+      }
+      state.pricingOnlyMissing=!state.pricingOnlyMissing;
       renderPricingByTender();
     });
   }
@@ -1648,6 +1976,13 @@ function ensurePricingTenderViewer(){
       state.licitacoes
         .map(l=>`<option value="${l.id}" ${String(l.id)===String(current)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`)
         .join('');
+  }
+
+  const missingBtn=$('#pricingOnlyMissingBtn');
+  if(missingBtn){
+    missingBtn.textContent=state.pricingOnlyMissing
+      ? '✓ Somente sem cotação'
+      : 'Mostrar só sem cotação';
   }
 }
 
@@ -1684,21 +2019,27 @@ function renderPricingByTender(){
   }
 
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
-  const items=pricingItemsForSelectedTender();
+  const allItems=pricingItemsForSelectedTender();
+  const quotedCount=allItems.filter(i=>pricing(i)).length;
+  const missingCount=allItems.length-quotedCount;
+
+  const items=state.pricingOnlyMissing
+    ? allItems.filter(i=>!pricing(i))
+    : allItems;
 
   const info=$('#pricingTenderViewInfo');
   if(info){
-    const quoted=items.filter(i=>pricing(i)).length;
     info.textContent=
-      `${tender?.numero||'Edital'} • ${items.length} itens • `+
-      `${quoted} com cotação • ${items.length-quoted} sem cotação`;
+      `${tender?.numero||'Edital'} • ${allItems.length} itens • `+
+      `${quotedCount} com cotação • ${missingCount} sem cotação`+
+      `${state.pricingOnlyMissing?' • mostrando apenas pendentes':''}`;
   }
 
   const precRows=items.map(i=>{
     const p=pricing(i);
     const quoteCount=state.cotacoes.filter(q=>String(q.item_id)===String(i.id)).length;
     const action=quoteCount
-      ? `<button type="button" class="action-btn danger-btn" data-remove-item-quotes="${esc(i.id)}">Retirar cotação${quoteCount>1?' ('+quoteCount+')':''}</button>`
+      ? `<button type="button" class="action-btn danger-btn" title="Retirar as cotações salvas deste item" data-remove-item-quotes="${esc(i.id)}">Retirar cotação${quoteCount>1?' ('+quoteCount+')':''}</button>`
       : '<span class="hint">—</span>';
 
     if(!p){
@@ -1765,7 +2106,7 @@ function renderPricingByTender(){
   );
 
   const summary={excelente:0,oportunidade:0,ruim:0,sem:0,lucro:0};
-  items.forEach(i=>{
+  allItems.forEach(i=>{
     const p=pricing(i);
     if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')summary.sem++;
     else if(p.status==='Ruim')summary.ruim++;
@@ -1790,8 +2131,8 @@ function renderPricingByTender(){
     const selected=simItem.value;
     simItem.innerHTML=
       '<option value="">Selecione o item</option>'+
-      items.map(i=>`<option value="${i.id}">Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
-    if(items.some(i=>String(i.id)===String(selected)))simItem.value=selected;
+      allItems.map(i=>`<option value="${i.id}">Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
+    if(allItems.some(i=>String(i.id)===String(selected)))simItem.value=selected;
   }
 
   renderBidSimulator();
@@ -1841,15 +2182,496 @@ async function removeAllQuotesFromItem(itemId){
   renderPricingByTender();
 }
 
+
+
+function ensureTenderExactStyles(){
+  if(document.getElementById('tenderExactStyles'))return;
+  const style=document.createElement('style');
+  style.id='tenderExactStyles';
+  style.textContent=`
+    #licitacoes.tender-exact-view{
+      background:#07131a;
+      border:1px solid #243541;
+      border-radius:18px;
+      overflow:hidden;
+      padding:0!important;
+      margin:0;
+      color:#e8edf2;
+    }
+    #licitacoes.tender-exact-view > .panel{display:none}
+    #licitacoes.tender-exact-view.show-new-tender > .panel:first-of-type{
+      display:block;
+      margin:18px 22px;
+      background:#0b1820;
+      border:1px solid #243541;
+      box-shadow:none;
+    }
+    #licitacoes.tender-exact-view .tender-exact-shell{
+      font-family:inherit;
+      background:#07131a;
+      min-height:680px;
+    }
+    .tx-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:18px;
+      padding:24px 24px 20px;
+      border-bottom:1px solid #243541;
+    }
+    .tx-title h2{
+      margin:0!important;
+      color:#f4b727;
+      font-size:1.55rem!important;
+      letter-spacing:-.02em;
+    }
+    .tx-title p{margin:7px 0 0;color:#aab6c0;font-size:.9rem}
+    .tx-primary{
+      border:0;
+      border-radius:8px;
+      padding:11px 17px;
+      background:#f0b429;
+      color:#061017;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:0 0 0 1px rgba(255,255,255,.05) inset;
+    }
+    .tx-primary:hover{filter:brightness(1.05)}
+    .tx-stats{
+      display:grid;
+      grid-template-columns:repeat(5,minmax(0,1fr));
+      gap:14px;
+      padding:20px 24px;
+      border-bottom:1px solid #243541;
+    }
+    .tx-stat{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      min-height:88px;
+      background:linear-gradient(145deg,#0c1a23,#0d1921);
+      border:1px solid #1d2d38;
+      border-radius:10px;
+      padding:14px 16px;
+    }
+    .tx-stat-icon{
+      width:46px;height:46px;border-radius:50%;
+      display:grid;place-items:center;
+      background:#132632;
+      font-size:1.4rem;
+      flex:0 0 auto;
+    }
+    .tx-stat-icon.yellow{color:#f0b429}
+    .tx-stat-icon.green{color:#45cf69}
+    .tx-stat-icon.red{color:#ff514b}
+    .tx-stat-icon.blue{color:#4ca8ff}
+    .tx-stat small{display:block;color:#aab6c0;margin-bottom:2px}
+    .tx-stat strong{display:block;color:#fff;font-size:1.25rem;line-height:1.1}
+    .tx-stat span{display:block;color:#8e9ba6;font-size:.78rem;margin-top:4px}
+    .tx-toolbar{
+      display:grid;
+      grid-template-columns:minmax(250px,1.4fr) 180px 275px 1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:16px 24px;
+      border-bottom:1px solid #243541;
+    }
+    .tx-toolbar input,.tx-toolbar select{
+      width:100%;height:42px;
+      border-radius:8px;
+      border:1px solid #31434f;
+      background:#08151d;
+      color:#eef3f6;
+      padding:0 12px;
+      outline:none;
+    }
+    .tx-toolbar input::placeholder{color:#71808c}
+    .tx-export{
+      height:42px;border-radius:8px;border:1px solid #31434f;
+      background:#09161e;color:#e8edf2;padding:0 15px;font-weight:700;cursor:pointer;
+    }
+    .tx-table-wrap{padding:0 24px;overflow:auto}
+    .tx-table{
+      width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;
+      border:1px solid #243541;border-radius:9px;overflow:hidden;
+    }
+    .tx-table th{
+      background:#08151d!important;color:#efb426!important;
+      font-size:.79rem!important;font-weight:800!important;
+      padding:13px 14px!important;border-bottom:1px solid #31434f!important;
+      text-align:left;vertical-align:bottom;
+    }
+    .tx-table td{
+      background:#0a1720;color:#e6edf2;
+      padding:18px 14px!important;border-bottom:1px solid #263844!important;
+      font-size:.83rem!important;vertical-align:middle!important;
+    }
+    .tx-table tbody tr:last-child td{border-bottom:0!important}
+    .tx-table tbody tr:hover td{background:#0d1c25}
+    .tx-number{font-size:1.08rem;font-weight:800;color:#fff}
+    .tx-agency{font-weight:700;color:#fff;line-height:1.35}
+    .tx-city{line-height:1.35}
+    .tx-date-main{display:flex;align-items:center;gap:7px;font-weight:700;color:#fff;white-space:nowrap}
+    .tx-date-sub{display:block;margin:4px 0 0 25px;color:#9ba8b2;font-size:.76rem}
+    .tx-date-icon{font-size:1rem}
+    .tx-deadline-badge{
+      display:inline-block;margin:8px 0 0 25px;
+      padding:5px 9px;border-radius:6px;
+      background:#3a1718;border:1px solid #702727;color:#ff6a63;font-size:.72rem
+    }
+    .tx-platform strong{display:block;color:#fff}
+    .tx-platform small{display:block;color:#95a2ac;margin-top:4px}
+    .tx-items{display:flex;align-items:center;gap:7px;white-space:nowrap}
+    .tx-status{display:inline-flex;border-radius:999px;padding:5px 10px;font-size:.73rem;font-weight:800}
+    .tx-status.good{background:#164c2c;color:#73e995}
+    .tx-status.warn{background:#55420e;color:#ffd65b}
+    .tx-status.bad{background:#5a2020;color:#ff8580}
+    .tx-status.neutral{background:#26333c;color:#bac5cc}
+    .tx-status-date{display:block;color:#9ba8b2;font-size:.74rem;margin-top:6px;white-space:nowrap}
+    .tx-actions{display:grid;gap:7px;min-width:112px}
+    .tx-action{
+      border:1px solid #31434f;border-radius:7px;background:#09161e;color:#e6edf2;
+      height:34px;padding:0 10px;font-weight:650;cursor:pointer
+    }
+    .tx-action.danger{border-color:#8b2d2d;color:#ff6e67}
+    .tx-action:hover{background:#10212b}
+    .tx-footer{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:14px 24px 18px;color:#9ba8b2;font-size:.78rem
+    }
+    .tx-pages{display:flex;align-items:center;gap:7px}
+    .tx-page{
+      width:36px;height:36px;border-radius:7px;border:1px solid #31434f;
+      background:#0a1b25;color:#aebbc4;display:grid;place-items:center
+    }
+    .tx-page.active{background:#f0b429;color:#07131a;border-color:#f0b429;font-weight:900}
+    .tx-info{
+      display:grid;grid-template-columns:1.6fr 1fr;gap:18px;
+      margin:0 24px 24px;padding:18px;
+      border:1px solid #263844;border-radius:9px;background:#09161e;
+    }
+    .tx-info-title{color:#66aefe;font-weight:800;margin-bottom:12px}
+    .tx-info p{margin:6px 0;color:#b1bec7;font-size:.79rem;line-height:1.45}
+    .tx-info .attention{color:#f0b429;font-weight:700;margin-top:13px}
+    .tx-legend{
+      border:1px solid #263844;border-radius:8px;padding:14px 18px
+    }
+    .tx-legend h4{margin:0 0 11px;color:#dfe6eb}
+    .tx-legend-row{display:flex;gap:9px;align-items:center;margin:9px 0;color:#b5c0c8;font-size:.78rem}
+    .tx-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+    .tx-dot.good{background:#45cf69}.tx-dot.warn{background:#f7bd2d}
+    .tx-dot.neutral{background:#b8c2c9}.tx-dot.bad{background:#ff514b}
+    @media(max-width:1100px){
+      .tx-stats{grid-template-columns:repeat(2,1fr)}
+      .tx-toolbar{grid-template-columns:1fr 1fr}
+      .tx-info{grid-template-columns:1fr}
+    }
+    @media(max-width:680px){
+      .tx-head{padding:18px 14px}.tx-stats,.tx-toolbar,.tx-table-wrap{padding-left:14px;padding-right:14px}
+      .tx-stats{grid-template-columns:1fr}.tx-toolbar{grid-template-columns:1fr}.tx-info{margin-left:14px;margin-right:14px}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function csvEscape(v){
+  const s=String(v??'');
+  return `"${s.replace(/"/g,'""')}"`;
+}
+
+function exportTendersCsv(tenders){
+  const headers=['Número','Órgão','Cidade/UF','Abertura para propostas','Data limite para propostas','Plataforma','Itens','Status'];
+  const lines=[headers.map(csvEscape).join(';')];
+  for(const l of tenders){
+    const status=tenderStatusInfo(l);
+    lines.push([
+      l.numero,
+      l.orgao,
+      l.cidade,
+      l.proposalOpenAt?dateBR(l.proposalOpenAt,true):'',
+      l.proposalEndAt?dateBR(l.proposalEndAt,true):'',
+      l.plataforma,
+      state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length,
+      status.label
+    ].map(csvEscape).join(';'));
+  }
+  const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='editais_inova.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function renderTenderManagement(){
+  const section=$('#licitacoes');
+  const list=$('#licitacoesLista');
+  if(!section || !list)return;
+
+  ensureTenderExactStyles();
+  section.classList.add('tender-exact-view');
+
+  // Usa o próprio painel da lista como âncora e mantém os formulários originais intactos,
+  // apenas ocultos até o botão "+ Novo edital" ser clicado.
+  const panels=[...section.querySelectorAll(':scope > .panel')];
+  const listPanel=panels.find(p=>p.contains(list));
+  if(listPanel)listPanel.style.display='none';
+
+  let shell=section.querySelector('.tender-exact-shell');
+  if(!shell){
+    shell=document.createElement('div');
+    shell.className='tender-exact-shell';
+    section.insertBefore(shell,section.firstChild);
+  }
+
+  const getFiltered=()=>{
+    const query=quoteNormalize(shell.querySelector('#txSearch')?.value||'');
+    const statusFilter=shell.querySelector('#txStatus')?.value||'all';
+    const sort=shell.querySelector('#txSort')?.value||'deadline';
+
+    let rows=[...state.licitacoes].filter(l=>{
+      if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
+      if(statusFilter!=='all'){
+        const s=tenderStatusInfo(l);
+        if(statusFilter==='active' && s.label==='Encerrado')return false;
+        if(statusFilter==='closed' && s.label!=='Encerrado')return false;
+        if(statusFilter==='soon' && !['Fecha hoje','Prazo próximo'].includes(s.label))return false;
+      }
+      return true;
+    });
+
+    rows.sort((a,b)=>{
+      if(sort==='number')return String(a.numero||'').localeCompare(String(b.numero||''),undefined,{numeric:true});
+      if(sort==='agency')return String(a.orgao||'').localeCompare(String(b.orgao||''));
+      const ad=a.proposalEndAt?new Date(a.proposalEndAt).getTime():Number.MAX_SAFE_INTEGER;
+      const bd=b.proposalEndAt?new Date(b.proposalEndAt).getTime():Number.MAX_SAFE_INTEGER;
+      return ad-bd;
+    });
+    return rows;
+  };
+
+  const total=state.licitacoes.length;
+  const totalItems=state.itens.length;
+  const platformCounts={};
+  state.licitacoes.forEach(l=>{
+    const p=String(l.plataforma||'Não informado').split('•')[0].trim()||'Não informado';
+    platformCounts[p]=(platformCounts[p]||0)+1;
+  });
+  const mainPlatform=Object.entries(platformCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'-';
+  const active=state.licitacoes.filter(l=>tenderStatusInfo(l).label!=='Encerrado').length;
+  const soon=state.licitacoes.filter(l=>{
+    if(!l.proposalEndAt)return false;
+    const ms=new Date(l.proposalEndAt).getTime()-Date.now();
+    return ms>=0&&ms<=5*86400000;
+  }).length;
+
+  shell.innerHTML=`
+    <div class="tx-head">
+      <div class="tx-title">
+        <h2>Editais / Licitações</h2>
+        <p>Gerencie os editais cadastrados no sistema.</p>
+      </div>
+      <button type="button" class="tx-primary" id="txNewTender">＋ Novo edital</button>
+    </div>
+
+    <div class="tx-stats">
+      <div class="tx-stat">
+        <div class="tx-stat-icon blue">▣</div>
+        <div><small>Total de editais</small><strong>${total}</strong><span>cadastrados</span></div>
+      </div>
+      <div class="tx-stat">
+        <div class="tx-stat-icon yellow">◆</div>
+        <div><small>Itens totais</small><strong>${totalItems}</strong><span>itens cadastrados</span></div>
+      </div>
+      <div class="tx-stat">
+        <div class="tx-stat-icon yellow">⚒</div>
+        <div><small>Plataforma principal</small><strong>${esc(mainPlatform)}</strong><span>Pregão - Eletrônico</span></div>
+      </div>
+      <div class="tx-stat">
+        <div class="tx-stat-icon red">◷</div>
+        <div><small>Próximos fechamentos</small><strong>${soon}</strong><span>edital fecha em breve</span></div>
+      </div>
+      <div class="tx-stat">
+        <div class="tx-stat-icon green">✓</div>
+        <div><small>Editais ativos</small><strong>${active}</strong><span>ativos</span></div>
+      </div>
+    </div>
+
+    <div class="tx-toolbar">
+      <input id="txSearch" type="search" placeholder="⌕  Buscar edital (órgão, cidade, número, plataforma...)" autocomplete="off">
+      <select id="txStatus">
+        <option value="all">Todos os status</option>
+        <option value="active">Ativos</option>
+        <option value="soon">Prazo próximo</option>
+        <option value="closed">Encerrados</option>
+      </select>
+      <select id="txSort">
+        <option value="deadline">Ordenar por: Prazo (mais próximo)</option>
+        <option value="number">Ordenar por: Número</option>
+        <option value="agency">Ordenar por: Órgão</option>
+      </select>
+      <div></div>
+      <button type="button" class="tx-export" id="txExport">⇩ Exportar</button>
+    </div>
+
+    <div class="tx-table-wrap">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Órgão</th>
+            <th>Cidade / UF</th>
+            <th>Abertura do edital</th>
+            <th>Data limite para propostas<br><small style="color:#efb426">(Fecha propostas)</small></th>
+            <th>Plataforma</th>
+            <th>Itens</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="txTenderRows"></tbody>
+      </table>
+    </div>
+
+    <div class="tx-footer">
+      <span id="txCount"></span>
+      <div class="tx-pages">
+        <span class="tx-page">‹</span>
+        <span class="tx-page active">1</span>
+        <span class="tx-page">›</span>
+      </div>
+    </div>
+
+    <div class="tx-info">
+      <div>
+        <div class="tx-info-title">ⓘ &nbsp;Sobre as datas</div>
+        <p><strong>Abertura do edital:</strong> data em que o edital foi publicado/disponibilizado.</p>
+        <p><strong>Data limite para propostas (fecha propostas):</strong> último dia e horário para envio de propostas e lances.</p>
+        <p class="attention">Atenção: após o horário limite, o sistema da plataforma não aceitará novas propostas.</p>
+      </div>
+      <div class="tx-legend">
+        <h4>Legenda de status</h4>
+        <div class="tx-legend-row"><span class="tx-dot good"></span><span><strong>Ativo:</strong> edital disponível para participação</span></div>
+        <div class="tx-legend-row"><span class="tx-dot warn"></span><span><strong>Em andamento:</strong> fase de disputa em andamento</span></div>
+        <div class="tx-legend-row"><span class="tx-dot neutral"></span><span><strong>Encerrado:</strong> disputa finalizada</span></div>
+        <div class="tx-legend-row"><span class="tx-dot bad"></span><span><strong>Cancelado:</strong> edital cancelado ou revogado</span></div>
+      </div>
+    </div>
+  `;
+
+  const renderRows=()=>{
+    const rows=getFiltered();
+    const tbody=shell.querySelector('#txTenderRows');
+    if(!tbody)return;
+
+    tbody.innerHTML=rows.map(l=>{
+      const status=tenderStatusInfo(l);
+      const itemCount=state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length;
+
+      // Abertura do edital = publicação quando disponível.
+      const opening=l.publicationAt||l.proposalOpenAt;
+      const statusClass=status.cls==='bad'?'bad':status.cls==='warn'?'warn':status.cls==='good'?'good':'neutral';
+
+      return `
+        <tr>
+          <td><span class="tx-number">${esc(l.numero)}</span></td>
+          <td><div class="tx-agency">${esc(l.orgao||'-')}</div></td>
+          <td><div class="tx-city">${esc(l.cidade||'-')}</div></td>
+
+          <td>
+            ${
+              opening
+                ? `<div class="tx-date-main"><span class="tx-date-icon" style="color:#43d16e">▣</span>${dateBR(opening,false)}</div>
+                   <span class="tx-date-sub">${esc(weekdayBR(opening))}</span>`
+                : '<span style="color:#73838f">-</span>'
+            }
+          </td>
+
+          <td>
+            ${
+              l.proposalEndAt
+                ? `<div class="tx-date-main"><span class="tx-date-icon" style="color:#ff5048">▣</span>${dateBR(l.proposalEndAt,false)}</div>
+                   <span class="tx-date-sub">${esc(weekdayBR(l.proposalEndAt))}</span>
+                   <span class="tx-deadline-badge">${esc(status.detail)}</span>`
+                : `<span class="tx-status neutral">Não sincronizado</span>`
+            }
+          </td>
+
+          <td class="tx-platform">
+            <strong>${esc(String(l.plataforma||'-').split('•')[0].trim())}</strong>
+            <small>${esc(String(l.plataforma||'').split('•').slice(1).join('•').trim()||'Pregão - Eletrônico')}</small>
+          </td>
+
+          <td>
+            <div class="tx-items">
+              <strong>${itemCount}</strong>
+              ${l.pncp_control?'<span class="badge good">PNCP</span>':''}
+            </div>
+          </td>
+
+          <td>
+            <span class="tx-status ${statusClass}">${esc(status.label==='Prazo próximo'?'Ativo':status.label)}</span>
+            <span class="tx-status-date">${l.createdAt?'Cadastrado em '+dateBR(l.createdAt,false):''}</span>
+          </td>
+
+          <td>
+            <div class="tx-actions">
+              ${l.pncp_control?`<button class="tx-action" data-sync-pncp="${l.id}">Atualizar itens</button>`:''}
+              <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const count=shell.querySelector('#txCount');
+    if(count)count.textContent=`Exibindo ${rows.length?1:0} a ${rows.length} de ${rows.length} editais`;
+  };
+
+  shell.querySelector('#txSearch')?.addEventListener('input',renderRows);
+  shell.querySelector('#txStatus')?.addEventListener('change',renderRows);
+  shell.querySelector('#txSort')?.addEventListener('change',renderRows);
+
+  shell.querySelector('#txExport')?.addEventListener('click',()=>{
+    exportTendersCsv(getFiltered());
+  });
+
+  shell.querySelector('#txNewTender')?.addEventListener('click',()=>{
+    section.classList.toggle('show-new-tender');
+    const open=section.classList.contains('show-new-tender');
+    const btn=shell.querySelector('#txNewTender');
+    if(btn)btn.textContent=open?'× Fechar cadastro':'＋ Novo edital';
+    if(open){
+      panels[0]?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  });
+
+  renderRows();
+}
+
 function renderAll(){
   $('#companyName').textContent=state.company?.name || state.company?.nome || 'Modo demonstração'; $('#userName').textContent=profileName(); $('#inviteCode').textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
   $('#kpiLicitacoes').textContent=state.licitacoes.length; $('#kpiItens').textContent=state.itens.length; $('#kpiFornecedores').textContent=state.fornecedores.length;
   const ps=state.itens.map(pricing).filter(Boolean); $('#kpiLucro').textContent=money(ps.reduce((a,p)=>a+Math.max(0,Number(p.profit||0)),0));
-  $('#proximasDisputas').innerHTML=table(['Licitação','Órgão','Data','Itens'],state.licitacoes.map(l=>[esc(l.numero),esc(l.orgao),esc([l.data,l.horario].filter(Boolean).join(' ')||'-'),String(state.itens.filter(i=>i.licitacao_id===l.id).length)]));
+  $('#proximasDisputas').innerHTML=table(
+    ['Licitação','Órgão','Fecha propostas','Itens'],
+    state.licitacoes
+      .slice()
+      .sort((a,b)=>{
+        const ad=a.proposalEndAt?new Date(a.proposalEndAt).getTime():Number.MAX_SAFE_INTEGER;
+        const bd=b.proposalEndAt?new Date(b.proposalEndAt).getTime():Number.MAX_SAFE_INTEGER;
+        return ad-bd;
+      })
+      .map(l=>[
+        esc(l.numero),
+        esc(l.orgao),
+        l.proposalEndAt?dateBR(l.proposalEndAt,true):'<span class="review-note">Atualize PNCP</span>',
+        String(state.itens.filter(i=>i.licitacao_id===l.id).length)
+      ])
+  );
   const c=state.config||{}; const buckets={excelente:0,oportunidade:0,ruim:0,sem:0};
   state.itens.forEach(i=>{const p=pricing(i);if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')buckets.sem++;else if(p.status==='Ruim')buckets.ruim++;else if(p.status==='Oportunidade')buckets.oportunidade++;else buckets.excelente++;});
   $('#resumoOportunidades').innerHTML=`<div class="opp"><strong>${buckets.excelente}</strong><span>Excelentes</span></div><div class="opp"><strong>${buckets.oportunidade}</strong><span>Oportunidades</span></div><div class="opp"><strong>${buckets.ruim}</strong><span>Ruins</span></div><div class="opp"><strong>${buckets.sem}</strong><span>Sem cotação</span></div>`;
-  $('#licitacoesLista').innerHTML=table(['Número','Órgão','Cidade','Data','Plataforma','Itens',''],state.licitacoes.map(l=>[esc(l.numero),esc(l.orgao),esc(l.cidade||'-'),esc(l.data||'-'),esc(l.plataforma||'-'),`${state.itens.filter(i=>i.licitacao_id===l.id).length}${l.pncp_control?' <span class="badge good">PNCP</span>':''}`,`${l.pncp_control?`<button class="action-btn" data-sync-pncp="${l.id}">Atualizar itens</button> `:''}<button class="action-btn danger-btn" data-delete="licitacao" data-id="${l.id}">Excluir</button>`]));
+  renderTenderManagement();
   $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   $('#itemLicitacao').innerHTML=licOpts; $('#arquivoLicitacao').innerHTML=licOpts;
@@ -1889,7 +2711,7 @@ $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();c
 $('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');toast('Você entrou na empresa.');await loadMembershipAndData();});
 async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
 
-$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();if(state.demo)return toast('Use o modo online para salvar no banco.','error');const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:combineDateTime(f.data,f.horario),created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
+$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();if(state.demo)return toast('Use o modo online para salvar no banco.','error');const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});renderAll();return;}const {error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Item adicionado.');await refreshAll();});
 $('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo)return toast('Use o modo online para salvar no banco.','error');const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
 $('#cotacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo)return toast('Use o modo online para salvar no banco.','error');const item=state.itens.find(i=>i.id===f.item_id);if(!item)return;const q=await findOrCreateQuote(item.licitacao_id,f.fornecedor_id);if(!q)return;const {error}=await supabase.from('quote_items').insert({quote_id:q.id,tender_item_id:f.item_id,supplier_description:item.descricao,brand:f.marca||null,package_description:f.apresentacao||null,package_base_quantity:Number(f.fator_equivalencia||1),unit_price:Number(f.preco),freight_per_package:Number(f.frete_rateado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Cotação salva.');await refreshAll();});
@@ -1955,7 +2777,7 @@ document.addEventListener('change',e=>{
 });
 
 $('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
-$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];renderQuoteImportPreview();});
+$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];state.quoteImportFilter='';state.quoteOnlyUnrelated=false;renderQuoteImportPreview();});
 $('#pncpSyncBtn')?.addEventListener('click',syncPncpItems);
 
 document.addEventListener('input',e=>{
