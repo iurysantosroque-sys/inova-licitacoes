@@ -1106,6 +1106,22 @@ async function parsePdfFile(file){
   return rowsFromPdfLines(lines);
 }
 
+
+function setupManualQuoteMode(){
+  const aiBtn=$('#quoteAiMatchBtn');
+  if(aiBtn)aiBtn.style.display='none';
+
+  const help=$('.quote-import-help span');
+  if(help){
+    help.innerHTML='Primeiro leia a cotação. Em cada produto, use <b>Buscar item</b> para localizar pelo nome ou número o item correto do edital e faça o relacionamento manualmente. Depois revise e salve.';
+  }
+
+  const titleHint=document.querySelector('#view-cotacoes .panel .panel-title .hint, #view-cotacoes .panel-title .hint');
+  if(titleHint && /IA|inteligente/i.test(titleHint.textContent||'')){
+    titleHint.textContent='Importe a cotação, pesquise os itens do edital e revise antes de salvar.';
+  }
+}
+
 function setQuoteImportStatus(message,type='loading'){
   const el=$('#quoteImportStatus');
   if(!el)return;
@@ -1114,9 +1130,28 @@ function setQuoteImportStatus(message,type='loading'){
   el.textContent=message||'';
 }
 
-function quoteItemOptions(tenderId,selectedId=''){
-  const items=state.itens.filter(i=>i.licitacao_id===tenderId);
-  return `<option value="">Não relacionado</option>`+items.map(i=>`<option value="${i.id}" ${i.id===selectedId?'selected':''}>Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
+function quoteItemOptions(tenderId,selectedId='',searchTerm=''){
+  const term=quoteNormalize(searchTerm);
+  const items=state.itens
+    .filter(i=>i.licitacao_id===tenderId)
+    .sort((a,b)=>Number(a.numero)-Number(b.numero))
+    .filter(i=>{
+      if(!term)return true;
+      const hay=quoteNormalize(`ITEM ${i.numero} ${i.descricao||''} ${i.unidade||''}`);
+      return hay.includes(term);
+    });
+
+  const selectedItem=state.itens.find(i=>String(i.id)===String(selectedId));
+
+  let html=`<option value="">Não relacionado</option>`;
+
+  // Se o usuário filtrou a lista, preserva o item já selecionado mesmo que ele não bata com a nova busca.
+  if(selectedItem && !items.some(i=>String(i.id)===String(selectedId))){
+    html+=`<option value="${selectedItem.id}" selected>Item ${esc(selectedItem.numero)} • ${esc(selectedItem.descricao)}</option>`;
+  }
+
+  html+=items.map(i=>`<option value="${i.id}" ${String(i.id)===String(selectedId)?'selected':''}>Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
+  return html;
 }
 
 
@@ -1178,77 +1213,21 @@ function renderQuoteImportPreview(){
     item=>!relatedIds.has(String(item.id))
   );
 
-  const productOptions=(filter='')=>{
-    const term=quoteNormalize(filter);
-    return `<option value="">Selecione um produto da cotação...</option>`+
-      rows
-        .map((r,index)=>({r,index,text:quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`)}))
-        .filter(x=>!term || x.text.includes(term))
-        .map(x=>`<option value="${x.index}">${esc(x.r.description||'Produto')}${Number(x.r.price||0)>0?' • '+money(x.r.price):''}${x.r.brand?' • '+esc(x.r.brand):''}</option>`)
-        .join('');
-  };
-
   el.innerHTML=`
     <div class="quote-preview-head">
       <div>
         <strong>${rows.length} produto${rows.length===1?'':'s'} da cotação</strong>
-        <span>${rows.filter(r=>r.itemId).length} relacionados • ${missingItems.length} itens do edital aguardando revisão</span>
+        <span>
+          ${rows.filter(r=>r.itemId).length} relacionados manualmente
+          • ${missingItems.length} itens do edital ainda sem cotação
+        </span>
       </div>
       <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
     </div>
 
-    ${missingItems.length ? `
-      <div class="quote-missing-box" style="margin:14px 0 20px">
-        <div class="quote-missing-title" style="margin-bottom:10px">
-          <strong>Itens do edital ainda sem cotação relacionada</strong>
-          <span>Pesquise pelo nome, código ou marca do produto da cotação e faça o vínculo manual.</span>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Descrição do edital</th>
-                <th>Pesquisar produto da cotação</th>
-                <th>Produto escolhido</th>
-                <th>Situação</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${missingItems.map(item=>`
-                <tr class="quote-row-review">
-                  <td class="quote-edital-number"><strong>${esc(item.numero)}</strong></td>
-                  <td>
-                    <strong>${esc(item.descricao)}</strong>
-                    <small>${item.quantidade?`${esc(item.quantidade)} ${esc(item.unidade||'')}`:''}</small>
-                  </td>
-                  <td>
-                    <input
-                      type="search"
-                      data-manual-search="${esc(item.id)}"
-                      placeholder="Ex.: caixa d'água, joelho 25, cadeado..."
-                      autocomplete="off"
-                    >
-                    <small class="review-note">Busca por nome, código ou marca.</small>
-                  </td>
-                  <td>
-                    <select data-manual-tender-item="${esc(item.id)}">
-                      ${productOptions('')}
-                    </select>
-                  </td>
-                  <td><span class="review-note">Revisar manualmente</span></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    ` : `
-      <div class="quote-import-status success" style="margin:14px 0">
-        Todos os itens encontrados possuem uma cotação relacionada.
-      </div>
-    `}
+    <div class="quote-import-status success" style="margin:14px 0">
+      Pesquise o item do edital pelo nome ou número e selecione a opção correta para cada produto do fornecedor.
+    </div>
 
     <div class="table-wrap quote-preview-table">
       <table>
@@ -1257,7 +1236,7 @@ function renderQuoteImportPreview(){
             <th>✓</th>
             <th>Item edital</th>
             <th>Produto do fornecedor</th>
-            <th>Relacionar ao item do edital</th>
+            <th>Pesquisar e relacionar ao item do edital</th>
             <th>Preço</th>
             <th>Apresentação</th>
             <th>Equivale a</th>
@@ -1266,32 +1245,65 @@ function renderQuoteImportPreview(){
         </thead>
         <tbody>
           ${rows.map((r,index)=>{
-            const itemMatched=state.itens.find(i=>i.id===r.itemId);
-            const suggestedItem=state.itens.find(i=>i.id===r.suggestedItemId);
-            const score=Number(r.matchScore||0);
+            const itemMatched=state.itens.find(i=>String(i.id)===String(r.itemId));
             const weak=!itemMatched;
 
             return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
-              <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
-              <td class="quote-edital-number">${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}</td>
+              <td>
+                <input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}>
+              </td>
+
+              <td class="quote-edital-number">
+                ${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}
+              </td>
+
               <td>
                 <strong>${esc(r.description)}</strong>
-                <small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small>
+                <small>
+                  ${r.code?`Cód. ${esc(r.code)} • `:''}
+                  ${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}
+                  ${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}
+                </small>
               </td>
+
               <td>
-                <select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>
-                ${
-                  itemMatched
-                    ? `<small class="match-ok">${r.aiMatched?'IA':'Manual'}${r.aiMatched?` • confiança ${Math.round(score*100)}%`:''}${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
-                    : suggestedItem
-                      ? `<small class="review-note">IA sugere Item ${esc(suggestedItem.numero)} (${Math.round(score*100)}%)${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
-                      : `<small class="review-note">${r.aiReason?esc(r.aiReason):'Produto ainda não relacionado'}</small>`
-                }
+                <input
+                  type="search"
+                  data-item-search="${index}"
+                  value="${esc(r.itemSearch||'')}"
+                  placeholder="Buscar item: ex. caixa d'água 500, cadeado, item 48..."
+                  autocomplete="off"
+                  style="width:100%;margin-bottom:7px"
+                >
+
+                <select data-q-field="itemId" data-item-select="${index}">
+                  ${quoteItemOptions(tenderId,r.itemId||'',r.itemSearch||'')}
+                </select>
+
+                <small class="${itemMatched?'match-ok':'review-note'}">
+                  ${
+                    itemMatched
+                      ? `Relacionado manualmente ao Item ${esc(itemMatched.numero)}`
+                      : 'Pesquise acima e escolha o item correto do edital'
+                  }
+                </small>
               </td>
-              <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
-              <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
-              <td><input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}"></td>
-              <td><input data-q-field="brand" value="${esc(r.brand||'')}"></td>
+
+              <td>
+                <input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}">
+              </td>
+
+              <td>
+                <input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50">
+              </td>
+
+              <td>
+                <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}">
+              </td>
+
+              <td>
+                <input data-q-field="brand" value="${esc(r.brand||'')}">
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1301,42 +1313,17 @@ function renderQuoteImportPreview(){
 
   $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
 
-  // Filtra os produtos da cotação em tempo real para cada item pendente do edital.
-  document.querySelectorAll('[data-manual-search]').forEach(input=>{
+  // Busca instantânea dentro da lista de itens do edital.
+  // Ex.: "caixa 500", "cadeado", "item 48", "joelho 25".
+  document.querySelectorAll('[data-item-search]').forEach(input=>{
     input.addEventListener('input',()=>{
-      const itemId=input.dataset.manualSearch;
-      const select=document.querySelector(`[data-manual-tender-item="${itemId}"]`);
-      if(!select)return;
-      select.innerHTML=productOptions(input.value);
-    });
-  });
-
-  // Faz o vínculo manual entre o item oficial do edital e um produto da cotação.
-  document.querySelectorAll('[data-manual-tender-item]').forEach(select=>{
-    select.addEventListener('change',()=>{
-      const itemId=select.dataset.manualTenderItem;
-      const rowIndex=Number(select.value);
-
-      if(!itemId || !Number.isInteger(rowIndex) || !state.quoteImportRows[rowIndex])return;
-
-      syncQuoteRowsFromDom();
-
+      const rowIndex=Number(input.dataset.itemSearch);
       const row=state.quoteImportRows[rowIndex];
-      const item=state.itens.find(i=>String(i.id)===String(itemId));
-      if(!item)return;
+      const select=document.querySelector(`[data-item-select="${rowIndex}"]`);
+      if(!row || !select)return;
 
-      row.itemId=item.id;
-      row.editalItemNumber=Number(item.numero);
-      row.aiMatched=false;
-      row.autoMatched=false;
-      row.manualMatched=true;
-      row.suggestedItemId='';
-      row.matchScore=1;
-      row.aiReason='Relacionamento definido manualmente';
-
-      prepareQuoteRowsByTenderOrder(tenderId);
-      renderQuoteImportPreview();
-      toast(`Produto relacionado manualmente ao Item ${item.numero}.`);
+      row.itemSearch=input.value;
+      select.innerHTML=quoteItemOptions(tenderId,row.itemId||'',input.value);
     });
   });
 }
@@ -1393,18 +1380,15 @@ async function readQuoteImportFile(){
       return;
     }
 
-    // Na V12 a associação principal é feita pela IA, não pelo algoritmo local.
+    // Associação 100% manual: o sistema lê os produtos e você pesquisa o item do edital.
     rows.forEach((r,index)=>{
       r.originalOrder=index;
       r.itemId='';
-      r.suggestedItemId='';
-      r.matchScore=0;
-      r.aiMatched=false;
+      r.itemSearch='';
+      r.manualMatched=false;
     });
     state.quoteImportRows=rows;
-    const aiBtn=$('#quoteAiMatchBtn');
-    if(aiBtn)aiBtn.disabled=false;
-    setQuoteImportStatus(`${rows.length} linhas identificadas. Agora clique em Relacionar com IA.`,'success');
+    setQuoteImportStatus(`${rows.length} linhas identificadas. Use a busca em cada produto para selecionar o item correto do edital.`,'success');
     renderQuoteImportPreview();
   }catch(e){
     setQuoteImportStatus(`Erro ao ler cotação: ${e?.message||e}`,'error');
@@ -1413,97 +1397,6 @@ async function readQuoteImportFile(){
   }
 }
 
-
-async function aiMatchImportedQuote(){
-  syncQuoteRowsFromDom();
-  const tenderId=$('#quoteImportTender')?.value;
-  const tenderItems=state.itens
-    .filter(i=>i.licitacao_id===tenderId)
-    .sort((a,b)=>Number(a.numero)-Number(b.numero));
-  const rows=state.quoteImportRows||[];
-
-  if(!tenderId)return toast('Selecione a licitação.','error');
-  if(!rows.length)return toast('Primeiro clique em Ler cotação.','error');
-  if(!tenderItems.length)return toast('Esta licitação ainda não possui itens importados do edital.','error');
-
-  const btn=$('#quoteAiMatchBtn');
-  if(btn){btn.disabled=true;btn.textContent='IA analisando…';}
-  setQuoteImportStatus(`A IA está comparando ${rows.length} produtos com ${tenderItems.length} itens do edital…`,'loading');
-
-  try{
-    const payload={
-      tender_items:tenderItems.map(i=>({
-        id:i.id,
-        item_number:Number(i.numero),
-        description:i.descricao,
-        quantity:Number(i.quantidade||0),
-        unit:i.unidade||''
-      })),
-      quote_items:rows.map((r,index)=>({
-        row_index:index,
-        code:r.code||'',
-        description:r.description,
-        quantity:r.quantity||null,
-        unit:r.unit||'',
-        price:Number(r.price||0),
-        brand:r.brand||'',
-        presentation:r.presentation||''
-      }))
-    };
-
-    const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:payload});
-    if(error)throw error;
-    if(data?.error)throw new Error(data.error);
-
-    const matches=Array.isArray(data?.matches)?data.matches:[];
-    if(!matches.length)throw new Error('A IA não retornou correspondências.');
-
-    let matched=0,review=0;
-    for(const m of matches){
-      const r=rows[Number(m.row_index)];
-      if(!r)continue;
-      const item=tenderItems.find(i=>i.id===m.tender_item_id || Number(i.numero)===Number(m.item_number));
-      const confidence=Math.max(0,Math.min(1,Number(m.confidence||0)));
-
-      r.aiReason=String(m.reason||'');
-      r.matchScore=confidence;
-      r.suggestedItemId='';
-
-      if(item && confidence>=0.70 && m.match!==false){
-        r.itemId=item.id;
-        r.editalItemNumber=Number(item.numero);
-        r.autoMatched=true;
-        r.aiMatched=true;
-        matched++;
-      }else{
-        r.itemId='';
-        r.editalItemNumber=null;
-        r.autoMatched=false;
-        r.aiMatched=false;
-        if(item)r.suggestedItemId=item.id;
-        review++;
-      }
-    }
-
-    // Marca as linhas que a IA não devolveu como revisão.
-    rows.forEach(r=>{
-      if(!r.aiMatched && !r.itemId)review++;
-    });
-
-    state.quoteImportRows=rows;
-    renderQuoteImportPreview();
-    setQuoteImportStatus(`IA concluída: ${matched} produtos relacionados automaticamente. Os demais ficaram para revisão.`,'success');
-  }catch(e){
-    const msg=e?.message||String(e);
-    if(/OPENAI_API_KEY|secret|chave/i.test(msg)){
-      setQuoteImportStatus('A função de IA está pronta, mas falta configurar a chave OPENAI_API_KEY no Supabase.','error');
-    }else{
-      setQuoteImportStatus(`Erro na associação por IA: ${msg}`,'error');
-    }
-  }finally{
-    if(btn){btn.disabled=false;btn.textContent='Relacionar com IA';}
-  }
-}
 
 async function saveImportedQuotes(){
   syncQuoteRowsFromDom();
@@ -1940,8 +1833,7 @@ document.addEventListener('change',e=>{
 });
 
 $('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
-$('#quoteAiMatchBtn')?.addEventListener('click',aiMatchImportedQuote);
-$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];renderQuoteImportPreview();const b=$('#quoteAiMatchBtn');if(b)b.disabled=true;});
+$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];renderQuoteImportPreview();});
 $('#pncpSyncBtn')?.addEventListener('click',syncPncpItems);
 
 document.addEventListener('input',e=>{
@@ -1958,10 +1850,8 @@ document.addEventListener('change',e=>{
     if(row){
       const item=state.itens.find(x=>x.id===row.itemId);
       row.editalItemNumber=item?Number(item.numero):null;
-      row.matchScore=row.itemId?1:0;
-      row.suggestedItemId='';
-      row.autoMatched=false;
       row.manualMatched=Boolean(row.itemId);
+      row.itemSearch=row.itemId ? (row.itemSearch||'') : '';
     }
     renderQuoteImportPreview();
   }
@@ -1975,4 +1865,5 @@ document.addEventListener('click',async e=>{
   await syncPncpItems();
 });
 
+setupManualQuoteMode();
 boot();
