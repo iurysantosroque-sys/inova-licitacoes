@@ -1033,109 +1033,44 @@ function groupPdfTextItems(items){
 
 function rowsFromPdfLines(lines){
   const out=[];
+  const unitRx='(?:UN|UND|PC|PÇ|PCA|RL|SC|CT|KG|MT|M|M2|M3|BD|GL|PA|PT|CX|FD|LT|L)';
+  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2}';
 
-  // Unidades mais comuns em cotações de materiais.
-  const unitRx='(?:UN|UND|UNID|PC|PÇ|PCA|PCT|RL|ROLO|SC|SACO|CT|KG|G|MT|M|M2|M3|BD|BALDE|GL|GALAO|GALÃO|PA|PT|CX|CAIXA|FD|FARDO|LT|L|ML|JG|JOGO|KIT|PAR|PR|DZ|DUZIA|DUZIA)';
-  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2,4}';
+  for(const original of lines){
+    let line=String(original||'').replace(/\s+/g,' ').trim();
+    if(!line)continue;
 
-  function ignoreLine(line){
-    const s=quoteNormalize(line);
+    // Ignora cabeçalhos, rodapés e totais.
+    if(/^(CODIGO|CÓDIGO|DESCRIÇÃO|DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|CONDIÇÕES|VALIDADE|PRAZO|GARANTIA|OBSERVAÇÕES|OBSERVACOES)/i.test(line))continue;
+    if(/\bSUB-?TOTAL\b|\bTOTAL\s*:/i.test(line))continue;
 
-    if(!s)return true;
-
-    // Cabeçalhos e informações administrativas.
-    if(
-      /^(CODIGO|COD |DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|VALIDADE|PRAZO|GARANTIA|OBSERVACOES|ORCAMENTO|PAGINA|TELEFONE|EMAIL|ENDERECO|CNPJ)/.test(s)
-    ){
-      return true;
-    }
-
-    // Totais da cotação.
-    if(
-      /\bSUB-?TOTAL\b/.test(s) ||
-      /^TOTAL\b/.test(s) ||
-      /^TOTAL\s*:/.test(s)
-    ){
-      return true;
-    }
-
-    return false;
-  }
-
-  function parseProductLine(line){
-    line=String(line||'')
-      .replace(/\s+/g,' ')
-      .trim();
-
-    if(!line || ignoreLine(line))return null;
-
-    /*
-      Formato principal:
-      CODIGO DESCRICAO UN QTD PRECO SUBTOTAL
-
-      Agora o código pode ter mais variações e o preço
-      pode possuir até 4 casas decimais.
-    */
-    let rx=new RegExp(
-      '^\\s*([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+brMoney+')\\s+(?:R\\$\\s*)?('+brMoney+')\\s*$',
+    // Estrutura mais comum da cotação:
+    // CODIGO | DESCRICAO | UN | QTD | PRECO UNITARIO | SUBTOTAL
+    const rx=new RegExp(
+      '^\\s*(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')\\s*$',
       'i'
     );
+    const m=line.match(rx);
+    if(!m)continue;
 
-    let m=line.match(rx);
-
-    /*
-      Segunda tentativa:
-      alguns PDFs extraem a unidade grudada ou com espaços
-      ligeiramente diferentes.
-    */
-    if(!m){
-      rx=new RegExp(
-        '^\\s*([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')',
-        'i'
-      );
-
-      m=line.match(rx);
-    }
-
-    if(!m)return null;
-
-    const code=String(m[1]||'').trim();
-
-    let description=String(m[2]||'')
-      .replace(/\s+/g,' ')
-      .trim();
-
-    const unit=String(m[3]||'')
-      .trim()
-      .toUpperCase();
-
+    const code=m[1];
+    let description=m[2].trim();
+    const unit=m[3].toUpperCase();
     const quantity=parseBrazilianNumber(m[4]);
     const unitPrice=parseBrazilianNumber(m[5]);
     const subtotal=parseBrazilianNumber(m[6]);
 
-    if(
-      !description ||
-      unitPrice==null ||
-      unitPrice<=0
-    ){
-      return null;
-    }
+    if(!description || unitPrice==null || unitPrice<=0)continue;
 
+    // Separa a marca quando ela aparece após " - " no fim da descrição.
     let brand='';
-
-    // Marca depois de " - ".
-    const brandMatch=description.match(
-      /\s+-\s+([A-Z0-9][A-Z0-9 .&/'()-]{1,50})$/i
-    );
-
+    const brandMatch=description.match(/\s+-\s+([A-Z0-9][A-Z0-9 .&/'-]{1,40})$/i);
     if(brandMatch){
       brand=brandMatch[1].trim();
-      description=description
-        .slice(0,brandMatch.index)
-        .trim();
+      description=description.slice(0,brandMatch.index).trim();
     }
 
-    return {
+    out.push({
       code,
       description,
       quantity,
@@ -1146,108 +1081,13 @@ function rowsFromPdfLines(lines){
       presentation:'',
       factor:1,
       selected:true
-    };
+    });
   }
 
-  /*
-    Primeiro tentamos cada linha exatamente como o PDF entregou.
-  */
-  for(let i=0;i<lines.length;i++){
-    const current=String(lines[i]||'')
-      .replace(/\s+/g,' ')
-      .trim();
-
-    if(!current)continue;
-
-    let product=parseProductLine(current);
-
-    if(product){
-      out.push(product);
-      continue;
-    }
-
-    /*
-      IMPORTANTE:
-      Alguns PDFs quebram um produto em duas linhas.
-
-      Exemplo:
-
-      12345 TUBO PVC SOLDAVEL
-      25MM TIGRE UN 100 10,50 1.050,00
-
-      O parser antigo perdia esse produto.
-
-      Agora juntamos linhas consecutivas e tentamos novamente.
-    */
-    if(i+1<lines.length){
-      const next=String(lines[i+1]||'')
-        .replace(/\s+/g,' ')
-        .trim();
-
-      if(next && !ignoreLine(next)){
-        product=parseProductLine(
-          `${current} ${next}`
-        );
-
-        if(product){
-          out.push(product);
-          i++;
-          continue;
-        }
-      }
-    }
-
-    /*
-      Alguns PDFs quebram uma descrição longa em três linhas.
-    */
-    if(i+2<lines.length){
-      const next=String(lines[i+1]||'')
-        .replace(/\s+/g,' ')
-        .trim();
-
-      const next2=String(lines[i+2]||'')
-        .replace(/\s+/g,' ')
-        .trim();
-
-      if(
-        next &&
-        next2 &&
-        !ignoreLine(next) &&
-        !ignoreLine(next2)
-      ){
-        product=parseProductLine(
-          `${current} ${next} ${next2}`
-        );
-
-        if(product){
-          out.push(product);
-          i+=2;
-        }
-      }
-    }
-  }
-
-  /*
-    Remove somente duplicatas reais.
-
-    Código + descrição + quantidade + preço + subtotal
-    precisam ser iguais para considerar duplicado.
-  */
   const seen=new Set();
-
   return out.filter(r=>{
-    const key=[
-      quoteNormalize(r.code),
-      quoteNormalize(r.description),
-      Number(r.quantity||0),
-      Number(r.price||0).toFixed(4),
-      Number(r.subtotal||0).toFixed(2)
-    ].join('|');
-
-    if(seen.has(key)){
-      return false;
-    }
-
+    const key=`${r.code}|${quoteNormalize(r.description)}|${r.price}`;
+    if(seen.has(key))return false;
     seen.add(key);
     return true;
   }).slice(0,2000);
@@ -1326,150 +1166,92 @@ function renderQuoteImportPreview(){
     return;
   }
 
-  // Todos os itens oficiais desta licitação.
   const tenderItems=state.itens
     .filter(i=>i.licitacao_id===tenderId)
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
 
-  // IDs dos itens que já possuem algum produto relacionado.
   const relatedIds=new Set(
-    rows
-      .filter(r=>r.itemId)
-      .map(r=>String(r.itemId))
+    rows.filter(r=>r.itemId).map(r=>String(r.itemId))
   );
 
-  // Itens do edital que ainda estão sem produto/cotação.
   const missingItems=tenderItems.filter(
     item=>!relatedIds.has(String(item.id))
   );
 
-  function supplierProductOptions(){
-    return `
-      <option value="">Selecione um produto da cotação...</option>
-      ${rows.map((r,index)=>{
-        const desc=String(r.description||'Produto');
-        const price=Number(r.price||0);
-
-        return `
-          <option value="${index}">
-            ${esc(desc)}${price>0?' • '+money(price):''}
-          </option>
-        `;
-      }).join('')}
-    `;
-  }
+  const productOptions=(filter='')=>{
+    const term=quoteNormalize(filter);
+    return `<option value="">Selecione um produto da cotação...</option>`+
+      rows
+        .map((r,index)=>({r,index,text:quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`)}))
+        .filter(x=>!term || x.text.includes(term))
+        .map(x=>`<option value="${x.index}">${esc(x.r.description||'Produto')}${Number(x.r.price||0)>0?' • '+money(x.r.price):''}${x.r.brand?' • '+esc(x.r.brand):''}</option>`)
+        .join('');
+  };
 
   el.innerHTML=`
-
     <div class="quote-preview-head">
       <div>
-        <strong>
-          ${rows.length} linha${rows.length===1?'':'s'} identificada${rows.length===1?'':'s'}
-        </strong>
-
-        <span>
-          ${rows.filter(r=>r.itemId).length} relacionadas
-          •
-          ${missingItems.length} itens do edital sem cotação relacionada
-        </span>
+        <strong>${rows.length} produto${rows.length===1?'':'s'} da cotação</strong>
+        <span>${rows.filter(r=>r.itemId).length} relacionados • ${missingItems.length} itens do edital aguardando revisão</span>
       </div>
-
-      <button type="button" id="quoteSaveImportedBtn">
-        Salvar cotações selecionadas
-      </button>
+      <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
     </div>
 
+    ${missingItems.length ? `
+      <div class="quote-missing-box" style="margin:14px 0 20px">
+        <div class="quote-missing-title" style="margin-bottom:10px">
+          <strong>Itens do edital ainda sem cotação relacionada</strong>
+          <span>Pesquise pelo nome, código ou marca do produto da cotação e faça o vínculo manual.</span>
+        </div>
 
-    ${
-      missingItems.length
-        ? `
-          <div class="quote-missing-box">
-
-            <div class="quote-missing-title">
-              <strong>⚠ Itens do edital sem cotação relacionada</strong>
-
-              <span>
-                A IA não encontrou uma correspondência segura.
-                Confira manualmente se o produto existe na cotação.
-              </span>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Descrição do edital</th>
-                    <th>Produto da cotação</th>
-                    <th>Situação</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-
-                  ${missingItems.map(item=>`
-
-                    <tr class="quote-row-review">
-
-                      <td class="quote-edital-number">
-                        <strong>${esc(item.numero)}</strong>
-                      </td>
-
-                      <td>
-                        <strong>${esc(item.descricao)}</strong>
-
-                        <small>
-                          ${item.quantidade
-                            ? `${esc(item.quantidade)} ${esc(item.unidade||'')}`
-                            : ''
-                          }
-                        </small>
-                      </td>
-
-                      <td>
-
-                        <select
-                          data-manual-tender-item="${esc(item.id)}"
-                        >
-                          ${supplierProductOptions()}
-                        </select>
-
-                        <small class="review-note">
-                          Escolha manualmente um produto da cotação
-                        </small>
-
-                      </td>
-
-                      <td>
-                        <span class="review-note">
-                          ⚠ Revisar
-                        </span>
-                      </td>
-
-                    </tr>
-
-                  `).join('')}
-
-                </tbody>
-
-              </table>
-            </div>
-
-          </div>
-        `
-        : `
-          <div class="quote-import-status success">
-            ✓ Todos os itens encontrados possuem uma cotação relacionada.
-          </div>
-        `
-    }
-
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Descrição do edital</th>
+                <th>Pesquisar produto da cotação</th>
+                <th>Produto escolhido</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${missingItems.map(item=>`
+                <tr class="quote-row-review">
+                  <td class="quote-edital-number"><strong>${esc(item.numero)}</strong></td>
+                  <td>
+                    <strong>${esc(item.descricao)}</strong>
+                    <small>${item.quantidade?`${esc(item.quantidade)} ${esc(item.unidade||'')}`:''}</small>
+                  </td>
+                  <td>
+                    <input
+                      type="search"
+                      data-manual-search="${esc(item.id)}"
+                      placeholder="Ex.: caixa d'água, joelho 25, cadeado..."
+                      autocomplete="off"
+                    >
+                    <small class="review-note">Busca por nome, código ou marca.</small>
+                  </td>
+                  <td>
+                    <select data-manual-tender-item="${esc(item.id)}">
+                      ${productOptions('')}
+                    </select>
+                  </td>
+                  <td><span class="review-note">Revisar manualmente</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : `
+      <div class="quote-import-status success" style="margin:14px 0">
+        Todos os itens encontrados possuem uma cotação relacionada.
+      </div>
+    `}
 
     <div class="table-wrap quote-preview-table">
-
       <table>
-
         <thead>
           <tr>
             <th>✓</th>
@@ -1482,287 +1264,83 @@ function renderQuoteImportPreview(){
             <th>Marca</th>
           </tr>
         </thead>
-
         <tbody>
-
           ${rows.map((r,index)=>{
-
-            const itemMatched=state.itens.find(
-              i=>i.id===r.itemId
-            );
-
-            const suggestedItem=state.itens.find(
-              i=>i.id===r.suggestedItemId
-            );
-
+            const itemMatched=state.itens.find(i=>i.id===r.itemId);
+            const suggestedItem=state.itens.find(i=>i.id===r.suggestedItemId);
             const score=Number(r.matchScore||0);
-
             const weak=!itemMatched;
 
-            return `
-
-              <tr
-                data-quote-row="${index}"
-                class="${weak?'quote-row-review':''}"
-              >
-
-                <td>
-                  <input
-                    type="checkbox"
-                    data-q-field="selected"
-                    ${r.selected!==false?'checked':''}
-                  >
-                </td>
-
-                <td class="quote-edital-number">
-
-                  ${
-                    itemMatched
-                      ? `<strong>${esc(itemMatched.numero)}</strong>`
-                      : '<span>—</span>'
-                  }
-
-                </td>
-
-                <td>
-
-                  <strong>${esc(r.description)}</strong>
-
-                  <small>
-
-                    ${
-                      r.code
-                        ? `Cód. ${esc(r.code)} • `
-                        : ''
-                    }
-
-                    ${
-                      r.quantity
-                        ? `${esc(r.quantity)} ${esc(r.unit||'')}`
-                        : ''
-                    }
-
-                    ${
-                      r.subtotal!=null
-                        ? ` • Subtotal ${money(r.subtotal)}`
-                        : ''
-                    }
-
-                  </small>
-
-                </td>
-
-                <td>
-
-                  <select data-q-field="itemId">
-
-                    ${quoteItemOptions(
-                      tenderId,
-                      r.itemId||''
-                    )}
-
-                  </select>
-
-                  ${
-                    itemMatched
-
-                      ? `
-                        <small class="match-ok">
-
-                          ${r.aiMatched?'IA':'Manual'}
-
-                          ${
-                            r.aiMatched
-                              ? ` • confiança ${Math.round(score*100)}%`
-                              : ''
-                          }
-
-                          ${
-                            r.aiReason
-                              ? ` • ${esc(r.aiReason)}`
-                              : ''
-                          }
-
-                        </small>
-                      `
-
-                      : suggestedItem
-
-                        ? `
-                          <small class="review-note">
-
-                            IA sugere Item
-                            ${esc(suggestedItem.numero)}
-                            (${Math.round(score*100)}%)
-
-                            ${
-                              r.aiReason
-                                ? ` • ${esc(r.aiReason)}`
-                                : ''
-                            }
-
-                          </small>
-                        `
-
-                        : `
-                          <small class="review-note">
-                            ${
-                              r.aiReason
-                                ? esc(r.aiReason)
-                                : 'Produto ainda não relacionado'
-                            }
-                          </small>
-                        `
-                  }
-
-                </td>
-
-                <td>
-
-                  <input
-                    data-q-field="price"
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    value="${Number(r.price||0)}"
-                  >
-
-                </td>
-
-                <td>
-
-                  <input
-                    data-q-field="presentation"
-                    value="${esc(r.presentation||'')}"
-                    placeholder="Ex.: caixa c/ 50"
-                  >
-
-                </td>
-
-                <td>
-
-                  <input
-                    data-q-field="factor"
-                    type="number"
-                    min="0.0001"
-                    step="0.001"
-                    value="${Number(r.factor||1)}"
-                  >
-
-                </td>
-
-                <td>
-
-                  <input
-                    data-q-field="brand"
-                    value="${esc(r.brand||'')}"
-                  >
-
-                </td>
-
-              </tr>
-
-            `;
-
+            return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
+              <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
+              <td class="quote-edital-number">${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}</td>
+              <td>
+                <strong>${esc(r.description)}</strong>
+                <small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small>
+              </td>
+              <td>
+                <select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>
+                ${
+                  itemMatched
+                    ? `<small class="match-ok">${r.aiMatched?'IA':'Manual'}${r.aiMatched?` • confiança ${Math.round(score*100)}%`:''}${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
+                    : suggestedItem
+                      ? `<small class="review-note">IA sugere Item ${esc(suggestedItem.numero)} (${Math.round(score*100)}%)${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
+                      : `<small class="review-note">${r.aiReason?esc(r.aiReason):'Produto ainda não relacionado'}</small>`
+                }
+              </td>
+              <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
+              <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
+              <td><input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}"></td>
+              <td><input data-q-field="brand" value="${esc(r.brand||'')}"></td>
+            </tr>`;
           }).join('')}
-
         </tbody>
-
       </table>
-
     </div>
   `;
 
+  $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
 
-  // SALVAR
-  $('#quoteSaveImportedBtn')
-    ?.addEventListener(
-      'click',
-      saveImportedQuotes
-    );
-
-
-  // RELACIONAMENTO MANUAL DOS ITENS QUE A IA NÃO ENCONTROU
-  document
-    .querySelectorAll('[data-manual-tender-item]')
-    .forEach(select=>{
-
-      select.addEventListener('change',()=>{
-
-        const itemId=
-          select.dataset.manualTenderItem;
-
-        const rowIndex=
-          Number(select.value);
-
-        if(
-          !itemId ||
-          !Number.isInteger(rowIndex) ||
-          !state.quoteImportRows[rowIndex]
-        ){
-          return;
-        }
-
-        // Primeiro sincroniza qualquer alteração
-        // feita na tabela normal.
-        syncQuoteRowsFromDom();
-
-        const row=
-          state.quoteImportRows[rowIndex];
-
-        const item=
-          state.itens.find(
-            i=>String(i.id)===String(itemId)
-          );
-
-        if(!item)return;
-
-
-        // Evita que o mesmo produto fique
-        // relacionado a dois itens por acidente.
-        state.quoteImportRows.forEach(r=>{
-
-          if(
-            r!==row &&
-            String(r.itemId)===String(itemId)
-          ){
-            r.itemId='';
-            r.editalItemNumber=null;
-          }
-
-        });
-
-
-        row.itemId=item.id;
-
-        row.editalItemNumber=
-          Number(item.numero);
-
-        row.aiMatched=false;
-
-        row.autoMatched=false;
-
-        row.suggestedItemId='';
-
-        row.matchScore=1;
-
-        row.aiReason=
-          'Relacionamento definido manualmente';
-
-
-        prepareQuoteRowsByTenderOrder(tenderId);
-
-        renderQuoteImportPreview();
-
-
-        toast(
-          `Produto relacionado manualmente ao Item ${item.numero}.`
-        );
-
-      });
-
+  // Filtra os produtos da cotação em tempo real para cada item pendente do edital.
+  document.querySelectorAll('[data-manual-search]').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const itemId=input.dataset.manualSearch;
+      const select=document.querySelector(`[data-manual-tender-item="${itemId}"]`);
+      if(!select)return;
+      select.innerHTML=productOptions(input.value);
     });
+  });
+
+  // Faz o vínculo manual entre o item oficial do edital e um produto da cotação.
+  document.querySelectorAll('[data-manual-tender-item]').forEach(select=>{
+    select.addEventListener('change',()=>{
+      const itemId=select.dataset.manualTenderItem;
+      const rowIndex=Number(select.value);
+
+      if(!itemId || !Number.isInteger(rowIndex) || !state.quoteImportRows[rowIndex])return;
+
+      syncQuoteRowsFromDom();
+
+      const row=state.quoteImportRows[rowIndex];
+      const item=state.itens.find(i=>String(i.id)===String(itemId));
+      if(!item)return;
+
+      row.itemId=item.id;
+      row.editalItemNumber=Number(item.numero);
+      row.aiMatched=false;
+      row.autoMatched=false;
+      row.manualMatched=true;
+      row.suggestedItemId='';
+      row.matchScore=1;
+      row.aiReason='Relacionamento definido manualmente';
+
+      prepareQuoteRowsByTenderOrder(tenderId);
+      renderQuoteImportPreview();
+      toast(`Produto relacionado manualmente ao Item ${item.numero}.`);
+    });
+  });
 }
+
 function syncQuoteRowsFromDom(){
   document.querySelectorAll('[data-quote-row]').forEach(tr=>{
     const i=Number(tr.dataset.quoteRow);
@@ -2040,6 +1618,101 @@ async function refreshAll(){
   renderAll();
 }
 
+
+function ensureQuoteTenderViewer(){
+  const list=$('#comparativoLista');
+  if(!list)return null;
+
+  let box=$('#quoteTenderViewer');
+  if(!box){
+    box=document.createElement('div');
+    box.id='quoteTenderViewer';
+    box.className='quote-tender-viewer';
+    box.style.margin='0 0 16px';
+    box.innerHTML=`
+      <div style="display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:12px;align-items:end">
+        <label style="display:grid;gap:6px">
+          <span>Visualizar cotações de qual edital?</span>
+          <select id="quoteTenderViewSelect">
+            <option value="">Selecione a licitação</option>
+          </select>
+        </label>
+        <button type="button" id="quoteTenderViewBtn">Abrir edital</button>
+      </div>
+      <div id="quoteTenderViewInfo" class="hint" style="margin-top:8px">
+        Selecione um edital e clique em Abrir edital. Os itens e produtos dos outros editais ficarão ocultos.
+      </div>
+    `;
+    list.parentNode?.insertBefore(box,list);
+
+    $('#quoteTenderViewBtn')?.addEventListener('click',()=>{
+      const tenderId=$('#quoteTenderViewSelect')?.value||'';
+      state.quoteViewTenderId=tenderId;
+      renderQuoteTenderComparison();
+    });
+  }
+
+  const select=$('#quoteTenderViewSelect');
+  if(select){
+    const current=state.quoteViewTenderId||'';
+    select.innerHTML='<option value="">Selecione a licitação</option>'+
+      state.licitacoes.map(l=>`<option value="${l.id}" ${String(l.id)===String(current)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
+  }
+
+  return box;
+}
+
+function renderQuoteTenderComparison(){
+  const list=$('#comparativoLista');
+  if(!list)return;
+
+  ensureQuoteTenderViewer();
+
+  const tenderId=state.quoteViewTenderId||'';
+
+  if(!tenderId){
+    list.innerHTML='<p class="hint">Selecione um edital acima e clique em <strong>Abrir edital</strong> para ver somente os itens e produtos daquela licitação.</p>';
+    return;
+  }
+
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  const items=state.itens
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+
+  const info=$('#quoteTenderViewInfo');
+  if(info){
+    const quoted=items.filter(i=>bestQuote(i.id)).length;
+    info.textContent=`${tender?.numero||'Edital'} • ${items.length} itens • ${quoted} com cotação • ${items.length-quoted} sem cotação`;
+  }
+
+  list.innerHTML=table(
+    ['Item','Descrição','Melhor fornecedor','Produto un.','Frete un.','Custo real un.','Apresentação'],
+    items.map(i=>{
+      const q=bestQuote(i.id);
+      const itemLabel=`Item ${esc(i.numero)}`;
+      if(!q){
+        return [
+          itemLabel,
+          esc(i.descricao),
+          '<span class="badge neutral">Sem cotação</span>',
+          '-','-','-','-'
+        ];
+      }
+      const f=state.fornecedores.find(x=>x.id===q.fornecedor_id);
+      return [
+        itemLabel,
+        esc(i.descricao),
+        esc(f?.nome||'-'),
+        money(q.custoProduto??q.custoEq),
+        money(q.freteUnit||0),
+        money(q.custoEq),
+        esc(q.apresentacao||'-')
+      ];
+    })
+  );
+}
+
 function renderAll(){
   $('#companyName').textContent=state.company?.name || state.company?.nome || 'Modo demonstração'; $('#userName').textContent=profileName(); $('#inviteCode').textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
   $('#kpiLicitacoes').textContent=state.licitacoes.length; $('#kpiItens').textContent=state.itens.length; $('#kpiFornecedores').textContent=state.fornecedores.length;
@@ -2058,7 +1731,7 @@ function renderAll(){
   const fornOpts='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join('');
   $('#cotacaoFornecedor').innerHTML=fornOpts; $('#arquivoFornecedor').innerHTML=fornOpts;
   if($('#quoteImportSupplier'))$('#quoteImportSupplier').innerHTML=fornOpts;
-  $('#comparativoLista').innerHTML=table(['Item','Melhor fornecedor','Produto un.','Frete un.','Custo real un.','Apresentação'],state.itens.map(i=>{const q=bestQuote(i.id);if(!q)return [esc(itemName(i)),'<span class="badge neutral">Sem cotação</span>','-','-','-','-'];const f=state.fornecedores.find(x=>x.id===q.fornecedor_id);return [esc(itemName(i)),esc(f?.nome||'-'),money(q.custoProduto??q.custoEq),money(q.freteUnit||0),money(q.custoEq),esc(q.apresentacao||'-')];}));
+  renderQuoteTenderComparison();
   const precRows = state.itens.map(i => {
   const p = pricing(i);
 
@@ -2257,6 +1930,14 @@ document.addEventListener('click',async e=>{
   }
 });
 
+
+
+document.addEventListener('change',e=>{
+  if(e.target?.id==='quoteTenderViewSelect'){
+    // Só muda a seleção; os dados só abrem quando o usuário clicar em "Abrir edital".
+    return;
+  }
+});
 
 $('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
 $('#quoteAiMatchBtn')?.addEventListener('click',aiMatchImportedQuote);
