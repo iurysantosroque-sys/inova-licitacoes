@@ -296,3 +296,7 @@ tr:hover td{background:#0a141a}
 .quote-row-review td{
   background:rgba(230,170,52,.025)!important;
 }
+
+/* V12 — associação por IA */
+.ai-match-btn{background:linear-gradient(135deg,#e6aa34,#f0c76a)!important;color:#091015!important;border-color:#f0c76a!important}
+.ai-match-btn:disabled{opacity:.45;cursor:not-allowed}

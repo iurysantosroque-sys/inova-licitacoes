@@ -1126,22 +1126,7 @@ function prepareQuoteRowsByTenderOrder(tenderId){
   rows.forEach((r,index)=>{
     r.originalOrder ??= index;
 
-    // Só tenta associar automaticamente se ainda não houver associação manual.
-    if(!r.itemId){
-      const match=bestTenderItemMatch(r.description,tenderId);
-      r.matchScore=match.score||0;
-      r.suggestedItemId=match.suggestedItem?.id||'';
-      r.matchReason=match.reason||'';
-
-      if(match.auto && match.item){
-        r.itemId=match.item.id;
-        r.autoMatched=true;
-      }else{
-        r.itemId='';
-        r.autoMatched=false;
-      }
-    }
-
+    // V12: não força associação local; a IA ou o usuário decide.
     const item=state.itens.find(i=>i.id===r.itemId);
     r.editalItemNumber=item ? Number(item.numero) : null;
   });
@@ -1199,10 +1184,10 @@ function renderQuoteImportPreview(){
               <td><strong>${esc(r.description)}</strong><small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small></td>
               <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${
                 itemMatched
-                  ? `<small class="match-ok">Correspondência automática ${Math.round(score*100)}%</small>`
+                  ? `<small class="match-ok">${r.aiMatched?'IA':'Manual'} • confiança ${Math.round(score*100)}%${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
                   : suggestedItem
-                    ? `<small class="review-note">Sugestão: Item ${esc(suggestedItem.numero)} • ${esc(suggestedItem.descricao)} (${Math.round(score*100)}%)</small>`
-                    : `<small class="review-note">Não encontrei correspondência segura</small>`
+                    ? `<small class="review-note">IA sugere Item ${esc(suggestedItem.numero)} (${Math.round(score*100)}%)${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
+                    : `<small class="review-note">${r.aiReason?esc(r.aiReason):'Aguardando IA ou revisão manual'}</small>`
               }</td>
               <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
               <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
@@ -1268,13 +1253,115 @@ async function readQuoteImportFile(){
       return;
     }
 
+    // Na V12 a associação principal é feita pela IA, não pelo algoritmo local.
+    rows.forEach((r,index)=>{
+      r.originalOrder=index;
+      r.itemId='';
+      r.suggestedItemId='';
+      r.matchScore=0;
+      r.aiMatched=false;
+    });
     state.quoteImportRows=rows;
-    setQuoteImportStatus(`${rows.length} linhas identificadas. Revise os relacionamentos e preços antes de salvar.`,'success');
+    const aiBtn=$('#quoteAiMatchBtn');
+    if(aiBtn)aiBtn.disabled=false;
+    setQuoteImportStatus(`${rows.length} linhas identificadas. Agora clique em Relacionar com IA.`,'success');
     renderQuoteImportPreview();
   }catch(e){
     setQuoteImportStatus(`Erro ao ler cotação: ${e?.message||e}`,'error');
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Ler cotação';}
+  }
+}
+
+
+async function aiMatchImportedQuote(){
+  syncQuoteRowsFromDom();
+  const tenderId=$('#quoteImportTender')?.value;
+  const tenderItems=state.itens
+    .filter(i=>i.licitacao_id===tenderId)
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+  const rows=state.quoteImportRows||[];
+
+  if(!tenderId)return toast('Selecione a licitação.','error');
+  if(!rows.length)return toast('Primeiro clique em Ler cotação.','error');
+  if(!tenderItems.length)return toast('Esta licitação ainda não possui itens importados do edital.','error');
+
+  const btn=$('#quoteAiMatchBtn');
+  if(btn){btn.disabled=true;btn.textContent='IA analisando…';}
+  setQuoteImportStatus(`A IA está comparando ${rows.length} produtos com ${tenderItems.length} itens do edital…`,'loading');
+
+  try{
+    const payload={
+      tender_items:tenderItems.map(i=>({
+        id:i.id,
+        item_number:Number(i.numero),
+        description:i.descricao,
+        quantity:Number(i.quantidade||0),
+        unit:i.unidade||''
+      })),
+      quote_items:rows.map((r,index)=>({
+        row_index:index,
+        code:r.code||'',
+        description:r.description,
+        quantity:r.quantity||null,
+        unit:r.unit||'',
+        price:Number(r.price||0),
+        brand:r.brand||'',
+        presentation:r.presentation||''
+      }))
+    };
+
+    const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:payload});
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+
+    const matches=Array.isArray(data?.matches)?data.matches:[];
+    if(!matches.length)throw new Error('A IA não retornou correspondências.');
+
+    let matched=0,review=0;
+    for(const m of matches){
+      const r=rows[Number(m.row_index)];
+      if(!r)continue;
+      const item=tenderItems.find(i=>i.id===m.tender_item_id || Number(i.numero)===Number(m.item_number));
+      const confidence=Math.max(0,Math.min(1,Number(m.confidence||0)));
+
+      r.aiReason=String(m.reason||'');
+      r.matchScore=confidence;
+      r.suggestedItemId='';
+
+      if(item && confidence>=0.70 && m.match!==false){
+        r.itemId=item.id;
+        r.editalItemNumber=Number(item.numero);
+        r.autoMatched=true;
+        r.aiMatched=true;
+        matched++;
+      }else{
+        r.itemId='';
+        r.editalItemNumber=null;
+        r.autoMatched=false;
+        r.aiMatched=false;
+        if(item)r.suggestedItemId=item.id;
+        review++;
+      }
+    }
+
+    // Marca as linhas que a IA não devolveu como revisão.
+    rows.forEach(r=>{
+      if(!r.aiMatched && !r.itemId)review++;
+    });
+
+    state.quoteImportRows=rows;
+    renderQuoteImportPreview();
+    setQuoteImportStatus(`IA concluída: ${matched} produtos relacionados automaticamente. Os demais ficaram para revisão.`,'success');
+  }catch(e){
+    const msg=e?.message||String(e);
+    if(/OPENAI_API_KEY|secret|chave/i.test(msg)){
+      setQuoteImportStatus('A função de IA está pronta, mas falta configurar a chave OPENAI_API_KEY no Supabase.','error');
+    }else{
+      setQuoteImportStatus(`Erro na associação por IA: ${msg}`,'error');
+    }
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Relacionar com IA';}
   }
 }
 
@@ -1610,7 +1697,8 @@ document.addEventListener('click',async e=>{
 
 
 $('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
-$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];renderQuoteImportPreview();});
+$('#quoteAiMatchBtn')?.addEventListener('click',aiMatchImportedQuote);
+$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];renderQuoteImportPreview();const b=$('#quoteAiMatchBtn');if(b)b.disabled=true;});
 $('#pncpSyncBtn')?.addEventListener('click',syncPncpItems);
 
 document.addEventListener('input',e=>{
