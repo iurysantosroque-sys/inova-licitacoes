@@ -924,36 +924,65 @@ function groupPdfTextItems(items){
 
 function rowsFromPdfLines(lines){
   const out=[];
-  const moneyRx=/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?!.*\d)/;
-  for(const line of lines){
-    const m=line.match(moneyRx);
+  const unitRx='(?:UN|UND|PC|PÇ|PCA|RL|SC|CT|KG|MT|M|M2|M3|BD|GL|PA|PT|CX|FD|LT|L)';
+  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2}';
+
+  for(const original of lines){
+    let line=String(original||'').replace(/\s+/g,' ').trim();
+    if(!line)continue;
+
+    // Ignora cabeçalhos, rodapés e totais.
+    if(/^(CODIGO|CÓDIGO|DESCRIÇÃO|DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|CONDIÇÕES|VALIDADE|PRAZO|GARANTIA|OBSERVAÇÕES|OBSERVACOES)/i.test(line))continue;
+    if(/\bSUB-?TOTAL\b|\bTOTAL\s*:/i.test(line))continue;
+
+    // Estrutura mais comum da cotação:
+    // CODIGO | DESCRICAO | UN | QTD | PRECO UNITARIO | SUBTOTAL
+    const rx=new RegExp(
+      '^\\s*(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')\\s*$',
+      'i'
+    );
+    const m=line.match(rx);
     if(!m)continue;
-    const price=parseBrazilianNumber(m[1]);
-    if(price==null||price<=0)continue;
-    let before=line.slice(0,m.index).trim();
-    before=before.replace(/^\d{1,6}\s+/,'').trim();
-    if(before.length<5||!/[A-Za-zÀ-ÿ]{3}/.test(before))continue;
-    const quantityMatch=before.match(/\b(\d+(?:[.,]\d+)?)\s+(UN|UND|PC|PCT|CX|KG|L|LT|M|M2|M3)\b/i);
+
+    const code=m[1];
+    let description=m[2].trim();
+    const unit=m[3].toUpperCase();
+    const quantity=parseBrazilianNumber(m[4]);
+    const unitPrice=parseBrazilianNumber(m[5]);
+    const subtotal=parseBrazilianNumber(m[6]);
+
+    if(!description || unitPrice==null || unitPrice<=0)continue;
+
+    // Separa a marca quando ela aparece após " - " no fim da descrição.
+    let brand='';
+    const brandMatch=description.match(/\s+-\s+([A-Z0-9][A-Z0-9 .&/'-]{1,40})$/i);
+    if(brandMatch){
+      brand=brandMatch[1].trim();
+      description=description.slice(0,brandMatch.index).trim();
+    }
+
     out.push({
-      code:'',
-      description:before,
-      quantity:quantityMatch?parseBrazilianNumber(quantityMatch[1]):null,
-      unit:quantityMatch?quantityMatch[2].toUpperCase():'',
-      price,
-      brand:'',
+      code,
+      description,
+      quantity,
+      unit,
+      price:unitPrice,
+      subtotal,
+      brand,
       presentation:'',
       factor:1,
       selected:true
     });
   }
+
   const seen=new Set();
   return out.filter(r=>{
-    const key=quoteNormalize(r.description)+'|'+r.price;
+    const key=`${r.code}|${quoteNormalize(r.description)}|${r.price}`;
     if(seen.has(key))return false;
-    seen.add(key);return true;
-  }).slice(0,1000);
+    seen.add(key);
+    return true;
+  }).slice(0,2000);
 }
-
 async function parsePdfFile(file){
   const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
@@ -1004,7 +1033,7 @@ function renderQuoteImportPreview(){
             const weak=!r.itemId||match.score<0.25;
             return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
               <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
-              <td><strong>${esc(r.description)}</strong>${r.quantity?`<small>${esc(r.quantity)} ${esc(r.unit||'')}</small>`:''}</td>
+              <td><strong>${esc(r.description)}</strong><small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small></td>
               <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${weak?'<small class="review-note">Confira a associação</small>':''}</td>
               <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
               <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
@@ -1054,6 +1083,19 @@ async function readQuoteImportFile(){
 
     if(!rows.length){
       setQuoteImportStatus('Não consegui identificar linhas com produto e preço. Se for PDF, confirme se o texto pode ser selecionado.','warn');
+      return;
+    }
+
+    // Validação extra: evita confundir subtotal com preço unitário.
+    rows=rows.filter(r=>{
+      if(!r.quantity || r.subtotal==null)return true;
+      const expected=Number(r.price||0)*Number(r.quantity||0);
+      const tolerance=Math.max(0.05,Math.abs(Number(r.subtotal))*0.02);
+      return Math.abs(expected-Number(r.subtotal))<=tolerance;
+    });
+
+    if(!rows.length){
+      setQuoteImportStatus('As linhas foram encontradas, mas os valores não passaram na validação de preço unitário x subtotal.','warn');
       return;
     }
 

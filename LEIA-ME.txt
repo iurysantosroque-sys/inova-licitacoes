@@ -1,27 +1,35 @@
-INOVA LICITAÇÕES — V11.1
+INOVA LICITAÇÕES — V11.2
 
-MELHORIA DE FLUXO PNCP
+CORREÇÃO DO IMPORTADOR DE COTAÇÃO PDF
 
-Após importar uma licitação do PNCP com sucesso, o sistema agora:
-- limpa o campo de pesquisa/link;
-- remove os resultados encontrados;
-- fecha e apaga a prévia do edital;
-- remove a lista de itens da área de pesquisa;
-- limpa a mensagem de status;
-- mantém o ano atual;
-- volta a UF para PB;
-- mantém a licitação e seus itens cadastrados normalmente;
-- deixa o cursor pronto para pesquisar/importar o próximo edital.
+Problema corrigido:
+O leitor estava confundindo o subtotal com o preço unitário.
+
+Exemplo do orçamento COMFIL:
+TORN BOIA ... UN 100 12,05 1.205,00
+
+Agora o sistema entende:
+- Unidade: UN
+- Quantidade: 100
+- Preço unitário: R$ 12,05
+- Subtotal: R$ 1.205,00
+
+Também foi melhorado:
+- remoção do código da descrição;
+- identificação da marca após " - ";
+- exibição de código, quantidade, unidade e subtotal na prévia;
+- validação preço unitário x quantidade x subtotal;
+- limite aumentado para até 2.000 linhas.
 
 PUBLICAÇÃO
 Substitua no GitHub:
 - index.html
 - app.js
 
-Você pode manter:
+Mantenha:
 - styles.css
 - app-config.js
-- pasta assets
+- assets
 
 Commit sugerido:
-Limpar busca PNCP apos importar licitacao V11.1
+Corrigir leitura de cotacao PDF V11.2
