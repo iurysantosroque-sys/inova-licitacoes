@@ -3927,7 +3927,12 @@ function renderTenderManagement(){
 }
 
 function renderAll(){
-  $('#companyName').textContent=state.company?.name || state.company?.nome || 'Modo demonstração'; $('#userName').textContent=profileName(); $('#inviteCode').textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
+  const companyNameEl=$('#companyName');
+  if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
+  const userNameEl=$('#userName');
+  if(userNameEl) userNameEl.textContent=profileName();
+  const inviteCodeEl=$('#inviteCode');
+  if(inviteCodeEl) inviteCodeEl.textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
   $('#kpiLicitacoes').textContent=state.licitacoes.length; $('#kpiItens').textContent=state.itens.length; $('#kpiFornecedores').textContent=state.fornecedores.length;
   const ps=state.itens.map(pricing).filter(Boolean); $('#kpiLucro').textContent=money(ps.reduce((a,p)=>a+Math.max(0,Number(p.profit||0)),0));
   $('#proximasDisputas').innerHTML=table(
