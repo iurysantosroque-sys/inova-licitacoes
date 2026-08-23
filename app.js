@@ -9,7 +9,7 @@ const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLIS
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], documentos:[], equipe:[], demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], demo:false
 };
 
 function toast(msg,type='success'){
@@ -28,22 +28,94 @@ function toLocalDateTime(v){ if(!v)return {data:'',horario:''}; const d=new Date
 function combineDateTime(data,horario){ if(!data)return null; return new Date(`${data}T${horario||'09:00'}:00`).toISOString(); }
 
 function bestQuote(itemId){
-  const qs=state.cotacoes.filter(q=>q.item_id===itemId).map(q=>({...q,custoEq:(Number(q.preco)+Number(q.frete_rateado||0))/Math.max(Number(q.fator_equivalencia||1),0.0001)}));
+  const server=state.pricingMap.find(p=>p.item_id===itemId && p.supplier_id);
+  if(server){
+    return {
+      fornecedor_id:server.supplier_id,
+      custoEq:Number(server.real_unit_cost||0),
+      custoProduto:Number(server.product_unit_cost||0),
+      freteUnit:Number(server.freight_unit||0),
+      freteTotal:Number(server.freight_total||0),
+      apresentacao:server.package_description||'',
+      marca:'',
+      origem:'motor'
+    };
+  }
+  const item=state.itens.find(i=>i.id===itemId);
+  const qty=Math.max(Number(item?.quantidade||0),0.0001);
+  const qs=state.cotacoes.filter(q=>q.item_id===itemId).map(q=>{
+    const fator=Math.max(Number(q.fator_equivalencia||1),0.0001);
+    const fornecedor=state.fornecedores.find(f=>f.id===q.fornecedor_id);
+    const freteApresentacao=Number(q.frete_rateado||0);
+    const pacotes=Math.ceil(qty/fator);
+    const freteTotal=freteApresentacao>0 ? pacotes*freteApresentacao : Number(fornecedor?.frete_padrao||0);
+    const custoProduto=Number(q.preco||0)/fator;
+    const freteUnit=freteTotal/qty;
+    return {...q,custoProduto,freteTotal,freteUnit,custoEq:custoProduto+freteUnit};
+  });
   return qs.sort((a,b)=>a.custoEq-b.custoEq)[0] || null;
 }
+
 function pricing(item){
+  const server=state.pricingMap.find(p=>p.item_id===item.id);
+  if(server){
+    return {
+      q:server.supplier_id?{fornecedor_id:server.supplier_id,apresentacao:server.package_description||'',custoEq:Number(server.real_unit_cost||0)}:null,
+      supplierName:server.supplier_name||'',
+      productCostUnit:Number(server.product_unit_cost||0),
+      freightUnit:Number(server.freight_unit||0),
+      freightTotal:Number(server.freight_total||0),
+      costUnit:Number(server.real_unit_cost||0),
+      totalCost:Number(server.real_unit_cost||0)*Number(server.quantity||0),
+      targetUnit:server.target_bid==null?null:Number(server.target_bid),
+      limitUnit:server.minimum_bid==null?null:Number(server.minimum_bid),
+      breakEvenUnit:server.break_even_bid==null?null:Number(server.break_even_bid),
+      sellUnit:server.estimated_unit_price==null?null:Number(server.estimated_unit_price),
+      profit:server.profit_at_estimated==null?null:Number(server.profit_at_estimated),
+      margin:server.margin_at_estimated_percent==null?null:Number(server.margin_at_estimated_percent),
+      differenceTarget:server.difference_to_target==null?null:Number(server.difference_to_target),
+      differenceMinimum:server.difference_to_minimum==null?null:Number(server.difference_to_minimum),
+      status:server.status||'Sem cotação',
+      recommendation:server.recommendation||''
+    };
+  }
+
+  // Fallback para modo demonstração.
   const q=bestQuote(item.id); if(!q)return null;
   const c=state.config || {imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
-  const qty=Number(item.quantidade||0), costUnit=q.custoEq, totalCost=costUnit*qty;
-  const tax=(Number(c.imposto||0)+Number(c.reserva_operacional||0))/100;
+  const qty=Math.max(Number(item.quantidade||0),0.0001), costUnit=q.custoEq, totalCost=costUnit*qty;
+  const overhead=(Number(c.imposto||0)+Number(c.reserva_operacional||0))/100;
   const targetMargin=Number(c.margem_alvo||0)/100, minMargin=Number(c.margem_minima||0)/100;
   const est=Number(item.valor_estimado||0);
-  const targetUnit=costUnit/Math.max(1-tax-targetMargin,0.01);
-  const minByMargin=costUnit/Math.max(1-tax-minMargin,0.01);
-  const minByProfit=(totalCost+Number(c.lucro_minimo||0))/Math.max(qty*(1-tax),0.01);
+  const targetUnit=costUnit/Math.max(1-overhead-targetMargin,0.01);
+  const minByMargin=costUnit/Math.max(1-overhead-minMargin,0.01);
+  const minByProfit=(costUnit+(Number(c.lucro_minimo||0)/qty))/Math.max(1-overhead,0.01);
   const limitUnit=Math.max(minByMargin,minByProfit);
-  const sellUnit=est||targetUnit, revenue=sellUnit*qty, profit=revenue*(1-tax)-totalCost, margin=revenue?profit/revenue*100:0;
-  return {q,costUnit,totalCost,targetUnit,limitUnit,sellUnit,profit,margin};
+  const breakEvenUnit=costUnit/Math.max(1-overhead,0.01);
+  const revenue=est*qty, profit=est ? revenue*(1-overhead)-totalCost : null;
+  const margin=est ? profit/revenue*100 : null;
+  let status='Sem estimado', recommendation='Informe o valor estimado do edital';
+  if(est){
+    if(est<breakEvenUnit){status='Ruim';recommendation='Não participar — estimado abaixo do ponto de equilíbrio';}
+    else if(est<limitUnit){status='Ruim';recommendation='Não participar — estimado abaixo do lance mínimo';}
+    else if(est<targetUnit){status='Oportunidade';recommendation='Participar com cautela — margem abaixo da desejada';}
+    else if(profit<Number(c.lucro_minimo||0)){status='Oportunidade';recommendation='Participar com cautela — lucro total abaixo do mínimo';}
+    else {status='Excelente';recommendation='Boa oportunidade — estimado atende a margem desejada';}
+  }
+  return {q,supplierName:state.fornecedores.find(f=>f.id===q.fornecedor_id)?.nome||'',productCostUnit:q.custoProduto,freightUnit:q.freteUnit,freightTotal:q.freteTotal,costUnit,totalCost,targetUnit,limitUnit,breakEvenUnit,sellUnit:est||null,profit,margin,differenceTarget:est?est-targetUnit:null,differenceMinimum:est?est-limitUnit:null,status,recommendation};
+}
+
+function signedMoney(v){
+  if(v==null || Number.isNaN(Number(v)))return '-';
+  const n=Number(v); return `${n>=0?'+':'-'}${money(Math.abs(n))}`;
+}
+function marginText(v){
+  if(v==null || Number.isNaN(Number(v)))return '-';
+  const n=Number(v); return n<0 ? `${n.toFixed(1)}% (prejuízo)` : `${n.toFixed(1)}%`;
+}
+function statusBadge(status){
+  const map={Excelente:'good',Oportunidade:'warn',Ruim:'bad','Sem cotação':'neutral','Sem estimado':'neutral'};
+  return `<span class="badge ${map[status]||'neutral'}">${esc(status||'-')}</span>`;
 }
 
 async function ensureProfile(){
@@ -97,6 +169,9 @@ async function refreshAll(){
   if(itemResp.error)return toast(itemResp.error.message,'error'); if(qiResp.error)return toast(qiResp.error.message,'error');
   state.itens=(itemResp.data||[]).map(i=>({id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,quantidade:Number(i.quantity),unidade:i.unit||'',valor_estimado:Number(i.estimated_unit_price||0),raw:i}));
   state.cotacoes=(qiResp.data||[]).map(qi=>{const q=state.quotes.find(x=>x.id===qi.quote_id);return {id:qi.id,quote_id:qi.quote_id,item_id:qi.tender_item_id,fornecedor_id:q?.supplier_id,preco:Number(qi.unit_price),fator_equivalencia:Number(qi.package_base_quantity||1),frete_rateado:Number(qi.freight_per_package||0),apresentacao:qi.package_description||'',marca:[qi.brand,qi.model].filter(Boolean).join(' '),raw:qi};});
+  const pricingResp=await supabase.rpc('get_pricing_map');
+  if(pricingResp.error){ console.warn('Precificação:',pricingResp.error.message); state.pricingMap=[]; }
+  else state.pricingMap=pricingResp.data||[];
   state.documentos=state.quotes.filter(q=>q.source_filename).map(q=>({id:q.id,nome_arquivo:q.source_filename,tipo:'cotacao',licitacao_id:q.tender_id,fornecedor_id:q.supplier_id,status:q.status||'enviado',created_at:q.created_at,storage_path:q.storage_path,ai_error:q.ai_error}));
   const memberRows=members.data||[], userIds=memberRows.map(m=>m.user_id);
   const profiles=userIds.length?await supabase.from('profiles').select('id,name,email,created_at').in('id',userIds):{data:[],error:null};
@@ -107,18 +182,21 @@ async function refreshAll(){
 function renderAll(){
   $('#companyName').textContent=state.company?.name || state.company?.nome || 'Modo demonstração'; $('#userName').textContent=profileName(); $('#inviteCode').textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
   $('#kpiLicitacoes').textContent=state.licitacoes.length; $('#kpiItens').textContent=state.itens.length; $('#kpiFornecedores').textContent=state.fornecedores.length;
-  const ps=state.itens.map(pricing).filter(Boolean); $('#kpiLucro').textContent=money(ps.reduce((a,p)=>a+Math.max(0,p.profit),0));
+  const ps=state.itens.map(pricing).filter(Boolean); $('#kpiLucro').textContent=money(ps.reduce((a,p)=>a+Math.max(0,Number(p.profit||0)),0));
   $('#proximasDisputas').innerHTML=table(['Licitação','Órgão','Data','Itens'],state.licitacoes.map(l=>[esc(l.numero),esc(l.orgao),esc([l.data,l.horario].filter(Boolean).join(' ')||'-'),String(state.itens.filter(i=>i.licitacao_id===l.id).length)]));
   const c=state.config||{}; const buckets={excelente:0,oportunidade:0,ruim:0,sem:0};
-  state.itens.forEach(i=>{const p=pricing(i);if(!p)buckets.sem++;else if(p.margin<Number(c.margem_minima||10))buckets.ruim++;else if(p.margin<Number(c.margem_alvo||25))buckets.oportunidade++;else buckets.excelente++;});
+  state.itens.forEach(i=>{const p=pricing(i);if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')buckets.sem++;else if(p.status==='Ruim')buckets.ruim++;else if(p.status==='Oportunidade')buckets.oportunidade++;else buckets.excelente++;});
   $('#resumoOportunidades').innerHTML=`<div class="opp"><strong>${buckets.excelente}</strong><span>Excelentes</span></div><div class="opp"><strong>${buckets.oportunidade}</strong><span>Oportunidades</span></div><div class="opp"><strong>${buckets.ruim}</strong><span>Ruins</span></div><div class="opp"><strong>${buckets.sem}</strong><span>Sem cotação</span></div>`;
   $('#licitacoesLista').innerHTML=table(['Número','Órgão','Cidade','Data','Plataforma',''],state.licitacoes.map(l=>[esc(l.numero),esc(l.orgao),esc(l.cidade||'-'),esc(l.data||'-'),esc(l.plataforma||'-'),`<button class="action-btn danger-btn" data-delete="licitacao" data-id="${l.id}">Excluir</button>`]));
   $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join(''); $('#itemLicitacao').innerHTML=licOpts; $('#arquivoLicitacao').innerHTML=licOpts;
   $('#cotacaoItem').innerHTML='<option value="">Selecione o item</option>'+state.itens.map(i=>`<option value="${i.id}">${esc(itemName(i))}</option>`).join('');
   const fornOpts='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join(''); $('#cotacaoFornecedor').innerHTML=fornOpts; $('#arquivoFornecedor').innerHTML=fornOpts;
-  $('#comparativoLista').innerHTML=table(['Item','Melhor fornecedor','Custo equivalente','Apresentação','Marca'],state.itens.map(i=>{const q=bestQuote(i.id);if(!q)return [esc(itemName(i)),'<span class="badge neutral">Sem cotação</span>','-','-','-'];const f=state.fornecedores.find(x=>x.id===q.fornecedor_id);return [esc(itemName(i)),esc(f?.nome||'-'),money(q.custoEq),esc(q.apresentacao||'-'),esc(q.marca||'-')];}));
-  $('#precificacaoLista').innerHTML=table(['Item','Custo un.','Estimado un.','Preço alvo','Preço limite','Lucro potencial','Margem','Status'],state.itens.map(i=>{const p=pricing(i);if(!p)return [esc(itemName(i)),'-',money(i.valor_estimado),'-','-','-','-','<span class="badge neutral">Sem cotação</span>'];let cls='good',txt='Excelente';if(p.margin<Number(c.margem_minima||10)){cls='bad';txt='Ruim';}else if(p.margin<Number(c.margem_alvo||25)){cls='warn';txt='Oportunidade';}return [esc(itemName(i)),money(p.costUnit),money(i.valor_estimado),money(p.targetUnit),money(p.limitUnit),money(p.profit),`${p.margin.toFixed(1)}%`,`<span class="badge ${cls}">${txt}</span>`];}));
+  $('#comparativoLista').innerHTML=table(['Item','Melhor fornecedor','Produto un.','Frete un.','Custo real un.','Apresentação'],state.itens.map(i=>{const q=bestQuote(i.id);if(!q)return [esc(itemName(i)),'<span class="badge neutral">Sem cotação</span>','-','-','-','-'];const f=state.fornecedores.find(x=>x.id===q.fornecedor_id);return [esc(itemName(i)),esc(f?.nome||'-'),money(q.custoProduto??q.custoEq),money(q.freteUnit||0),money(q.custoEq),esc(q.apresentacao||'-')];}));
+  const precRows=state.itens.map(i=>{const p=pricing(i);if(!p)return [esc(itemName(i)),'-','-','-',money(i.valor_estimado),'-','-','-','-','-','-',statusBadge('Sem cotação'),'Cotação necessária'];return [esc(itemName(i)),esc(p.supplierName||'-'),money(p.costUnit),money(p.freightUnit||0),money(i.valor_estimado),p.targetUnit==null?'-':money(p.targetUnit),p.limitUnit==null?'-':money(p.limitUnit),p.breakEvenUnit==null?'-':money(p.breakEvenUnit),p.profit==null?'-':money(p.profit),marginText(p.margin),signedMoney(p.differenceTarget),statusBadge(p.status),esc(p.recommendation||'-')];});
+  $('#precificacaoLista').innerHTML=table(['Item','Melhor fornecedor','Custo real un.','Frete un.','Estimado un.',`Lance p/ ${Number(c.margem_alvo||25)}%`,'Lance mínimo','Ponto de equilíbrio','Lucro no estimado','Margem líquida','Dif. p/ alvo','Status','Recomendação'],precRows);
+  const summary={excelente:0,oportunidade:0,ruim:0,sem:0,lucro:0}; ps.forEach(p=>{if(p.status==='Excelente')summary.excelente++;else if(p.status==='Oportunidade')summary.oportunidade++;else if(p.status==='Ruim')summary.ruim++;else summary.sem++;summary.lucro+=Math.max(0,Number(p.profit||0));});
+  const sumEl=$('#pricingSummary'); if(sumEl)sumEl.innerHTML=`<div class="mini-stat"><span>Excelentes</span><strong>${summary.excelente}</strong></div><div class="mini-stat"><span>Oportunidades</span><strong>${summary.oportunidade}</strong></div><div class="mini-stat"><span>Não participar</span><strong>${summary.ruim}</strong></div><div class="mini-stat"><span>Lucro positivo no estimado</span><strong>${money(summary.lucro)}</strong></div>`;
   $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado',''],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);const action=d.status==='processado'?'<span class="badge good">Concluído</span>':`<button class="action-btn" data-process-doc="${d.id}">Processar IA</button>`;return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge ${d.status==='processado'?'good':'neutral'}">${esc(d.status||'enviado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),action];}));
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
@@ -128,7 +206,7 @@ function demoSeed(){
   state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
   state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
-  state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.documentos=[];state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
+  state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
 }
 
 async function findOrCreateQuote(tenderId,supplierId,extra={}){
