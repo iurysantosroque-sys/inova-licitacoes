@@ -1266,9 +1266,476 @@ function prepareQuoteRowsByTenderOrder(tenderId){
   return rows;
 }
 
+
+
+function ensureQuoteModernStyles(){
+  if(document.getElementById('quoteModernStyles'))return;
+
+  const style=document.createElement('style');
+  style.id='quoteModernStyles';
+  style.textContent=`
+    #cotacoes{
+      --q-bg:#07131b;
+      --q-panel:#0a1821;
+      --q-panel2:#0c1c26;
+      --q-line:#213743;
+      --q-line2:#2c4654;
+      --q-text:#eef4f7;
+      --q-muted:#91a2ad;
+      --q-yellow:#f4b72b;
+      --q-green:#31d477;
+      --q-blue:#55a7ff;
+      --q-red:#ff5e58;
+    }
+
+    #cotacoes .card{
+      border-color:var(--q-line);
+      background:var(--q-panel);
+      border-radius:12px;
+      box-shadow:none;
+    }
+
+    #cotacoes .quote-preview-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:18px;
+      padding:16px 18px 10px;
+      margin:14px 0 0;
+      border:0;
+      background:transparent;
+    }
+
+    #cotacoes .quote-preview-head strong{
+      display:block;
+      color:var(--q-text);
+      font-size:1rem;
+      margin-bottom:4px;
+    }
+
+    #cotacoes .quote-preview-head span{
+      color:var(--q-muted);
+      font-size:.76rem;
+    }
+
+    #cotacoes #quoteSaveImportedBtn{
+      border:1px solid #197947;
+      border-radius:8px;
+      padding:10px 15px;
+      background:#126c40;
+      color:#eafff2;
+      font-weight:800;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .qv-stats{
+      display:grid;
+      grid-template-columns:1.05fr repeat(3,1fr);
+      gap:10px;
+      padding:8px 18px 15px;
+      margin:0;
+      border-bottom:1px solid var(--q-line);
+    }
+
+    .qv-stat{
+      position:relative;
+      overflow:hidden;
+      min-height:86px;
+      border:1px solid var(--q-line);
+      border-radius:8px;
+      background:linear-gradient(145deg,#0b1b25,#0a1821);
+      padding:13px 14px;
+    }
+
+    .qv-stat:before{display:none}
+
+    .qv-stat span{
+      display:block;
+      color:#a9b5bc;
+      font-size:.72rem;
+    }
+
+    .qv-stat strong{
+      display:block;
+      margin-top:4px;
+      font-size:1.45rem;
+      line-height:1.1;
+      color:#f4f8fa;
+    }
+
+    .qv-stat:nth-child(1) strong{color:#f5f7f8}
+    .qv-stat:nth-child(3) strong{color:var(--q-green)}
+    .qv-stat:nth-child(4) strong{color:#b28cff}
+
+    .qv-progress{
+      margin:10px 0 0;
+      height:5px;
+      border-radius:999px;
+      background:#172c37;
+      overflow:hidden;
+    }
+
+    .qv-progress > span{
+      height:100%;
+      display:block;
+      background:var(--q-green);
+      border-radius:inherit;
+    }
+
+    .qv-info{
+      margin:12px 18px;
+      padding:9px 12px;
+      border:1px solid #185b3b;
+      border-radius:8px;
+      background:#09251c;
+      color:#6ae59a;
+      font-size:.73rem;
+    }
+
+    .qv-toolbar{
+      display:grid;
+      grid-template-columns:minmax(360px,1fr) auto auto;
+      gap:9px;
+      align-items:center;
+      padding:0 18px 12px;
+      margin:0;
+    }
+
+    .qv-toolbar input{
+      height:40px;
+      border:1px solid var(--q-line2);
+      border-radius:7px;
+      background:#07151d;
+      color:var(--q-text);
+      padding:0 13px;
+      outline:none;
+    }
+
+    .qv-toolbar input:focus{
+      border-color:#50809a;
+      box-shadow:0 0 0 2px rgba(85,167,255,.08);
+    }
+
+    .qv-toolbar .action-btn{
+      height:40px;
+      border-radius:7px;
+      background:#0a1922;
+      border-color:var(--q-line2);
+      color:#dce5ea;
+    }
+
+    .qv-toolbar .action-btn.active{
+      border-color:#8b6815;
+      color:#ffd35d;
+      background:#201b0d;
+    }
+
+    .qv-list-head{
+      display:none;
+    }
+
+    .qv-list{
+      display:grid;
+      gap:0;
+      margin:0 18px;
+      border:1px solid var(--q-line);
+      border-radius:9px;
+      overflow:hidden;
+    }
+
+    .qv-row{
+      display:grid;
+      grid-template-columns:minmax(390px,.92fr) minmax(620px,1.55fr);
+      gap:0;
+      border:0;
+      border-bottom:1px solid var(--q-line);
+      border-radius:0;
+      background:#091821;
+      overflow:hidden;
+      transition:background .15s ease;
+    }
+
+    .qv-row:last-child{border-bottom:0}
+    .qv-row:hover{background:#0b1c26}
+    .qv-row.is-linked{border-color:var(--q-line)}
+
+    .qv-edital{
+      position:relative;
+      display:grid;
+      grid-template-columns:82px 1fr;
+      gap:17px;
+      align-items:stretch;
+      padding:0;
+      border-right:1px solid var(--q-line);
+      background:#0a1922;
+    }
+
+    .qv-edital:before{
+      content:'';
+      position:absolute;
+      left:0;
+      top:8px;
+      bottom:8px;
+      width:3px;
+      background:var(--q-yellow);
+      border-radius:0 3px 3px 0;
+    }
+
+    .qv-row.is-linked .qv-edital:before{
+      background:var(--q-blue);
+    }
+
+    .qv-number{
+      width:auto;
+      height:auto;
+      min-height:142px;
+      display:grid;
+      place-items:center;
+      border:0;
+      border-right:1px solid #1d313c;
+      border-radius:0;
+      color:#dfe7eb;
+      background:#0d202b;
+      font-weight:900;
+      font-size:2rem;
+    }
+
+    .qv-edital > div:last-child{
+      padding:19px 14px 17px 0;
+    }
+
+    .qv-edital-title{
+      color:#f5f7f8;
+      font-weight:850;
+      font-size:.94rem;
+      line-height:1.32;
+      margin-bottom:10px;
+    }
+
+    .qv-edital-title:before{
+      content:'ITEM DO EDITAL';
+      display:block;
+      color:var(--q-yellow);
+      font-size:.64rem;
+      letter-spacing:.04em;
+      margin-bottom:7px;
+      font-weight:850;
+    }
+
+    .qv-row.is-linked .qv-edital-title:before{
+      color:var(--q-blue);
+    }
+
+    .qv-edital-meta{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      color:#a3b0b8;
+      font-size:.7rem;
+    }
+
+    .qv-meta-chip{
+      display:inline-flex;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+    }
+
+    .qv-supplier{
+      position:relative;
+      padding:18px 155px 16px 18px;
+      min-width:0;
+      min-height:142px;
+    }
+
+    .qv-search-line{
+      display:grid;
+      grid-template-columns:minmax(190px,.65fr) minmax(250px,1fr);
+      gap:9px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+
+    .qv-search-line:before{
+      content:'PRODUTO DO FORNECEDOR (PDF)';
+      grid-column:1/-1;
+      color:var(--q-green);
+      font-size:.64rem;
+      letter-spacing:.035em;
+      font-weight:850;
+      margin-bottom:-2px;
+    }
+
+    .qv-row:not(.is-linked) .qv-search-line:before{
+      color:var(--q-yellow);
+    }
+
+    .qv-search-line input,
+    .qv-search-line select,
+    .qv-fields input{
+      width:100%;
+      border:1px solid var(--q-line2);
+      border-radius:7px;
+      background:#07151d;
+      color:#eef3f6;
+      min-height:37px;
+      padding:7px 10px;
+      outline:none;
+    }
+
+    .qv-search-line input:focus,
+    .qv-search-line select:focus,
+    .qv-fields input:focus{
+      border-color:#4d819c;
+      box-shadow:0 0 0 2px rgba(85,167,255,.08);
+    }
+
+    .qv-status{
+      position:absolute;
+      top:18px;
+      right:18px;
+      width:115px;
+      display:flex;
+      justify-content:flex-end;
+    }
+
+    .qv-status .badge{
+      border-radius:999px;
+      padding:7px 12px;
+      font-weight:850;
+      font-size:.68rem;
+      text-transform:uppercase;
+    }
+
+    .qv-product{
+      display:block;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      margin:2px 0 10px;
+    }
+
+    .qv-product .badge{display:none}
+
+    .qv-product-name{
+      color:#f1f5f7;
+      font-weight:800;
+      font-size:.79rem;
+      line-height:1.3;
+    }
+
+    .qv-product-meta{
+      color:#8fa0aa;
+      font-size:.67rem;
+      margin-top:4px;
+    }
+
+    .qv-fields{
+      display:grid;
+      grid-template-columns:125px 1fr 105px 1fr auto;
+      gap:8px;
+      align-items:end;
+    }
+
+    .qv-field label{
+      display:block;
+      color:#899aa5;
+      font-size:.62rem;
+      margin-bottom:4px;
+      font-weight:700;
+    }
+
+    .qv-field:first-child input{
+      color:var(--q-green);
+      font-weight:850;
+    }
+
+    .qv-remove{
+      height:37px;
+      border:1px solid #78302e;
+      border-radius:7px;
+      background:#151113;
+      color:#ff6861;
+      padding:0 10px;
+      font-size:.68rem;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .qv-empty{
+      padding:12px 0 4px;
+      border:0;
+      border-radius:0;
+      color:#8f9da6;
+      background:transparent;
+      text-align:left;
+      font-size:.72rem;
+    }
+
+    .qv-unused{
+      margin:12px 18px 18px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      padding:11px 13px;
+      border:1px solid var(--q-line);
+      border-radius:8px;
+      background:#091821;
+    }
+
+    .qv-unused strong{
+      display:block;
+      color:#e8edf1;
+      font-size:.76rem;
+      margin-bottom:3px;
+    }
+
+    .qv-unused span{
+      color:#94a2ac;
+      font-size:.69rem;
+    }
+
+    @media(max-width:1350px){
+      .qv-row{grid-template-columns:minmax(350px,.9fr) minmax(540px,1.35fr)}
+      .qv-supplier{padding-right:135px}
+      .qv-fields{grid-template-columns:110px 1fr 95px 1fr}
+      .qv-remove{grid-column:1/-1;width:max-content}
+    }
+
+    @media(max-width:1100px){
+      .qv-stats{grid-template-columns:repeat(2,1fr)}
+      .qv-row{grid-template-columns:1fr}
+      .qv-edital{border-right:0;border-bottom:1px solid var(--q-line)}
+      .qv-supplier{padding-right:145px}
+    }
+
+    @media(max-width:760px){
+      .qv-stats{grid-template-columns:1fr 1fr;padding-left:12px;padding-right:12px}
+      .qv-toolbar{grid-template-columns:1fr;padding-left:12px;padding-right:12px}
+      .qv-list{margin-left:12px;margin-right:12px}
+      .qv-unused{margin-left:12px;margin-right:12px}
+      .qv-edital{grid-template-columns:64px 1fr}
+      .qv-number{font-size:1.45rem;min-height:125px}
+      .qv-supplier{padding:14px}
+      .qv-status{position:static;width:auto;justify-content:flex-start;margin-bottom:8px}
+      .qv-search-line{grid-template-columns:1fr}
+      .qv-fields{grid-template-columns:1fr 1fr}
+      #cotacoes .quote-preview-head{align-items:flex-start;flex-direction:column}
+      #cotacoes #quoteSaveImportedBtn{width:100%}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function renderQuoteImportPreview(){
   const el=$('#quoteImportPreview');
   if(!el)return;
+
+  ensureQuoteModernStyles();
 
   const tenderId=$('#quoteImportTender')?.value||'';
   const supplierRows=prepareQuoteRowsByTenderOrder(tenderId);
@@ -1290,10 +1757,12 @@ function renderQuoteImportPreview(){
   const relatedTender=tenderItems.filter(i=>assignedByItem.has(String(i.id))).length;
   const missingTender=Math.max(0,tenderItems.length-relatedTender);
   const progress=tenderItems.length?Math.round((relatedTender/tenderItems.length)*100):0;
+  const unusedCount=supplierRows.filter(r=>!r.itemId).length;
 
   const globalTerm=quoteNormalize(state.quoteImportFilter||'');
   const visibleItems=tenderItems.filter(item=>{
     const assigned=assignedByItem.get(String(item.id));
+
     if(state.quoteOnlyUnrelated && assigned)return false;
     if(!globalTerm)return true;
 
@@ -1311,35 +1780,42 @@ function renderQuoteImportPreview(){
 
   function supplierOptions(item,assignedRow,search=''){
     const term=quoteNormalize(search);
-    const assignedIndex=assignedRow ? supplierRows.indexOf(assignedRow) : -1;
+    const assignedIndex=assignedRow?supplierRows.indexOf(assignedRow):-1;
 
     let options=supplierRows
-      .map((r,index)=>{
-        const hay=quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`);
-        return {r,index,hay};
-      })
-      .filter(x=>!term || x.hay.includes(term));
+      .map((r,index)=>({
+        r,
+        index,
+        hay:quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`)
+      }))
+      .filter(x=>!term||x.hay.includes(term));
 
-    // Mantém o produto já escolhido visível, mesmo quando a busca não bate.
-    if(assignedRow && !options.some(x=>x.index===assignedIndex)){
+    if(assignedRow&&!options.some(x=>x.index===assignedIndex)){
       options.unshift({r:assignedRow,index:assignedIndex,hay:''});
     }
 
     return `
-      <option value="">Nenhum produto selecionado</option>
+      <option value="">Selecione um produto...</option>
       ${options.map(x=>{
         const usedItem=x.r.itemId
-          ? state.itens.find(i=>String(i.id)===String(x.r.itemId))
-          : null;
+          ?state.itens.find(i=>String(i.id)===String(x.r.itemId))
+          :null;
 
-        const usedLabel=usedItem && String(usedItem.id)!==String(item.id)
-          ? ` • já usado no Item ${usedItem.numero}`
-          : '';
+        const usedLabel=usedItem&&String(usedItem.id)!==String(item.id)
+          ?` • usado no Item ${usedItem.numero}`
+          :'';
 
-        return `<option
-          value="${x.index}"
-          ${x.index===assignedIndex?'selected':''}
-        >${esc(x.r.description||'Produto')}${x.r.price?' • '+money(x.r.price):''}${x.r.brand?' • '+esc(x.r.brand):''}${esc(usedLabel)}</option>`;
+        return `
+          <option
+            value="${x.index}"
+            ${x.index===assignedIndex?'selected':''}
+          >
+            ${esc(x.r.description||'Produto')}
+            ${x.r.price?' • '+money(x.r.price):''}
+            ${x.r.brand?' • '+esc(x.r.brand):''}
+            ${esc(usedLabel)}
+          </option>
+        `;
       }).join('')}
     `;
   }
@@ -1347,33 +1823,54 @@ function renderQuoteImportPreview(){
   el.innerHTML=`
     <div class="quote-preview-head">
       <div>
-        <strong>Itens do edital + produtos da cotação</strong>
+        <strong>Conferência da cotação</strong>
         <span>
-          ${relatedTender} de ${tenderItems.length} itens cotados
-          • ${missingTender} ainda sem produto
+          Edital fixo à esquerda • produtos do PDF do fornecedor à direita
         </span>
       </div>
-      <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
+
+      <button type="button" id="quoteSaveImportedBtn">
+        Salvar cotações selecionadas
+      </button>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:14px 0">
-      <div class="mini-stat"><span>Progresso</span><strong>${progress}%</strong></div>
-      <div class="mini-stat"><span>Itens do edital</span><strong>${tenderItems.length}</strong></div>
-      <div class="mini-stat"><span>Itens cotados</span><strong>${relatedTender}</strong></div>
-      <div class="mini-stat"><span>Produtos no PDF</span><strong>${supplierRows.length}</strong></div>
+    <div class="qv-stats">
+      <div class="qv-stat">
+        <span>Progresso do edital</span>
+        <strong>${progress}%</strong>
+        <div class="qv-progress"><span style="width:${progress}%"></span></div>
+      </div>
+
+      <div class="qv-stat">
+        <span>Itens do edital</span>
+        <strong>${tenderItems.length}</strong>
+      </div>
+
+      <div class="qv-stat">
+        <span>Itens já cotados</span>
+        <strong>${relatedTender}</strong>
+      </div>
+
+      <div class="qv-stat">
+        <span>Produtos encontrados no PDF</span>
+        <strong>${supplierRows.length}</strong>
+      </div>
     </div>
 
-    <div class="quote-import-status success" style="margin:14px 0">
-      A numeração e a descrição da esquerda são sempre as oficiais do edital.
-      Na direita, pesquise somente entre os produtos encontrados no PDF do fornecedor.
+    <div class="qv-info">
+      <span>✓</span>
+      <span>
+        A numeração e a descrição do edital não mudam.
+        Use a busca do lado direito para localizar o produto correspondente no PDF do fornecedor.
+      </span>
     </div>
 
-    <div style="display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:center;margin:0 0 14px">
+    <div class="qv-toolbar">
       <input
         id="quoteGlobalSearch"
         type="search"
         value="${esc(state.quoteImportFilter||'')}"
-        placeholder="Buscar item do edital por número ou nome..."
+        placeholder="Buscar item do edital por número ou descrição..."
         autocomplete="off"
       >
 
@@ -1382,149 +1879,178 @@ function renderQuoteImportPreview(){
         id="quoteOnlyUnrelatedBtn"
         class="action-btn ${state.quoteOnlyUnrelated?'active':''}"
       >
-        ${state.quoteOnlyUnrelated?'✓ Só sem cotação':'Mostrar só sem cotação'}
+        ${state.quoteOnlyUnrelated?'✓ Mostrando pendentes':'Mostrar só sem cotação'}
       </button>
 
       <button type="button" id="quoteClearFiltersBtn" class="action-btn">
-        Limpar filtros
+        Limpar busca
       </button>
     </div>
 
     <div class="hint" style="margin:0 0 10px">
-      Exibindo ${visibleItems.length} de ${tenderItems.length} itens do edital, sempre na ordem oficial.
+      ${visibleItems.length} de ${tenderItems.length} itens exibidos • ordem oficial do edital
     </div>
 
-    <div class="table-wrap quote-preview-table">
-      <table style="min-width:1450px">
-        <thead>
-          <tr>
-            <th style="width:75px">Item</th>
-            <th style="min-width:330px">Item oficial do edital</th>
-            <th style="min-width:330px">Buscar produto no PDF do fornecedor</th>
-            <th style="min-width:320px">Produto selecionado</th>
-            <th>Status</th>
-            <th>Preço</th>
-            <th>Apresentação</th>
-            <th>Equivale a</th>
-            <th>Marca</th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${visibleItems.map(item=>{
-            const assigned=assignedByItem.get(String(item.id));
-            const rowIndex=assigned?supplierRows.indexOf(assigned):-1;
-            const searchValue=state.quoteSupplierSearches?.[item.id]||'';
+    <div class="qv-list-head">
+      <div>ITEM OFICIAL DO EDITAL</div>
+      <div>PRODUTO DO FORNECEDOR</div>
+    </div>
 
-            return `<tr ${assigned?`data-quote-row="${rowIndex}"`:''}>
-              <td class="quote-edital-number">
-                <span class="badge ${assigned?'good':'neutral'}" style="font-size:.9rem;padding:7px 10px">
-                  ${esc(item.numero)}
-                </span>
-              </td>
+    <div class="qv-list">
+      ${visibleItems.map(item=>{
+        const assigned=assignedByItem.get(String(item.id));
+        const rowIndex=assigned?supplierRows.indexOf(assigned):-1;
+        const searchValue=state.quoteSupplierSearches?.[item.id]||'';
 
-              <td>
-                <strong style="display:block;margin-bottom:5px">
-                  Item ${esc(item.numero)} • ${esc(item.descricao)}
-                </strong>
-                <small>
-                  ${item.quantidade?`Quantidade: ${esc(item.quantidade)} ${esc(item.unidade||'')}`:''}
-                  ${item.valor_estimado?` • Estimado: ${money(item.valor_estimado)}`:''}
-                </small>
-              </td>
+        return `
+          <div
+            class="qv-row ${assigned?'is-linked':''}"
+            ${assigned?`data-quote-row="${rowIndex}"`:''}
+          >
+            <div class="qv-edital">
+              <div class="qv-number">${esc(item.numero)}</div>
 
-              <td>
+              <div>
+                <div class="qv-edital-title">
+                  ${esc(item.descricao)}
+                </div>
+
+                <div class="qv-edital-meta">
+                  ${
+                    item.quantidade
+                      ?`<span class="qv-meta-chip">Qtd. ${esc(item.quantidade)} ${esc(item.unidade||'')}</span>`
+                      :''
+                  }
+
+                  ${
+                    item.valor_estimado
+                      ?`<span class="qv-meta-chip">Estimado ${money(item.valor_estimado)}</span>`
+                      :''
+                  }
+
+                  <span class="qv-meta-chip">
+                    Item ${esc(item.numero)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="qv-supplier">
+              <div class="qv-search-line">
                 <input
                   type="search"
                   data-supplier-search="${esc(item.id)}"
                   value="${esc(searchValue)}"
-                  placeholder="Buscar no PDF: ex. caixa d'água, cadeado, joelho..."
+                  placeholder="Pesquisar produto no PDF..."
                   autocomplete="off"
-                  style="width:100%;margin-bottom:7px"
                 >
 
-                <select
-                  data-supplier-select="${esc(item.id)}"
-                  style="width:100%"
-                >
+                <select data-supplier-select="${esc(item.id)}">
                   ${supplierOptions(item,assigned,searchValue)}
                 </select>
 
-                <small class="review-note">
-                  A busca acima procura apenas nos ${supplierRows.length} produtos lidos do arquivo do fornecedor.
-                </small>
-              </td>
+                <div class="qv-status">
+                  ${
+                    assigned
+                      ?'<span class="badge good">Cotado</span>'
+                      :'<span class="badge neutral">Pendente</span>'
+                  }
+                </div>
+              </div>
 
-              <td>
-                ${
-                  assigned
-                    ? `<div style="display:flex;gap:8px;align-items:flex-start">
-                         <span class="badge good">Selecionado</span>
-                         <div>
-                           <strong>${esc(assigned.description)}</strong>
-                           <small style="display:block;margin-top:4px">
-                             ${assigned.code?`Cód. ${esc(assigned.code)} • `:''}
-                             ${assigned.quantity?`${esc(assigned.quantity)} ${esc(assigned.unit||'')}`:''}
-                             ${assigned.subtotal!=null?` • Subtotal ${money(assigned.subtotal)}`:''}
-                           </small>
-                         </div>
-                       </div>`
-                    : '<span class="review-note">Nenhum produto do fornecedor relacionado a este item.</span>'
-                }
-              </td>
+              ${
+                assigned
+                  ?`
+                    <div class="qv-product">
+                      <div>
+                        <div class="qv-product-name">
+                          ${esc(assigned.description)}
+                        </div>
 
-              <td>
-                ${assigned
-                  ? '<span class="badge good">Cotado</span>'
-                  : '<span class="badge neutral">Sem cotação</span>'
-                }
-              </td>
+                        <div class="qv-product-meta">
+                          ${assigned.code?`Cód. ${esc(assigned.code)} • `:''}
+                          ${assigned.quantity?`${esc(assigned.quantity)} ${esc(assigned.unit||'')}`:''}
+                          ${assigned.subtotal!=null?` • Subtotal ${money(assigned.subtotal)}`:''}
+                        </div>
+                      </div>
 
-              <td>
-                ${assigned
-                  ? `<input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(assigned.price||0)}">`
-                  : '-'
-                }
-              </td>
+                      <span class="badge good">
+                        Produto selecionado
+                      </span>
+                    </div>
 
-              <td>
-                ${assigned
-                  ? `<input data-q-field="presentation" value="${esc(assigned.presentation||'')}" placeholder="Ex.: caixa c/ 50">`
-                  : '-'
-                }
-              </td>
+                    <div class="qv-fields">
+                      <div class="qv-field">
+                        <label>Preço</label>
+                        <input
+                          data-q-field="price"
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          value="${Number(assigned.price||0)}"
+                        >
+                      </div>
 
-              <td>
-                ${assigned
-                  ? `<input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(assigned.factor||1)}">`
-                  : '-'
-                }
-              </td>
+                      <div class="qv-field">
+                        <label>Apresentação</label>
+                        <input
+                          data-q-field="presentation"
+                          value="${esc(assigned.presentation||'')}"
+                          placeholder="Ex.: caixa c/ 50"
+                        >
+                      </div>
 
-              <td>
-                ${assigned
-                  ? `<input data-q-field="brand" value="${esc(assigned.brand||'')}">`
-                  : '-'
-                }
-              </td>
+                      <div class="qv-field">
+                        <label>Equivale a</label>
+                        <input
+                          data-q-field="factor"
+                          type="number"
+                          min="0.0001"
+                          step="0.001"
+                          value="${Number(assigned.factor||1)}"
+                        >
+                      </div>
 
-              <td>
-                ${assigned
-                  ? `<button type="button" class="action-btn" data-clear-fixed-relation="${esc(item.id)}">Retirar produto</button>`
-                  : '<span class="hint">—</span>'
-                }
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+                      <div class="qv-field">
+                        <label>Marca</label>
+                        <input
+                          data-q-field="brand"
+                          value="${esc(assigned.brand||'')}"
+                        >
+                      </div>
+
+                      <button
+                        type="button"
+                        class="qv-remove"
+                        data-clear-fixed-relation="${esc(item.id)}"
+                      >
+                        Retirar
+                      </button>
+                    </div>
+                  `
+                  :`
+                    <div class="qv-empty">
+                      Pesquise acima e selecione o produto correspondente encontrado no PDF do fornecedor.
+                    </div>
+                  `
+              }
+            </div>
+          </div>
+        `;
+      }).join('')}
     </div>
 
-    <div class="panel-soft" style="margin-top:16px">
-      <strong>Produtos do PDF ainda não utilizados</strong>
-      <div style="margin-top:8px" class="hint">
-        ${supplierRows.filter(r=>!r.itemId).length} produto(s) do fornecedor ainda não foram relacionados a nenhum item do edital.
+    <div class="qv-unused">
+      <div>
+        <strong>Produtos do PDF ainda não utilizados</strong>
+        <span>
+          Produtos que foram lidos do arquivo, mas ainda não foram vinculados a nenhum item do edital.
+        </span>
       </div>
+
+      <span class="badge ${unusedCount?'warn':'good'}">
+        ${unusedCount} restante${unusedCount===1?'':'s'}
+      </span>
     </div>
   `;
 
@@ -1534,6 +2060,7 @@ function renderQuoteImportPreview(){
     syncQuoteRowsFromDom();
     state.quoteImportFilter=e.target.value||'';
     renderQuoteImportPreview();
+
     const input=$('#quoteGlobalSearch');
     if(input){
       input.focus();
@@ -1558,15 +2085,29 @@ function renderQuoteImportPreview(){
   document.querySelectorAll('[data-supplier-search]').forEach(input=>{
     input.addEventListener('input',()=>{
       const itemId=input.dataset.supplierSearch;
+
       state.quoteSupplierSearches ||= {};
       state.quoteSupplierSearches[itemId]=input.value||'';
 
-      const item=state.itens.find(i=>String(i.id)===String(itemId));
-      const assigned=supplierRows.find(r=>String(r.itemId)===String(itemId));
-      const select=document.querySelector(`[data-supplier-select="${itemId}"]`);
-      if(!item || !select)return;
+      const item=state.itens.find(
+        i=>String(i.id)===String(itemId)
+      );
 
-      select.innerHTML=supplierOptions(item,assigned,input.value);
+      const assigned=supplierRows.find(
+        r=>String(r.itemId)===String(itemId)
+      );
+
+      const select=document.querySelector(
+        `[data-supplier-select="${itemId}"]`
+      );
+
+      if(!item||!select)return;
+
+      select.innerHTML=supplierOptions(
+        item,
+        assigned,
+        input.value
+      );
     });
   });
 
@@ -1575,11 +2116,16 @@ function renderQuoteImportPreview(){
       syncQuoteRowsFromDom();
 
       const itemId=select.dataset.supplierSelect;
-      const item=state.itens.find(i=>String(i.id)===String(itemId));
+
+      const item=state.itens.find(
+        i=>String(i.id)===String(itemId)
+      );
+
       if(!item)return;
 
-      // Desvincula o produto atualmente associado a este item.
-      const current=supplierRows.find(r=>String(r.itemId)===String(itemId));
+      const current=supplierRows.find(
+        r=>String(r.itemId)===String(itemId)
+      );
 
       if(select.value===''){
         if(current){
@@ -1587,29 +2133,36 @@ function renderQuoteImportPreview(){
           current.editalItemNumber=null;
           current.manualMatched=false;
         }
+
         renderQuoteImportPreview();
         return;
       }
 
       const selectedIndex=Number(select.value);
       const selectedRow=supplierRows[selectedIndex];
+
       if(!selectedRow)return;
 
-      // Se o produto já estiver em outro item, permite mover, mas nunca duplica silenciosamente.
-      if(selectedRow.itemId && String(selectedRow.itemId)!==String(itemId)){
-        const oldItem=state.itens.find(i=>String(i.id)===String(selectedRow.itemId));
+      if(
+        selectedRow.itemId &&
+        String(selectedRow.itemId)!==String(itemId)
+      ){
+        const oldItem=state.itens.find(
+          i=>String(i.id)===String(selectedRow.itemId)
+        );
+
         const move=confirm(
           `O produto "${selectedRow.description}" já está relacionado ao Item ${oldItem?.numero||'?'}.`+
           `\n\nDeseja mover este produto para o Item ${item.numero}?`
         );
+
         if(!move){
           renderQuoteImportPreview();
           return;
         }
       }
 
-      // Um item oficial fica com apenas um produto do fornecedor nesta tela.
-      if(current && current!==selectedRow){
+      if(current&&current!==selectedRow){
         current.itemId='';
         current.editalItemNumber=null;
         current.manualMatched=false;
@@ -1631,13 +2184,19 @@ function renderQuoteImportPreview(){
   document.querySelectorAll('[data-clear-fixed-relation]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       syncQuoteRowsFromDom();
+
       const itemId=btn.dataset.clearFixedRelation;
-      const row=supplierRows.find(r=>String(r.itemId)===String(itemId));
+
+      const row=supplierRows.find(
+        r=>String(r.itemId)===String(itemId)
+      );
+
       if(!row)return;
 
       row.itemId='';
       row.editalItemNumber=null;
       row.manualMatched=false;
+
       renderQuoteImportPreview();
       toast('Produto retirado deste item do edital.');
     });
