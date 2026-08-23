@@ -1,17 +1,28 @@
-INOVA LICITAÇÕES — V8.1 CLEAN
+INOVA LICITAÇÕES — V9.1 PERSONALIZAÇÃO
 
-ALTERAÇÕES:
-- Logo corrigida: símbolo completo, sem corte lateral.
-- Removidas as sombras fortes do cabeçalho, cartões, painéis, botões e formulários.
-- Removidos degradês excessivos.
-- Visual baseado na opção 1 aprovada: preto/grafite + dourado.
-- Painéis mais limpos, bordas discretas e maior contraste.
-- Versão visual atualizada para 8.1.
+NOVIDADE:
+A aba Equipe agora possui "Personalizar aparência".
 
-COMO PUBLICAR:
-1. Abra este ZIP.
-2. No GitHub, substitua index.html, styles.css, app.js e logo-inova.png.
-3. Substitua também a pasta icons.
-4. Commit sugerido: Corrigir logo e aplicar visual clean V8.1
-5. Aguarde a Vercel mostrar Ready.
-6. Abra o site e use Ctrl + Shift + R.
+Você poderá ajustar dentro do próprio sistema:
+- tamanho da logo do cabeçalho;
+- tamanho da logo da tela de login;
+- tamanho da logo do rodapé;
+- posição horizontal;
+- posição vertical;
+- Mostrar logo inteira / Preencher espaço;
+- mostrar ou ocultar o subtítulo da empresa;
+- restaurar o padrão.
+
+As preferências ficam salvas no navegador usando localStorage.
+
+PUBLICAÇÃO:
+1. Substitua index.html, styles.css e app.js pelos arquivos deste pacote.
+2. Envie a pasta assets com logo.png.
+3. NÃO apague seu app-config.js atual.
+4. Commit sugerido: Adicionar personalização de logo V9.1
+5. Aguarde a Vercel ficar Ready.
+6. Abra o site e faça Ctrl + Shift + R.
+7. Vá em Equipe > Personalizar aparência.
+
+DICA:
+Escolha "Mostrar logo inteira" para garantir que nenhuma parte da logo seja cortada.

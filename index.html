@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#081015" />
+  <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=8.0" />
-  <script src="/app-config.js?v=8.0"></script>
+  <link rel="stylesheet" href="styles.css?v=9.1" />
+  <script src="/app-config.js?v=5.0"></script>
 </head>
   
 <body>
@@ -18,7 +18,7 @@
 
   <section id="setupScreen" class="auth-shell" hidden>
     <div class="auth-card wide">
-      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
+      <img class="auth-logo" src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
       <h1>INOVA Licitações</h1>
       <p class="muted">Não foi possível carregar a configuração do Supabase.</p>
       <div class="notice">
@@ -31,7 +31,7 @@
 
   <section id="authScreen" class="auth-shell" hidden>
     <div class="auth-card">
-      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
+      <img class="auth-logo" src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
       <h1>INOVA Licitações</h1>
       <p class="muted">Entre para acessar as licitações da sua empresa.</p>
       <div class="segmented">
@@ -54,7 +54,7 @@
 
   <section id="companyScreen" class="auth-shell" hidden>
     <div class="auth-card wide">
-      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
+      <img class="auth-logo" src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
       <h1>Vincular à empresa</h1>
       <p class="muted">O primeiro usuário cria a empresa. Os demais entram usando o código de convite.</p>
       <div class="company-grid">
@@ -76,10 +76,10 @@
   <div id="appShell" hidden>
     <header class="topbar">
       <div class="brand-row">
-        <img class="brand-logo" src="logo-inova.png" alt="INOVA" />
+        <img class="header-logo" src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div class="brand-copy">
-          <h1>INOVA Licitações</h1>
-          <p id="companyName">Construções, Manutenções, Serviços e Comércio LTDA</p>
+          <h1>INOVA LICITAÇÕES</h1>
+          <p id="companyName">CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</p>
         </div>
       </div>
       <div class="top-actions">
@@ -89,13 +89,13 @@
     </header>
 
     <nav class="tabs" id="mainTabs">
-      <button data-tab="dashboard" class="active"><span class="nav-icon">⌂</span>Dashboard</button>
-      <button data-tab="licitacoes"><span class="nav-icon">▣</span>Licitações</button>
-      <button data-tab="fornecedores"><span class="nav-icon">◎</span>Fornecedores</button>
-      <button data-tab="cotacoes"><span class="nav-icon">⇄</span>Cotações</button>
-      <button data-tab="precificacao"><span class="nav-icon">◉</span>Precificação</button>
-      <button data-tab="arquivos"><span class="nav-icon">□</span>Arquivos</button>
-      <button data-tab="equipe"><span class="nav-icon">♙</span>Equipe</button>
+      <button data-tab="dashboard" class="active">▦ <span>Dashboard</span></button>
+      <button data-tab="licitacoes">▤ <span>Licitações</span></button>
+      <button data-tab="fornecedores">♙ <span>Fornecedores</span></button>
+      <button data-tab="cotacoes">⇄ <span>Cotações</span></button>
+      <button data-tab="precificacao">◉ <span>Precificação</span></button>
+      <button data-tab="arquivos">□ <span>Arquivos</span></button>
+      <button data-tab="equipe">♙ <span>Equipe</span></button>
     </nav>
 
     <main>
@@ -263,19 +263,104 @@
           <p>Compartilhe este código com seu pai e seu irmão. Eles criam a própria conta e entram na mesma empresa.</p>
           <div class="invite-box"><span>Código da empresa</span><strong id="inviteCode">--------</strong><button id="copyInviteBtn" class="secondary">Copiar código</button></div>
         </div>
+
+        <div class="panel appearance-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Personalizar aparência</h2>
+              <p class="hint">Ajuste a logo diretamente no sistema. As alterações ficam salvas neste navegador.</p>
+            </div>
+            <button id="resetAppearanceBtn" type="button" class="secondary">Restaurar padrão</button>
+          </div>
+
+          <div class="appearance-layout">
+            <div class="appearance-controls">
+              <label>
+                Tamanho da logo do cabeçalho
+                <div class="range-row">
+                  <input id="logoHeaderSize" type="range" min="40" max="180" step="2" value="76">
+                  <output id="logoHeaderSizeValue">76 px</output>
+                </div>
+              </label>
+
+              <label>
+                Tamanho da logo na tela de login
+                <div class="range-row">
+                  <input id="logoAuthSize" type="range" min="80" max="320" step="4" value="190">
+                  <output id="logoAuthSizeValue">190 px</output>
+                </div>
+              </label>
+
+              <label>
+                Tamanho da logo do rodapé
+                <div class="range-row">
+                  <input id="logoFooterSize" type="range" min="30" max="140" step="2" value="64">
+                  <output id="logoFooterSizeValue">64 px</output>
+                </div>
+              </label>
+
+              <label>
+                Ajuste horizontal
+                <div class="range-row">
+                  <input id="logoPosX" type="range" min="0" max="100" step="1" value="50">
+                  <output id="logoPosXValue">50%</output>
+                </div>
+              </label>
+
+              <label>
+                Ajuste vertical
+                <div class="range-row">
+                  <input id="logoPosY" type="range" min="0" max="100" step="1" value="50">
+                  <output id="logoPosYValue">50%</output>
+                </div>
+              </label>
+
+              <label>
+                Forma de exibição
+                <select id="logoFit">
+                  <option value="contain">Mostrar logo inteira</option>
+                  <option value="cover">Preencher o espaço</option>
+                </select>
+              </label>
+
+              <label class="toggle-line">
+                <input id="showCompanySubtitle" type="checkbox" checked>
+                <span>Mostrar nome completo da empresa abaixo da logo</span>
+              </label>
+
+              <div class="appearance-actions">
+                <button id="saveAppearanceBtn" type="button">Salvar aparência</button>
+                <span id="appearanceSaved" class="appearance-saved" hidden>Configuração salva.</span>
+              </div>
+            </div>
+
+            <div class="appearance-preview">
+              <span class="preview-label">Pré-visualização</span>
+              <div class="preview-header">
+                <img id="appearancePreviewLogo" src="assets/logo.png" alt="Logo INOVA">
+                <div id="appearancePreviewText">
+                  <strong>INOVA LICITAÇÕES</strong>
+                  <small>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</small>
+                </div>
+              </div>
+              <p class="hint">“Mostrar logo inteira” evita cortes. Use os controles de posição apenas se quiser centralizar visualmente a arte dentro do espaço.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="panel"><h2>Usuários da empresa</h2><div id="equipeLista" class="table-wrap"></div></div>
       </section>
     </main>
 
     <footer class="app-footer">
-        <div class="footer-brand">
-          <img src="logo-inova.png" alt="INOVA" />
-          <div><strong>INOVA LICITAÇÕES</strong><span>Construções, Manutenções, Serviços e Comércio LTDA</span></div>
-        </div>
-        <div class="footer-meta"><span>Versão 8.1</span><span class="system-dot"></span><span>Sistema atualizado</span></div>
-      </footer>
+      <div class="footer-brand">
+        <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
+        <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
+      </div>
+      <div class="footer-status"><span>Versão 9.1</span><i></i><span>Sistema atualizado</span></div>
+    </footer>
   </div>
 
-  <script type="module" src="/app.js?v=8.1"></script>
+  <script type="module" src="/app.js?v=9.1"></script>
 </body>
 </html>

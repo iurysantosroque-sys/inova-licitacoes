@@ -7,6 +7,146 @@ const cfg = window.INOVA_CONFIG || {};
 const configured = Boolean(cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY && createClient);
 const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY) : null;
 
+
+const APPEARANCE_STORAGE_KEY = 'inovaAppearanceV1';
+
+const appearanceDefaults = {
+  headerSize: 76,
+  authSize: 190,
+  footerSize: 64,
+  posX: 50,
+  posY: 50,
+  fit: 'contain',
+  showSubtitle: true
+};
+
+function getAppearanceSettings(){
+  try{
+    return {
+      ...appearanceDefaults,
+      ...(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY) || '{}'))
+    };
+  }catch{
+    return {...appearanceDefaults};
+  }
+}
+
+function applyAppearance(settings=getAppearanceSettings()){
+  const root=document.documentElement;
+  root.style.setProperty('--logo-header-size', `${Number(settings.headerSize)}px`);
+  root.style.setProperty('--logo-auth-size', `${Number(settings.authSize)}px`);
+  root.style.setProperty('--logo-footer-size', `${Number(settings.footerSize)}px`);
+  root.style.setProperty('--logo-pos-x', `${Number(settings.posX)}%`);
+  root.style.setProperty('--logo-pos-y', `${Number(settings.posY)}%`);
+  root.style.setProperty('--logo-fit', settings.fit === 'cover' ? 'cover' : 'contain');
+
+  document.querySelectorAll('.brand-copy p').forEach(el=>{
+    el.style.display=settings.showSubtitle ? '' : 'none';
+  });
+
+  const preview=$('#appearancePreviewLogo');
+  if(preview){
+    preview.style.width=`${Number(settings.headerSize)}px`;
+    preview.style.height=`${Number(settings.headerSize)}px`;
+    preview.style.objectFit=settings.fit === 'cover' ? 'cover' : 'contain';
+    preview.style.objectPosition=`${Number(settings.posX)}% ${Number(settings.posY)}%`;
+  }
+
+  const previewText=$('#appearancePreviewText');
+  if(previewText){
+    const small=previewText.querySelector('small');
+    if(small)small.style.display=settings.showSubtitle ? '' : 'none';
+  }
+}
+
+function syncAppearanceControls(settings=getAppearanceSettings()){
+  const map={
+    logoHeaderSize:['headerSize','px'],
+    logoAuthSize:['authSize','px'],
+    logoFooterSize:['footerSize','px'],
+    logoPosX:['posX','%'],
+    logoPosY:['posY','%']
+  };
+
+  for(const [id,[key,suffix]] of Object.entries(map)){
+    const input=$('#'+id);
+    const output=$('#'+id+'Value');
+    if(input)input.value=settings[key];
+    if(output)output.textContent=`${settings[key]} ${suffix}`.replace(' %','%');
+  }
+
+  const fit=$('#logoFit');
+  if(fit)fit.value=settings.fit;
+
+  const subtitle=$('#showCompanySubtitle');
+  if(subtitle)subtitle.checked=Boolean(settings.showSubtitle);
+
+  applyAppearance(settings);
+}
+
+function readAppearanceControls(){
+  return {
+    headerSize:Number($('#logoHeaderSize')?.value || appearanceDefaults.headerSize),
+    authSize:Number($('#logoAuthSize')?.value || appearanceDefaults.authSize),
+    footerSize:Number($('#logoFooterSize')?.value || appearanceDefaults.footerSize),
+    posX:Number($('#logoPosX')?.value || appearanceDefaults.posX),
+    posY:Number($('#logoPosY')?.value || appearanceDefaults.posY),
+    fit:$('#logoFit')?.value === 'cover' ? 'cover' : 'contain',
+    showSubtitle:Boolean($('#showCompanySubtitle')?.checked)
+  };
+}
+
+function previewAppearanceFromControls(){
+  const settings=readAppearanceControls();
+
+  const outputs=[
+    ['logoHeaderSizeValue',settings.headerSize,'px'],
+    ['logoAuthSizeValue',settings.authSize,'px'],
+    ['logoFooterSizeValue',settings.footerSize,'px'],
+    ['logoPosXValue',settings.posX,'%'],
+    ['logoPosYValue',settings.posY,'%']
+  ];
+
+  outputs.forEach(([id,value,suffix])=>{
+    const el=$('#'+id);
+    if(el)el.textContent=`${value}${suffix==='%'?'%':' px'}`;
+  });
+
+  applyAppearance(settings);
+}
+
+function initAppearanceControls(){
+  applyAppearance();
+
+  const ids=['logoHeaderSize','logoAuthSize','logoFooterSize','logoPosX','logoPosY','logoFit','showCompanySubtitle'];
+  ids.forEach(id=>{
+    const el=$('#'+id);
+    if(!el)return;
+    el.addEventListener(el.type==='checkbox' || el.tagName==='SELECT' ? 'change' : 'input',previewAppearanceFromControls);
+  });
+
+  $('#saveAppearanceBtn')?.addEventListener('click',()=>{
+    const settings=readAppearanceControls();
+    localStorage.setItem(APPEARANCE_STORAGE_KEY,JSON.stringify(settings));
+    applyAppearance(settings);
+    const saved=$('#appearanceSaved');
+    if(saved){
+      saved.hidden=false;
+      setTimeout(()=>saved.hidden=true,2200);
+    }
+    toast('Aparência salva.');
+  });
+
+  $('#resetAppearanceBtn')?.addEventListener('click',()=>{
+    localStorage.removeItem(APPEARANCE_STORAGE_KEY);
+    syncAppearanceControls({...appearanceDefaults});
+    toast('Aparência restaurada.');
+  });
+
+  syncAppearanceControls();
+}
+
+
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
   licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], demo:false
@@ -563,4 +703,5 @@ $('#simItem')?.addEventListener('change', () => {
 
 $('#simBid')?.addEventListener('input', renderBidSimulator);
 
+initAppearanceControls();
 boot();
