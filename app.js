@@ -3281,7 +3281,7 @@ function ensurePricingExactModelStyles(){
 
     #precificacao.pricing-exact.tab.active{
       display:grid !important;
-      grid-template-columns:196px minmax(0,1fr);
+      grid-template-columns:minmax(0,1fr);
       min-height:calc(100vh - 62px);
       background:#06131b;
     }
@@ -3290,10 +3290,11 @@ function ensurePricingExactModelStyles(){
     #precificacao.pricing-exact > #pricingSummary,
     #precificacao.pricing-exact > #pricingWorkspace,
     #precificacao.pricing-exact > #pricingExactShell{
-      grid-column:2;
+      grid-column:1;
     }
 
     #precificacao.pricing-exact .pricing-side{
+      display:none !important;
       grid-column:1;
       grid-row:1 / span 20;
       position:sticky;
@@ -3767,7 +3768,7 @@ function ensurePricingExactModelStyles(){
     }
 
     @media(max-width:1250px){
-      #precificacao.pricing-exact.tab.active{grid-template-columns:1fr}
+      #precificacao.pricing-exact.tab.active{grid-template-columns:minmax(0,1fr)}
       #precificacao.pricing-exact .pricing-side{display:none}
       #precificacao.pricing-exact > .panel,
       #precificacao.pricing-exact > #pricingSummary,
@@ -4970,98 +4971,22 @@ function ensureDashboardModelStyles(){
       display:none!important;
     }
 
+    /* SEM MENU LATERAL: somente o menu superior global do sistema */
     .db-shell{
-      display:grid;
-      grid-template-columns:198px minmax(0,1fr);
+      display:block;
       min-height:calc(100vh - 62px);
+      width:100%;
     }
 
     .db-side{
-      border-right:1px solid #1f3340;
-      background:#07151d;
-      padding:18px 12px;
-      display:flex;
-      flex-direction:column;
-      min-height:calc(100vh - 62px);
-    }
-
-    .db-brand{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:3px 8px 18px;
-      color:#f4f7f8;
-      font-weight:900;
-      font-size:1.15rem;
-    }
-
-    .db-brand-mark{
-      width:30px;height:30px;
-      border-radius:50%;
-      display:grid;place-items:center;
-      background:#f2b52a;color:#06131b;
-      font-weight:950;
-    }
-
-    .db-menu-label{
-      color:#6f818c;
-      font-size:.66rem;
-      letter-spacing:.08em;
-      margin:8px 10px 12px;
-      text-transform:uppercase;
-    }
-
-    .db-nav{
-      display:grid;
-      gap:6px;
-    }
-
-    .db-nav button{
-      height:42px;
-      border:0;
-      border-radius:8px;
-      background:transparent;
-      color:#b6c2c9;
-      text-align:left;
-      padding:0 12px;
-      font-weight:650;
-      cursor:pointer;
-    }
-
-    .db-nav button.active{
-      background:#252313;
-      color:#f2b52a;
-    }
-
-    .db-nav button:hover{
-      background:#0d2029;
-    }
-
-    .db-support{
-      margin-top:auto;
-      border:1px solid #203844;
-      border-radius:10px;
-      background:#0a1a23;
-      padding:14px;
-    }
-
-    .db-support strong{display:block;color:#f2f5f7;margin-bottom:5px}
-    .db-support span{display:block;color:#66b7f7;font-size:.72rem;margin-bottom:10px}
-    .db-support button{
-      width:100%;height:36px;border:0;border-radius:7px;
-      background:#1568c7;color:white;font-weight:800
-    }
-
-    .db-side-footer{
-      margin-top:16px;
-      color:#7f909a;
-      font-size:.67rem;
-      line-height:1.55;
+      display:none!important;
     }
 
     .db-main{
-      padding:18px 16px 26px;
+      padding:18px 22px 28px;
       min-width:0;
+      max-width:1800px;
+      margin:0 auto;
     }
 
     .db-head{
@@ -5092,6 +5017,7 @@ function ensureDashboardModelStyles(){
       color:#e3e9ed;
       padding:10px 13px;
       font-size:.76rem;
+      white-space:nowrap;
     }
 
     .db-kpis{
@@ -5102,22 +5028,22 @@ function ensureDashboardModelStyles(){
     }
 
     .db-kpi{
-      min-height:92px;
+      min-height:104px;
       border:1px solid #203743;
       border-radius:11px;
-      background:#091821;
+      background:linear-gradient(145deg,#0a1a23,#081720);
       padding:15px 16px;
       display:grid;
-      grid-template-columns:48px 1fr;
+      grid-template-columns:52px 1fr;
       gap:13px;
       align-items:center;
     }
 
     .db-kpi-icon{
-      width:48px;height:48px;
-      border-radius:11px;
+      width:52px;height:52px;
+      border-radius:12px;
       display:grid;place-items:center;
-      font-size:1.3rem;
+      font-size:1.4rem;
       font-weight:900;
     }
 
@@ -5126,15 +5052,25 @@ function ensureDashboardModelStyles(){
     .db-kpi-icon.green{background:#123a26;color:#35d379}
     .db-kpi-icon.purple{background:#251a43;color:#b18bff}
 
-    .db-kpi small{display:block;color:#93a3ad;font-size:.67rem;text-transform:uppercase}
-    .db-kpi strong{display:block;color:#f4f7f9;font-size:1.45rem;line-height:1.1;margin-top:4px}
-    .db-kpi span{display:block;color:#9aa8b2;font-size:.68rem;margin-top:5px}
+    .db-kpi small{display:block;color:#93a3ad;font-size:.68rem;text-transform:uppercase}
+    .db-kpi strong{display:block;color:#f4f7f9;font-size:1.52rem;line-height:1.1;margin-top:4px}
+    .db-kpi span{display:block;color:#9aa8b2;font-size:.7rem;margin-top:5px}
 
-    .db-grid{
+    /* Linha principal igual ao modelo: prazos | calendário | resumo */
+    .db-primary-grid{
       display:grid;
-      grid-template-columns:238px minmax(0,1fr) 320px;
+      grid-template-columns:280px minmax(520px,1fr) 330px;
       gap:14px;
-      align-items:start;
+      align-items:stretch;
+      margin-bottom:14px;
+    }
+
+    /* Linha inferior igual ao modelo: status | dicas | tabela */
+    .db-secondary-grid{
+      display:grid;
+      grid-template-columns:300px 320px minmax(620px,1fr);
+      gap:14px;
+      align-items:stretch;
     }
 
     .db-card{
@@ -5142,6 +5078,7 @@ function ensureDashboardModelStyles(){
       border-radius:11px;
       background:#081720;
       overflow:hidden;
+      min-width:0;
     }
 
     .db-card-head{
@@ -5149,7 +5086,8 @@ function ensureDashboardModelStyles(){
       justify-content:space-between;
       align-items:center;
       gap:10px;
-      padding:13px 15px;
+      min-height:48px;
+      padding:12px 15px;
       border-bottom:1px solid #203743;
     }
 
@@ -5166,6 +5104,7 @@ function ensureDashboardModelStyles(){
       height:32px;
       padding:0 10px;
       font-size:.7rem;
+      cursor:pointer;
     }
 
     .db-deadlines{
@@ -5174,7 +5113,7 @@ function ensureDashboardModelStyles(){
 
     .db-deadline{
       position:relative;
-      padding:12px 10px 12px 18px;
+      padding:13px 10px 13px 18px;
       border-bottom:1px solid #1b303a;
     }
 
@@ -5192,7 +5131,7 @@ function ensureDashboardModelStyles(){
 
     .db-deadline-time{
       font-weight:850;
-      font-size:.78rem;
+      font-size:.8rem;
       color:#e9eef1;
     }
 
@@ -5201,15 +5140,27 @@ function ensureDashboardModelStyles(){
 
     .db-deadline-title{
       color:#e8edf0;
-      font-size:.72rem;
-      margin-top:4px;
+      font-size:.73rem;
+      margin-top:5px;
       line-height:1.35;
     }
 
     .db-deadline-meta{
       color:#8f9fa9;
+      font-size:.67rem;
+      margin-top:4px;
+    }
+
+    .db-open-tender{
+      margin-top:8px;
+      height:30px;
+      border:1px solid #2d4654;
+      border-radius:6px;
+      background:#07151d;
+      color:#dfe7eb;
+      padding:0 9px;
       font-size:.66rem;
-      margin-top:3px;
+      cursor:pointer;
     }
 
     .db-calendar{
@@ -5242,6 +5193,7 @@ function ensureDashboardModelStyles(){
       background:#07151d;
       color:#d6e0e5;
       padding:0 9px;
+      cursor:pointer;
     }
 
     .db-cal-legend{
@@ -5278,7 +5230,7 @@ function ensureDashboardModelStyles(){
     }
 
     .db-cal-day{
-      min-height:66px;
+      min-height:68px;
       padding:6px;
       background:#091821;
       border-right:1px solid #1d313c;
@@ -5287,7 +5239,7 @@ function ensureDashboardModelStyles(){
       font-size:.68rem;
     }
 
-    .db-cal-day.other{opacity:.38;background:#07151d}
+    .db-cal-day.other{opacity:.35;background:#07151d}
     .db-cal-day.today{box-shadow:inset 0 0 0 1px #f2b52a}
 
     .db-cal-num{
@@ -5310,12 +5262,7 @@ function ensureDashboardModelStyles(){
     }
 
     .db-cal-event.urgent{background:#9f1e2e}
-    .db-cal-event.soon{background:#b98900;color:#161000}
-
-    .db-right{
-      display:grid;
-      gap:14px;
-    }
+    .db-cal-event.soon{background:#d6a000;color:#171100}
 
     .db-company{
       padding:8px 14px 13px;
@@ -5325,7 +5272,7 @@ function ensureDashboardModelStyles(){
       display:flex;
       justify-content:space-between;
       gap:12px;
-      padding:8px 0;
+      padding:9px 0;
       border-bottom:1px solid #1d313c;
       color:#c6d1d7;
       font-size:.72rem;
@@ -5335,32 +5282,33 @@ function ensureDashboardModelStyles(){
     .db-company-row strong{color:#f1f5f7}
 
     .db-status{
-      padding:13px 14px 15px;
+      padding:14px;
       display:grid;
-      grid-template-columns:110px 1fr;
+      grid-template-columns:118px 1fr;
       gap:14px;
       align-items:center;
+      min-height:190px;
     }
 
     .db-donut{
-      width:100px;height:100px;border-radius:50%;
-      background:conic-gradient(#35d379 0 28%, #55a8ff 28% 36%, #8d9aa3 36% 100%);
+      width:108px;height:108px;border-radius:50%;
+      background:conic-gradient(#35d379 0 62.5%, #f2b52a 62.5% 87.5%, #55a8ff 87.5% 100%);
       display:grid;place-items:center;
       position:relative;
     }
 
     .db-donut:after{
       content:'';
-      width:65px;height:65px;border-radius:50%;
+      width:70px;height:70px;border-radius:50%;
       background:#081720;position:absolute;
     }
 
     .db-donut strong{
-      position:relative;z-index:2;font-size:1.15rem;color:#f4f7f8
+      position:relative;z-index:2;font-size:1.2rem;color:#f4f7f8
     }
 
     .db-status-list{
-      display:grid;gap:8px;font-size:.7rem;color:#b6c2c9
+      display:grid;gap:9px;font-size:.7rem;color:#b6c2c9
     }
 
     .db-status-list span{
@@ -5368,44 +5316,49 @@ function ensureDashboardModelStyles(){
     }
 
     .db-tip{
-      padding:13px 14px;
+      padding:14px;
       color:#c3ced4;
       font-size:.71rem;
       line-height:1.5;
     }
 
-    .db-tip div{margin:7px 0}
-    .db-tip b{color:#35d379}
-
-    .db-bottom{
-      margin-top:14px;
-      border:1px solid #203743;
-      border-radius:11px;
-      background:#081720;
-      overflow:hidden;
+    .db-tip div{
+      padding:8px 0;
+      border-bottom:1px solid #1d313c;
     }
 
-    .db-bottom table{
+    .db-tip div:last-child{border-bottom:0}
+    .db-tip b{color:#35d379}
+
+    .db-table-card table{
       width:100%;
       border-collapse:separate;
       border-spacing:0;
+      min-width:680px;
     }
 
-    .db-bottom th{
+    .db-table-card th{
       background:#07151d;
       color:#a9b5bd;
       text-align:left;
-      font-size:.67rem;
-      padding:10px 11px;
+      font-size:.66rem;
+      padding:10px 10px;
       border-bottom:1px solid #203743;
+      position:sticky;
+      top:0;
     }
 
-    .db-bottom td{
+    .db-table-card td{
       background:#091821;
       color:#e1e8ec;
-      font-size:.71rem;
-      padding:10px 11px;
+      font-size:.69rem;
+      padding:10px;
       border-bottom:1px solid #1d313c;
+    }
+
+    .db-table-scroll{
+      overflow:auto;
+      max-height:260px;
     }
 
     .db-progress{
@@ -5413,23 +5366,38 @@ function ensureDashboardModelStyles(){
       border-radius:999px;
       background:#1b2e39;
       overflow:hidden;
-      min-width:90px;
+      min-width:72px;
     }
 
     .db-progress span{
       display:block;height:100%;background:#35d379;border-radius:inherit
     }
 
-    @media(max-width:1250px){
-      .db-shell{grid-template-columns:1fr}
-      .db-side{display:none}
-      .db-grid{grid-template-columns:1fr}
+    .db-footer{
+      text-align:center;
+      color:#758690;
+      font-size:.66rem;
+      padding:20px 0 3px;
+    }
+
+    @media(max-width:1400px){
+      .db-primary-grid{grid-template-columns:250px minmax(500px,1fr)}
+      .db-primary-grid > .db-company-card{grid-column:1/-1}
+      .db-secondary-grid{grid-template-columns:1fr 1fr}
+      .db-secondary-grid > .db-table-card{grid-column:1/-1}
+    }
+
+    @media(max-width:960px){
+      .db-main{padding:14px 12px 24px}
       .db-kpis{grid-template-columns:repeat(2,1fr)}
+      .db-primary-grid,.db-secondary-grid{grid-template-columns:1fr}
+      .db-primary-grid > .db-company-card,
+      .db-secondary-grid > .db-table-card{grid-column:auto}
+      .db-head{flex-direction:column}
     }
   `;
   document.head.appendChild(style);
 }
-
 
 function dashboardCalendarLocalYMD(v){
   if(!v)return '';
@@ -5514,8 +5482,7 @@ function renderDashboardModel(){
   const view=new Date(state.dashboardCalendarDate);
   const year=view.getFullYear();
   const month=view.getMonth();
-  const first=new Date(year,month,1);
-  const gridStart=new Date(year,month,1-first.getDay());
+  const gridStart=new Date(year,month,1-new Date(year,month,1).getDay());
   const todayKey=dashboardCalendarLocalYMD(new Date());
 
   const eventMap=new Map();
@@ -5530,11 +5497,16 @@ function renderDashboardModel(){
   for(let i=0;i<42;i++){
     const d=new Date(gridStart);
     d.setDate(gridStart.getDate()+i);
-    const key=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+
+    const key=[
+      d.getFullYear(),
+      String(d.getMonth()+1).padStart(2,'0'),
+      String(d.getDate()).padStart(2,'0')
+    ].join('-');
+
     const events=eventMap.get(key)||[];
     const other=d.getMonth()!==month;
     const today=key===todayKey;
-
     const event=events[0];
     const meta=event?dashboardDeadlineMeta(event):null;
 
@@ -5551,7 +5523,10 @@ function renderDashboardModel(){
     `);
   }
 
-  const monthLabel=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(view);
+  const monthLabel=new Intl.DateTimeFormat('pt-BR',{
+    month:'long',
+    year:'numeric'
+  }).format(view);
 
   const tenderRows=activeTenders
     .map(l=>{
@@ -5563,80 +5538,86 @@ function renderDashboardModel(){
       return {l,items,quoted,missing,pct,meta};
     })
     .sort((a,b)=>(a.meta?.date||Infinity)-(b.meta?.date||Infinity))
-    .slice(0,5);
+    .slice(0,6);
+
+  const ended=Math.max(0,allTenders.length-activeTenders.length);
+  const quoteRate=allItems.length?(quotedItems.length/allItems.length)*100:0;
 
   shell.innerHTML=`
-    <aside class="db-side">
-      <div class="db-brand">
-        <div class="db-brand-mark">◆</div>
-        <span>INOVA</span>
-      </div>
-
-      <div class="db-menu-label">Menu</div>
-
-      <div class="db-nav">
-        <button class="active" data-db-tab="dashboard">⌂ Dashboard</button>
-        <button data-db-tab="licitacoes">▣ Licitações</button>
-        <button data-db-tab="cotacoes">⇄ Cotações</button>
-        <button data-db-tab="precificacao">◉ Precificação</button>
-        <button data-db-tab="fornecedores">♙ Fornecedores</button>
-        <button data-db-tab="arquivos">▤ Relatórios</button>
-      </div>
-
-      <div class="db-support">
-        <strong>Dúvidas?</strong>
-        <span>Fale com o suporte</span>
-        <button type="button">Abrir WhatsApp</button>
-      </div>
-
-      <div class="db-side-footer">
-        INOVA SISTEMA<br>
-        Dashboard de licitações
-      </div>
-    </aside>
-
     <main class="db-main">
       <div class="db-head">
         <div class="db-title">
           <h1>Dashboard</h1>
           <p>Visão geral das suas licitações, prazos e oportunidades.</p>
         </div>
+
         <div class="db-date-pill">
-          ${new Intl.DateTimeFormat('pt-BR',{weekday:'short',day:'2-digit',month:'long',year:'numeric'}).format(new Date())}
+          ${new Intl.DateTimeFormat('pt-BR',{
+            day:'2-digit',
+            month:'long',
+            year:'numeric'
+          }).format(new Date())}
         </div>
       </div>
 
       <div class="db-kpis">
         <div class="db-kpi">
           <div class="db-kpi-icon yellow">▤</div>
-          <div><small>Editais ativos</small><strong>${activeTenders.length}</strong><span>Em andamento</span></div>
+          <div>
+            <small>Editais ativos</small>
+            <strong>${activeTenders.length}</strong>
+            <span>editais em andamento</span>
+          </div>
         </div>
 
         <div class="db-kpi">
           <div class="db-kpi-icon red">◷</div>
-          <div><small>Fecham esta semana</small><strong>${closingWeek.length}</strong><span>Licitações</span></div>
+          <div>
+            <small>Fecham esta semana</small>
+            <strong>${closingWeek.length}</strong>
+            <span>prazos importantes</span>
+          </div>
         </div>
 
         <div class="db-kpi">
-          <div class="db-kpi-icon green">◆</div>
-          <div><small>Itens cotados</small><strong>${quotedItems.length} / ${allItems.length}</strong><span>${allItems.length?((quotedItems.length/allItems.length)*100).toFixed(1):'0,0'}% cotados</span></div>
+          <div class="db-kpi-icon green">✓</div>
+          <div>
+            <small>Itens cotados</small>
+            <strong>${quotedItems.length} / ${allItems.length}</strong>
+            <span>${quoteRate.toFixed(1).replace('.',',')}% do total</span>
+          </div>
         </div>
 
         <div class="db-kpi">
-          <div class="db-kpi-icon purple">✦</div>
-          <div><small>Oportunidades</small><strong>${opportunities.length}</strong><span>Itens com margem</span></div>
+          <div class="db-kpi-icon purple">◎</div>
+          <div>
+            <small>Oportunidades</small>
+            <strong>${opportunities.length}</strong>
+            <span>itens com margem</span>
+          </div>
         </div>
       </div>
 
-      <div class="db-grid">
+      <div class="db-primary-grid">
         <section class="db-card">
-          <div class="db-card-head"><strong>◷ Próximos prazos</strong></div>
+          <div class="db-card-head">
+            <strong>◷ Próximos prazos</strong>
+            <button type="button" data-db-open-tab="licitacoes">Ver todos</button>
+          </div>
+
           <div class="db-deadlines">
             ${upcoming.length?upcoming.map(({l,meta})=>`
               <div class="db-deadline ${meta.cls}">
                 <div class="db-deadline-time">${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}</div>
-                <div class="db-deadline-title">Edital ${esc(l.numero)} • ${esc(l.cidade||l.orgao||'')}</div>
-                <div class="db-deadline-meta">${state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length} itens</div>
+                <div class="db-deadline-title">
+                  Edital ${esc(l.numero)} • ${esc(l.cidade||l.orgao||'')}
+                </div>
+                <div class="db-deadline-meta">
+                  ${state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length} itens
+                </div>
+                <button type="button" class="db-open-tender" data-db-open-tender="${l.id}">
+                  Abrir edital
+                </button>
               </div>
             `).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
           </div>
@@ -5652,7 +5633,9 @@ function renderDashboardModel(){
               <div class="db-cal-nav">
                 <button id="dbCalPrev">‹</button>
               </div>
+
               <div class="db-calendar-month">${esc(monthLabel)}</div>
+
               <div class="db-cal-nav">
                 <button id="dbCalToday">Hoje</button>
                 <button id="dbCalNext">›</button>
@@ -5666,90 +5649,107 @@ function renderDashboardModel(){
             </div>
 
             <div class="db-cal-grid">
-              ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="db-cal-week">${d}</div>`).join('')}
+              ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+                .map(d=>`<div class="db-cal-week">${d}</div>`).join('')}
               ${cells.join('')}
             </div>
           </div>
         </section>
 
-        <aside class="db-right">
-          <section class="db-card">
-            <div class="db-card-head"><strong>▦ Resumo da empresa</strong></div>
-            <div class="db-company">
-              <div class="db-company-row"><span>Itens cadastrados</span><strong>${allItems.length}</strong></div>
-              <div class="db-company-row"><span>Itens cotados</span><strong>${quotedItems.length}</strong></div>
-              <div class="db-company-row"><span>Taxa de cotação</span><strong>${allItems.length?((quotedItems.length/allItems.length)*100).toFixed(1).replace('.',','):'0,0'}%</strong></div>
-              <div class="db-company-row"><span>Oportunidades</span><strong>${opportunities.length}</strong></div>
-            </div>
-          </section>
+        <section class="db-card db-company-card">
+          <div class="db-card-head">
+            <strong>▦ Resumo da empresa</strong>
+          </div>
 
-          <section class="db-card">
-            <div class="db-card-head"><strong>▥ Licitações por status</strong></div>
-            <div class="db-status">
-              <div class="db-donut"><strong>${allTenders.length}</strong></div>
-              <div class="db-status-list">
-                <span><i>Em andamento</i><b>${activeTenders.length}</b></span>
-                <span><i>Próximas</i><b>${closingWeek.length}</b></span>
-                <span><i>Encerradas</i><b>${Math.max(0,allTenders.length-activeTenders.length)}</b></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="db-card">
-            <div class="db-card-head"><strong>💡 Dicas rápidas</strong></div>
-            <div class="db-tip">
-              <div><b>✓</b> Mantenha as cotações atualizadas.</div>
-              <div><b>✓</b> Priorize itens com fechamento nos próximos 2 dias.</div>
-              <div><b>✓</b> Use o simulador para definir lances mais competitivos.</div>
-            </div>
-          </section>
-        </aside>
+          <div class="db-company">
+            <div class="db-company-row"><span>Licitações ativas</span><strong>${activeTenders.length}</strong></div>
+            <div class="db-company-row"><span>Itens totais</span><strong>${allItems.length}</strong></div>
+            <div class="db-company-row"><span>Itens cotados</span><strong>${quotedItems.length}</strong></div>
+            <div class="db-company-row"><span>% itens cotados</span><strong>${quoteRate.toFixed(1).replace('.',',')}%</strong></div>
+            <div class="db-company-row"><span>Oportunidades</span><strong>${opportunities.length}</strong></div>
+            <div class="db-company-row"><span>Fornecedores</span><strong>${state.fornecedores.length}</strong></div>
+          </div>
+        </section>
       </div>
 
-      <section class="db-bottom">
-        <div class="db-card-head"><strong>⚒ Editais em andamento</strong></div>
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th>Edital</th>
-                <th>Órgão / Município</th>
-                <th>Itens</th>
-                <th>Cotados</th>
-                <th>Faltam cotação</th>
-                <th>% Cotado</th>
-                <th>Fechamento de propostas</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tenderRows.map(r=>`
+      <div class="db-secondary-grid">
+        <section class="db-card">
+          <div class="db-card-head">
+            <strong>▥ Licitações por status</strong>
+          </div>
+
+          <div class="db-status">
+            <div class="db-donut"><strong>${allTenders.length}</strong></div>
+
+            <div class="db-status-list">
+              <span><i>Em andamento</i><b>${activeTenders.length}</b></span>
+              <span><i>Fecham esta semana</i><b>${closingWeek.length}</b></span>
+              <span><i>Encerradas</i><b>${ended}</b></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="db-card">
+          <div class="db-card-head">
+            <strong>💡 Dicas rápidas</strong>
+          </div>
+
+          <div class="db-tip">
+            <div><b>✓</b> ${closingWeek.length} licitação(ões) fecham nesta semana.</div>
+            <div><b>✓</b> ${Math.max(0,allItems.length-quotedItems.length)} itens ainda estão sem cotação.</div>
+            <div><b>✓</b> Mantenha os fornecedores e preços atualizados.</div>
+          </div>
+        </section>
+
+        <section class="db-card db-table-card">
+          <div class="db-card-head">
+            <strong>⚒ Editais em andamento</strong>
+            <button type="button" data-db-open-tab="licitacoes">Ver todos</button>
+          </div>
+
+          <div class="db-table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td><strong>${esc(r.l.numero)}</strong></td>
-                  <td>${esc(r.l.orgao||r.l.cidade||'-')}</td>
-                  <td>${r.items.length}</td>
-                  <td>${r.quoted}</td>
-                  <td>${r.missing}</td>
-                  <td>
-                    <div style="display:flex;align-items:center;gap:8px">
-                      <div class="db-progress"><span style="width:${Math.min(100,r.pct)}%"></span></div>
-                      <span>${r.pct.toFixed(1).replace('.',',')}%</span>
-                    </div>
-                  </td>
-                  <td>${r.meta?dateBR(r.l.proposalEndAt||r.l.raw?.dispute_at,true):'-'}</td>
+                  <th>Edital</th>
+                  <th>Órgão / Município</th>
+                  <th>Itens</th>
+                  <th>Cotados</th>
+                  <th>Faltam cotar</th>
+                  <th>% Cotado</th>
+                  <th>Prazo (fechamento)</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                ${tenderRows.map(r=>`
+                  <tr>
+                    <td><strong>${esc(r.l.numero)}</strong></td>
+                    <td>${esc(r.l.orgao||r.l.cidade||'-')}</td>
+                    <td>${r.items.length}</td>
+                    <td>${r.quoted}</td>
+                    <td>${r.missing}</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <div class="db-progress">
+                          <span style="width:${Math.min(100,r.pct)}%"></span>
+                        </div>
+                        <span>${r.pct.toFixed(1).replace('.',',')}%</span>
+                      </div>
+                    </td>
+                    <td>${r.meta?dateBR(r.l.proposalEndAt||r.l.raw?.dispute_at,true):'-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="db-footer">
+        © 2026 INOVA LTDA — Sistema de Licitações
+      </div>
     </main>
   `;
-
-  shell.querySelectorAll('[data-db-tab]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.querySelector(`#mainTabs [data-tab="${btn.dataset.dbTab}"]`)?.click();
-    });
-  });
 
   $('#dbCalPrev')?.addEventListener('click',()=>{
     state.dashboardCalendarDate=new Date(year,month-1,1);
@@ -5769,13 +5769,25 @@ function renderDashboardModel(){
 
   shell.querySelectorAll('[data-db-tender]').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const id=btn.dataset.dbTender;
-      const l=state.licitacoes.find(x=>String(x.id)===String(id));
+      const l=state.licitacoes.find(x=>String(x.id)===String(btn.dataset.dbTender));
       if(!l)return;
       toast(`Edital ${l.numero} fecha em ${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}.`);
     });
   });
+
+  shell.querySelectorAll('[data-db-open-tab]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelector(`#mainTabs [data-tab="${btn.dataset.dbOpenTab}"]`)?.click();
+    });
+  });
+
+  shell.querySelectorAll('[data-db-open-tender]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelector('#mainTabs [data-tab="licitacoes"]')?.click();
+    });
+  });
 }
+
 
 function renderAll(){
   const companyNameEl=$('#companyName');

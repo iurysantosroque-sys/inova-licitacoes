@@ -1,2 +1,3 @@
-INOVA V32.2 - correção runtime Dashboard
-Corrige dashboardCalendarLocalYMD ausente e adiciona fallback seguro.
+INOVA V33.0
+Dashboard igual ao modelo aprovado, sem menu lateral.
+Precificação também sem menu lateral; somente menu superior.
