@@ -1,27 +1,52 @@
-INOVA LICITAÇÕES — V10.1 PNCP + FILTRO DE ESTADO
+INOVA LICITAÇÕES — V11
 
-NOVIDADE
-A busca do PNCP agora possui filtro de Estado (UF).
+NOVIDADES
 
-Exemplo para Taperoá:
-- Edital: 20/2026
-- Ano: 2026
-- Estado: PB
+1. ITENS AUTOMÁTICOS DO EDITAL
+Ao importar uma contratação pelo link do PNCP, todos os itens retornados pelo PNCP são cadastrados automaticamente:
+- número;
+- descrição;
+- quantidade;
+- unidade;
+- valor unitário estimado.
 
-O servidor também foi atualizado para:
-- respeitar o Estado selecionado;
-- não tratar 020/2026 como se fosse 20/2026;
-- pesquisar o número do edital no campo correto;
-- continuar aceitando link e número de controle PNCP.
+Licitações PNCP ficam identificadas no sistema.
+Também existe o botão "Atualizar itens do PNCP", que:
+- atualiza itens existentes pelo número;
+- adiciona itens novos;
+- mantém a licitação ligada ao PNCP.
+
+2. IMPORTAR COTAÇÃO DO FORNECEDOR
+Na aba Cotações:
+- selecione a licitação;
+- selecione o fornecedor;
+- envie Excel, CSV ou PDF;
+- clique em Ler cotação;
+- revise a prévia;
+- confira o item do edital relacionado;
+- ajuste preço, apresentação, equivalência e marca;
+- salve as linhas selecionadas.
+
+Excel/CSV têm maior precisão.
+PDF funciona quando possui texto selecionável. PDFs escaneados como imagem não são lidos automaticamente nesta versão.
+
+3. SEGURANÇA DA IMPORTAÇÃO
+Nenhuma linha da cotação é salva sem prévia/revisão.
+O sistema faz associação aproximada entre a descrição do fornecedor e a descrição do edital, mas marca associações fracas para revisão.
+
+BANCO
+O Supabase já foi atualizado para guardar:
+- pncp_control
+- source_url
 
 PUBLICAÇÃO
 Substitua no GitHub:
 - index.html
 - app.js
 - styles.css
-- mantenha a pasta assets atual
+- mantenha sua pasta assets
 
-NÃO altere o app-config.js.
+Não altere app-config.js.
 
 Commit sugerido:
-Adicionar filtro de Estado na busca PNCP V10.1
+Adicionar importação de cotações e itens PNCP V11

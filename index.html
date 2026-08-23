@@ -9,8 +9,9 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=10.1" />
+  <link rel="stylesheet" href="styles.css?v=11.0" />
   <script src="/app-config.js?v=5.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
 <body>
@@ -197,8 +198,23 @@
           </form>
         </div>
         <div class="panel"><h2>Licitações cadastradas</h2><div id="licitacoesLista" class="table-wrap"></div></div>
+        <div class="panel pncp-sync-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Itens do edital</h2>
+              <p class="hint">Para licitações importadas pelo PNCP, o sistema traz os itens automaticamente. Você também pode atualizar os itens depois.</p>
+            </div>
+            <span class="badge good">PNCP</span>
+          </div>
+          <div class="pncp-sync-row">
+            <select id="pncpSyncTender"></select>
+            <button type="button" id="pncpSyncBtn">Atualizar itens do PNCP</button>
+          </div>
+          <div id="pncpSyncStatus" class="pncp-sync-status" hidden></div>
+        </div>
+
         <div class="panel">
-          <h2>Adicionar item</h2>
+          <h2>Adicionar item manualmente</h2>
           <form id="itemForm" class="grid-form">
             <select name="licitacao_id" id="itemLicitacao" required></select>
             <input name="numero" type="number" min="1" placeholder="Nº do item" required />
@@ -228,8 +244,42 @@
       </section>
 
       <section id="cotacoes" class="tab">
+        <div class="panel quote-import-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Importar cotação do fornecedor</h2>
+              <p class="hint">Envie Excel, CSV ou PDF com texto. O sistema tenta identificar produtos, preços e relacionar com os itens do edital. Você revisa antes de salvar.</p>
+            </div>
+            <span class="badge good">Importação inteligente</span>
+          </div>
+
+          <div class="quote-import-grid">
+            <label>
+              Licitação
+              <select id="quoteImportTender"></select>
+            </label>
+            <label>
+              Fornecedor
+              <select id="quoteImportSupplier"></select>
+            </label>
+            <label class="quote-file-label">
+              Arquivo da cotação
+              <input id="quoteImportFile" type="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <button type="button" id="quoteReadBtn">Ler cotação</button>
+          </div>
+
+          <div class="quote-import-help">
+            <strong>Como funciona:</strong>
+            <span>Excel/CSV têm melhor precisão. Em PDF, o arquivo precisa conter texto selecionável. Após a leitura, confira o item relacionado, preço, apresentação e equivalência antes de salvar.</span>
+          </div>
+
+          <div id="quoteImportStatus" class="quote-import-status" hidden></div>
+          <div id="quoteImportPreview" class="quote-import-preview"></div>
+        </div>
+
         <div class="panel">
-          <div class="panel-title"><h2>Lançar cotação</h2><span class="badge neutral">Manual ou via importação</span></div>
+          <div class="panel-title"><h2>Lançar cotação manualmente</h2><span class="badge neutral">Manual</span></div>
           <form id="cotacaoForm" class="grid-form">
             <select name="item_id" id="cotacaoItem" required></select>
             <select name="fornecedor_id" id="cotacaoFornecedor" required></select>
@@ -421,10 +471,10 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 10.1</span><i></i><span>Sistema atualizado</span></div>
+      <div class="footer-status"><span>Versão 11.0</span><i></i><span>Sistema atualizado</span></div>
     </footer>
   </div>
 
-  <script type="module" src="/app.js?v=10.1"></script>
+  <script type="module" src="/app.js?v=11.0"></script>
 </body>
 </html>

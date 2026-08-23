@@ -215,3 +215,49 @@ tr:hover td{background:#0a141a}
 
 /* V10.1 - filtro UF PNCP */
 .pncp-search-form select{min-height:44px}
+
+
+/* V11 — ITENS PNCP + IMPORTADOR DE COTAÇÕES */
+.pncp-sync-panel,.quote-import-panel{border-color:rgba(230,170,52,.48)}
+.pncp-sync-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin-top:12px}
+.pncp-sync-row select,.quote-import-grid select,.quote-import-grid input{
+  width:100%;border:1px solid #31414b;border-radius:10px;padding:12px 13px;background:#091218;color:#fff
+}
+.pncp-sync-row button,.quote-import-grid button,.quote-preview-head button{
+  border:1px solid var(--gold);border-radius:10px;background:var(--gold);color:#090d10;font-weight:800;padding:11px 15px
+}
+.pncp-sync-status,.quote-import-status{margin-top:12px;border:1px solid var(--line);background:#091218;border-radius:10px;padding:11px 13px;font-size:.84rem}
+.pncp-sync-status.success,.quote-import-status.success{color:#65d58c;border-color:rgba(53,185,107,.35)}
+.pncp-sync-status.warn,.quote-import-status.warn{color:#e8bc64;border-color:rgba(230,170,52,.35)}
+.pncp-sync-status.error,.quote-import-status.error{color:#ff756d;border-color:rgba(239,73,63,.4)}
+.pncp-sync-status.loading,.quote-import-status.loading{color:#e8bc64}
+
+.quote-import-grid{display:grid;grid-template-columns:1.1fr 1fr 1.5fr auto;gap:12px;align-items:end;margin-top:12px}
+.quote-import-grid label{display:grid;gap:6px;font-size:.84rem;color:#d2d7da}
+.quote-file-label input{padding:9px}
+.quote-import-help{margin-top:12px;background:#091218;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:.8rem;color:#aeb8bf;display:flex;gap:7px}
+.quote-import-help strong{color:var(--gold)}
+.quote-import-preview{margin-top:16px}
+.quote-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.quote-preview-head>div{display:flex;flex-direction:column;gap:3px}
+.quote-preview-head strong{color:var(--gold)}.quote-preview-head span{color:#aeb8bf;font-size:.78rem}
+.quote-preview-table{border:1px solid var(--line);border-radius:10px}
+.quote-preview-table table{min-width:1350px}
+.quote-preview-table td{vertical-align:middle}
+.quote-preview-table td:nth-child(2){min-width:300px;white-space:normal}
+.quote-preview-table td:nth-child(3){min-width:360px}
+.quote-preview-table select,.quote-preview-table input{width:100%;min-width:100px;border:1px solid #31414b;border-radius:8px;padding:8px 9px;background:#091218;color:#fff}
+.quote-preview-table td>small{display:block;color:#9aa6ad;margin-top:4px;font-size:.72rem}
+.quote-row-review td{background:rgba(230,170,52,.035)}
+.review-note{color:#e8bc64!important}
+.quote-preview-table input[type="checkbox"]{width:18px;min-width:18px;height:18px;accent-color:var(--gold)}
+
+@media(max-width:1050px){
+  .quote-import-grid{grid-template-columns:1fr 1fr}
+  .quote-import-grid button{grid-column:1/-1}
+}
+@media(max-width:680px){
+  .pncp-sync-row,.quote-import-grid{grid-template-columns:1fr}
+  .quote-import-grid button{grid-column:auto}
+  .quote-preview-head{align-items:flex-start;flex-direction:column}
+}
