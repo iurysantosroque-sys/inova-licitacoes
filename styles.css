@@ -261,3 +261,23 @@ tr:hover td{background:#0a141a}
   .quote-import-grid button{grid-column:auto}
   .quote-preview-head{align-items:flex-start;flex-direction:column}
 }
+
+
+/* V11.3 — ordem oficial do edital na prévia da cotação */
+.quote-edital-number{
+  text-align:center;
+  min-width:84px;
+}
+.quote-edital-number strong{
+  display:inline-flex;
+  min-width:38px;
+  min-height:32px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(230,170,52,.45);
+  border-radius:8px;
+  color:var(--gold);
+  background:rgba(230,170,52,.06);
+  font-size:.9rem;
+}
+.quote-edital-number span{color:#6f7c84}

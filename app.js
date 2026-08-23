@@ -1010,11 +1010,56 @@ function quoteItemOptions(tenderId,selectedId=''){
   return `<option value="">Não relacionado</option>`+items.map(i=>`<option value="${i.id}" ${i.id===selectedId?'selected':''}>Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
 }
 
+
+function prepareQuoteRowsByTenderOrder(tenderId){
+  const rows=state.quoteImportRows||[];
+
+  rows.forEach((r,index)=>{
+    r.originalOrder ??= index;
+
+    // Só tenta associar automaticamente se ainda não houver associação manual.
+    if(!r.itemId){
+      const match=bestTenderItemMatch(r.description,tenderId);
+      if(match.item && match.score>=0.20){
+        r.itemId=match.item.id;
+        r.matchScore=match.score;
+      }else{
+        r.matchScore=match.score||0;
+      }
+    }
+
+    const item=state.itens.find(i=>i.id===r.itemId);
+    r.editalItemNumber=item ? Number(item.numero) : null;
+  });
+
+  // Ordem oficial do edital:
+  // 1) itens relacionados, pelo número do item do edital
+  // 2) itens não relacionados, no final, mantendo a ordem original do PDF
+  rows.sort((a,b)=>{
+    const aMatched=Number.isFinite(a.editalItemNumber);
+    const bMatched=Number.isFinite(b.editalItemNumber);
+
+    if(aMatched && bMatched){
+      if(a.editalItemNumber!==b.editalItemNumber){
+        return a.editalItemNumber-b.editalItemNumber;
+      }
+      return (a.originalOrder||0)-(b.originalOrder||0);
+    }
+
+    if(aMatched) return -1;
+    if(bMatched) return 1;
+
+    return (a.originalOrder||0)-(b.originalOrder||0);
+  });
+
+  return rows;
+}
+
 function renderQuoteImportPreview(){
   const el=$('#quoteImportPreview');
   if(!el)return;
   const tenderId=$('#quoteImportTender')?.value||'';
-  const rows=state.quoteImportRows||[];
+  const rows=prepareQuoteRowsByTenderOrder(tenderId);
   if(!rows.length){el.innerHTML='';return;}
 
   el.innerHTML=`
@@ -1024,15 +1069,15 @@ function renderQuoteImportPreview(){
     </div>
     <div class="table-wrap quote-preview-table">
       <table>
-        <thead><tr><th>✓</th><th>Produto do fornecedor</th><th>Relacionar ao item do edital</th><th>Preço</th><th>Apresentação</th><th>Equivale a</th><th>Marca</th></tr></thead>
+        <thead><tr><th>✓</th><th>Item edital</th><th>Produto do fornecedor</th><th>Relacionar ao item do edital</th><th>Preço</th><th>Apresentação</th><th>Equivale a</th><th>Marca</th></tr></thead>
         <tbody>
           ${rows.map((r,index)=>{
-            const match=bestTenderItemMatch(r.description,tenderId);
-            if(!r.itemId&&match.item&&match.score>=0.20)r.itemId=match.item.id;
-            r.matchScore=match.score;
-            const weak=!r.itemId||match.score<0.25;
+            const itemMatched=state.itens.find(i=>i.id===r.itemId);
+            const score=Number(r.matchScore||0);
+            const weak=!itemMatched||score<0.25;
             return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
               <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
+              <td class="quote-edital-number">${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}</td>
               <td><strong>${esc(r.description)}</strong><small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small></td>
               <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${weak?'<small class="review-note">Confira a associação</small>':''}</td>
               <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
@@ -1113,7 +1158,13 @@ async function saveImportedQuotes(){
   syncQuoteRowsFromDom();
   const tenderId=$('#quoteImportTender')?.value;
   const supplierId=$('#quoteImportSupplier')?.value;
-  const rows=(state.quoteImportRows||[]).filter(r=>r.selected!==false&&r.itemId&&Number(r.price)>0);
+  const rows=(state.quoteImportRows||[])
+    .filter(r=>r.selected!==false&&r.itemId&&Number(r.price)>0)
+    .sort((a,b)=>{
+      const ai=state.itens.find(i=>i.id===a.itemId);
+      const bi=state.itens.find(i=>i.id===b.itemId);
+      return Number(ai?.numero||999999)-Number(bi?.numero||999999);
+    });
 
   if(!rows.length)return toast('Nenhuma linha válida selecionada. Relacione pelo menos um produto a um item do edital.','error');
   if(!confirm(`Salvar ${rows.length} cotação${rows.length===1?'':'ões'} para este fornecedor?`))return;
@@ -1442,7 +1493,20 @@ document.addEventListener('input',e=>{
   if(e.target.closest('[data-quote-row]'))syncQuoteRowsFromDom();
 });
 document.addEventListener('change',e=>{
-  if(e.target.closest('[data-quote-row]'))syncQuoteRowsFromDom();
+  const tr=e.target.closest('[data-quote-row]');
+  if(!tr)return;
+  syncQuoteRowsFromDom();
+
+  if(e.target.dataset.qField==='itemId'){
+    const i=Number(tr.dataset.quoteRow);
+    const row=state.quoteImportRows[i];
+    if(row){
+      const item=state.itens.find(x=>x.id===row.itemId);
+      row.editalItemNumber=item?Number(item.numero):null;
+      row.matchScore=row.itemId?1:0; // associação manual é tratada como confirmada
+    }
+    renderQuoteImportPreview();
+  }
 });
 
 document.addEventListener('click',async e=>{

@@ -1,35 +1,33 @@
-INOVA LICITAÇÕES — V11.2
+INOVA LICITAÇÕES — V11.3
 
-CORREÇÃO DO IMPORTADOR DE COTAÇÃO PDF
+ORDEM DA COTAÇÃO DE ACORDO COM O EDITAL
 
-Problema corrigido:
-O leitor estava confundindo o subtotal com o preço unitário.
+A prévia da cotação agora é organizada pela sequência oficial dos itens da licitação.
 
-Exemplo do orçamento COMFIL:
-TORN BOIA ... UN 100 12,05 1.205,00
+Exemplo:
+Item 1 do edital
+Item 2 do edital
+Item 3 do edital
+...
 
-Agora o sistema entende:
-- Unidade: UN
-- Quantidade: 100
-- Preço unitário: R$ 12,05
-- Subtotal: R$ 1.205,00
+Funcionamento:
+- o produto do fornecedor é relacionado ao item do edital;
+- os relacionados são ordenados pelo número oficial do item;
+- os produtos sem associação ficam no final para revisão;
+- ao selecionar manualmente outro item, a tabela se reorganiza;
+- ao salvar, as cotações também são processadas na ordem do edital.
 
-Também foi melhorado:
-- remoção do código da descrição;
-- identificação da marca após " - ";
-- exibição de código, quantidade, unidade e subtotal na prévia;
-- validação preço unitário x quantidade x subtotal;
-- limite aumentado para até 2.000 linhas.
+Também foi adicionada a coluna "Item edital" na prévia para facilitar a conferência.
 
 PUBLICAÇÃO
 Substitua no GitHub:
 - index.html
 - app.js
+- styles.css
 
 Mantenha:
-- styles.css
 - app-config.js
 - assets
 
 Commit sugerido:
-Corrigir leitura de cotacao PDF V11.2
+Ordenar cotacao conforme itens do edital V11.3
