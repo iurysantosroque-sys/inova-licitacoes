@@ -3601,10 +3601,10 @@ function ensurePricingExactModelStyles(){
     
     .px-target-box{
       display:grid;
-      grid-template-columns:88px 92px 110px;
-      gap:6px;
+      grid-template-columns:110px minmax(120px,1fr);
+      gap:7px;
       align-items:center;
-      min-width:310px;
+      min-width:245px;
     }
 
     
@@ -3880,20 +3880,25 @@ function calcPricingByFlexibleTarget(item,p){
 
   const estimated=Number(item.valor_estimado||0);
   const revenueEstimated=estimated*qty;
+  const totalCost=costUnit*qty;
+
   const profitEstimated=estimated
-    ? revenueEstimated*(1-overhead)-costUnit*qty
+    ? revenueEstimated*(1-overhead)-totalCost
     : null;
 
   const marginEstimated=estimated
     ? (profitEstimated/revenueEstimated)*100
     : null;
 
-  const profitOnCostEstimated=estimated && costUnit
-    ? (profitEstimated/(costUnit*qty))*100
+  const profitOnCostEstimated=estimated && totalCost
+    ? (profitEstimated/totalCost)*100
     : null;
 
-  const globalMargin=Number(state.config?.margem_alvo||25);
-  const globalProfit=Number(state.config?.lucro_minimo||0);
+  const breakEvenUnit=
+    costUnit/Math.max(1-overhead,0.005);
+
+  const globalMargin=Math.max(0,Number(state.config?.margem_alvo||25));
+  const globalProfit=Math.max(0,Number(state.config?.lucro_minimo||500));
 
   let desiredMargin=
     target.margin==null || target.margin===''
@@ -3905,8 +3910,6 @@ function calcPricingByFlexibleTarget(item,p){
       ? globalProfit
       : Number(target.profit);
 
-  // Margem sobre venda precisa ficar abaixo de 100% menos encargos.
-  // Evita preços absurdos quando alguém digita, por exemplo, 600 no campo de margem.
   const maxMargin=Math.max(0,(1-overhead)*100-0.5);
   desiredMargin=Math.min(Math.max(0,desiredMargin),maxMargin);
   desiredProfit=Math.max(0,desiredProfit);
@@ -3917,96 +3920,115 @@ function calcPricingByFlexibleTarget(item,p){
 
   const priceByProfit=
     (costUnit+(desiredProfit/qty))/
-    Math.max(1-overhead,0.01);
+    Math.max(1-overhead,0.005);
 
-  let suggestedUnit=0;
-  let usedMode=target.mode||'auto';
+  const mode=target.mode||'auto';
 
-  if(usedMode==='margin'){
-    suggestedUnit=priceByMargin;
-  }else if(usedMode==='profit'){
-    suggestedUnit=priceByProfit;
-  }else{
-    // AUTO: usa o MENOR preço que ainda atende pelo menos uma meta útil.
-    // Se o lucro absoluto desejado já for atingido com margem menor, não força 25%.
-    const candidates=[priceByMargin];
-    if(desiredProfit>0)candidates.push(priceByProfit);
+  let minimumUnit=breakEvenUnit;
+  if(mode==='margin')minimumUnit=priceByMargin;
+  if(mode==='profit')minimumUnit=priceByProfit;
 
-    suggestedUnit=Math.min(...candidates.filter(v=>Number.isFinite(v)&&v>0));
+  let autoStatus='Sem estimado';
+  let autoClass='neutral';
+  let autoReason='Informe o valor estimado do edital.';
+
+  if(profitEstimated!=null){
+    if(profitEstimated<0){
+      autoStatus='Prejuízo';
+      autoClass='bad';
+      autoReason='O valor estimado está abaixo do custo total do item.';
+    }else if(
+      profitEstimated>=5000 ||
+      (profitEstimated>=2000 && marginEstimated>=10)
+    ){
+      autoStatus='Excelente';
+      autoClass='good';
+      autoReason='Lucro absoluto alto e margem saudável.';
+    }else if(
+      profitEstimated>=2000 ||
+      marginEstimated>=25
+    ){
+      autoStatus='Bom';
+      autoClass='good';
+      autoReason='Bom lucro absoluto, mesmo que a margem percentual seja menor.';
+    }else if(
+      profitEstimated>=500 ||
+      marginEstimated>=10
+    ){
+      autoStatus='Viável';
+      autoClass='warn';
+      autoReason='Resultado positivo e aceitável, mas merece acompanhamento.';
+    }else{
+      autoStatus='Baixo';
+      autoClass='warn';
+      autoReason='Há lucro, porém o ganho absoluto e a margem ainda são baixos.';
+    }
   }
 
-  const suggestedRevenue=suggestedUnit*qty;
-  const suggestedProfit=
-    suggestedRevenue*(1-overhead)-costUnit*qty;
+  let status=autoStatus;
+  let statusClass=autoClass;
+  let statusReason=autoReason;
 
-  const suggestedMargin=suggestedRevenue
-    ? (suggestedProfit/suggestedRevenue)*100
-    : 0;
+  if(mode==='margin' && profitEstimated!=null){
+    if(profitEstimated<0){
+      status='Prejuízo';
+      statusClass='bad';
+      statusReason='O valor estimado está abaixo do custo.';
+    }else if(marginEstimated>=desiredMargin){
+      status='Meta atingida';
+      statusClass='good';
+      statusReason=`Margem atual de ${marginEstimated.toFixed(2)}% atende à meta de ${desiredMargin.toFixed(2)}%.`;
+    }else{
+      status='Abaixo da margem';
+      statusClass='warn';
+      statusReason=`Margem atual de ${marginEstimated.toFixed(2)}% está abaixo da meta de ${desiredMargin.toFixed(2)}%.`;
+    }
+  }
 
-  const suggestedProfitOnCost=costUnit
-    ? (suggestedProfit/(costUnit*qty))*100
-    : 0;
-
-  const meetsMargin=suggestedMargin+0.0001>=desiredMargin;
-  const meetsProfit=suggestedProfit+0.01>=desiredProfit;
+  if(mode==='profit' && profitEstimated!=null){
+    if(profitEstimated<0){
+      status='Prejuízo';
+      statusClass='bad';
+      statusReason='O valor estimado está abaixo do custo.';
+    }else if(profitEstimated>=desiredProfit){
+      status='Meta atingida';
+      statusClass='good';
+      statusReason=`Lucro atual atende à meta de ${money(desiredProfit)}.`;
+    }else{
+      status='Abaixo do lucro';
+      statusClass='warn';
+      statusReason=`Lucro atual está abaixo da meta de ${money(desiredProfit)}.`;
+    }
+  }
 
   return {
     target,
-    usedMode,
+    mode,
     desiredMargin,
     desiredProfit,
-    priceByMargin,
-    priceByProfit,
-    suggestedUnit,
-    suggestedProfit,
-    suggestedMargin,
-    suggestedProfitOnCost,
     estimated,
+    costUnit,
+    totalCost,
+    revenueEstimated,
     profitEstimated,
     marginEstimated,
     profitOnCostEstimated,
-    meetsMargin,
-    meetsProfit
+    breakEvenUnit,
+    priceByMargin,
+    priceByProfit,
+    minimumUnit,
+    status,
+    statusClass,
+    statusReason,
+    autoStatus,
+    autoClass,
+    autoReason
   };
 }
 
 function pricingProfitBadge(info){
   if(!info)return '';
-  if(info.profitEstimated==null){
-    return '<span class="px-status neutral">Sem estimado</span>';
-  }
-
-  const profit=Number(info.profitEstimated||0);
-  const margin=Number(info.marginEstimated||0);
-  const mode=info.usedMode||info.target?.mode||'auto';
-
-  if(profit<0){
-    return '<span class="px-status bad">Prejuízo</span>';
-  }
-
-  if(mode==='margin'){
-    if(margin>=Number(info.desiredMargin||0)){
-      return '<span class="px-status good">Meta atingida</span>';
-    }
-    return '<span class="px-status warn">Abaixo da margem</span>';
-  }
-
-  if(mode==='profit'){
-    if(profit>=Number(info.desiredProfit||0)){
-      return '<span class="px-status good">Meta atingida</span>';
-    }
-    return '<span class="px-status warn">Abaixo do lucro</span>';
-  }
-
-  // AUTO: basta atingir uma das metas para ser considerado adequado.
-  const marginOk=margin>=Number(info.desiredMargin||0);
-  const profitOk=profit>=Number(info.desiredProfit||0);
-
-  if(marginOk || profitOk){
-    return '<span class="px-status good">Meta atingida</span>';
-  }
-
-  return '<span class="px-status warn">Abaixo da meta</span>';
+  return `<span class="px-status ${info.statusClass||'neutral'}" title="${esc(info.statusReason||'')}">${esc(info.status||'Sem status')}</span>`;
 }
 
 function renderPricingExactModel(){
@@ -4158,10 +4180,11 @@ function renderPricingExactModel(){
                 <th>Fornecedor</th>
                 <th>Preço da cotação</th>
                 <th>Custo total<br><small>(com impostos)</small></th>
-                <th>Margem atual</th>
-                <th>Meta de lucro</th>
-                <th>Lucro estimado</th>
-                <th>Preço de venda<br><small>sugerido</small></th>
+                <th>Estimado do edital</th>
+                <th>Lucro no estimado</th>
+                <th>Margem no estimado</th>
+                <th>Minha meta</th>
+                <th>Preço mínimo</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -4247,20 +4270,42 @@ function renderPricingExactModel(){
 
       const flex=p?calcPricingByFlexibleTarget(i,p):null;
       const target=flex?.target;
+      const mode=target?.mode||'auto';
 
       return `
         <tr>
           <td><span class="px-itemnum">${esc(i.numero)}</span></td>
+
           <td>
             <div class="px-item-title">${esc(i.descricao)}</div>
             <div class="px-item-meta">
               Qtd. ${esc(i.quantidade||'-')} ${esc(i.unidade||'')}
-              ${i.valor_estimado?` • Estimado ${money(i.valor_estimado)}`:''}
             </div>
           </td>
+
           <td>${esc(f?.nome||'—')}</td>
-          <td>${q?`<span class="px-price">${money(q.preco||q.custoProduto||q.custoEq)}</span>`:'<span class="px-status neutral">Sem cotação</span>'}</td>
+
+          <td>
+            ${
+              q
+                ? `<span class="px-price">${money(q.preco||q.custoProduto||q.custoEq)}</span>`
+                : '<span class="px-status neutral">Sem cotação</span>'
+            }
+          </td>
+
           <td>${p?money(p.costUnit):'—'}</td>
+
+          <td>${i.valor_estimado?money(i.valor_estimado):'—'}</td>
+
+          <td>
+            ${
+              flex?.profitEstimated!=null
+                ? `<span class="${flex.profitEstimated>=0?'px-profit':''}" style="${flex.profitEstimated<0?'color:#ff6b66;font-weight:850':''}">
+                     ${money(flex.profitEstimated)}
+                   </span>`
+                : '—'
+            }
+          </td>
 
           <td>
             ${
@@ -4279,41 +4324,34 @@ function renderPricingExactModel(){
               p
                 ? `<div class="px-target-box">
                      <select data-px-target-mode="${i.id}">
-                       <option value="auto" ${target?.mode==='auto'?'selected':''}>Automático</option>
-                       <option value="margin" ${target?.mode==='margin'?'selected':''}>Margem %</option>
-                       <option value="profit" ${target?.mode==='profit'?'selected':''}>Lucro R$</option>
+                       <option value="auto" ${mode==='auto'?'selected':''}>Automático</option>
+                       <option value="margin" ${mode==='margin'?'selected':''}>Margem %</option>
+                       <option value="profit" ${mode==='profit'?'selected':''}>Lucro R$</option>
                      </select>
 
-                     <input
-                       data-px-target-margin="${i.id}"
-                       class="${target?.mode==='profit'?'is-inactive':''}"
-                       type="number"
-                       min="0"
-                       max="90"
-                       step="0.1"
-                       value="${target?.margin??''}"
-                       placeholder="${Number(state.config?.margem_alvo||25)}%"
-                       title="Margem desejada para este item"
-                     >
-
-                     <input
-                       data-px-target-profit="${i.id}"
-                       class="${target?.mode==='margin'?'is-inactive':''}"
-                       type="number"
-                       min="0"
-                       step="0.01"
-                       value="${target?.profit??''}"
-                       placeholder="${money(Number(state.config?.lucro_minimo||0)).replace('R$ ','')}"
-                       title="Lucro total desejado para este item"
-                     >
-                   </div>
-                   <div class="px-help">
                      ${
-                       target?.mode==='margin'
-                         ? 'Status compara a margem atual com a margem definida.'
-                         : target?.mode==='profit'
-                           ? 'Status compara o lucro atual com o lucro em R$ definido.'
-                           : 'Automático aprova se atingir a margem OU o lucro em R$.'
+                       mode==='margin'
+                         ? `<input
+                              data-px-target-margin="${i.id}"
+                              type="number"
+                              min="0"
+                              max="90"
+                              step="0.1"
+                              value="${target?.margin??''}"
+                              placeholder="${Number(state.config?.margem_alvo||25)}%"
+                            >`
+                         : mode==='profit'
+                           ? `<input
+                                data-px-target-profit="${i.id}"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value="${target?.profit??''}"
+                                placeholder="${money(Number(state.config?.lucro_minimo||500)).replace('R$ ','')}"
+                              >`
+                           : `<div class="px-help" style="white-space:normal">
+                                Avalia lucro em R$ + margem %. Ex.: R$ 2.000 com 5% pode ser classificado como <b>Bom</b>.
+                              </div>`
                      }
                    </div>`
                 : '—'
@@ -4322,20 +4360,24 @@ function renderPricingExactModel(){
 
           <td>
             ${
-              flex?.profitEstimated!=null
-                ? `<span class="px-profit">${money(flex.profitEstimated)}</span>`
+              flex
+                ? `<span class="px-sale">${money(flex.minimumUnit||0)}</span>
+                   <div class="px-item-meta">
+                     ${
+                       mode==='auto'
+                         ? 'ponto de equilíbrio'
+                         : mode==='margin'
+                           ? `para ${flex.desiredMargin.toFixed(1).replace('.',',')}%`
+                           : `para ${money(flex.desiredProfit)} de lucro`
+                     }
+                   </div>`
                 : '—'
             }
           </td>
 
-          <td>${flex?`<span class="px-sale">${money(flex.suggestedUnit||0)}</span>`:'—'}</td>
-
           <td>
-            ${
-              flex
-                ? pricingProfitBadge(flex)
-                : `<span class="px-status ${cls}">${esc(status==='Excelente'?'Precificado':status)}</span>`
-            }
+            ${flex?pricingProfitBadge(flex):'<span class="px-status neutral">Sem cotação</span>'}
+            ${flex?`<div class="px-item-meta" style="margin-top:5px;max-width:170px">${esc(flex.statusReason)}</div>`:''}
           </td>
 
           <td><button type="button" class="px-action">${p?'Editar':'Cotação'}</button></td>
@@ -4388,7 +4430,7 @@ function renderPricingExactModel(){
     const p=item?pricing(item):null;
 
     const flex=item&&p?calcPricingByFlexibleTarget(item,p):null;
-    shell.querySelector('#pxSuggested').textContent=flex?.suggestedUnit?money(flex.suggestedUnit):'—';
+    shell.querySelector('#pxSuggested').textContent=flex?.minimumUnit?money(flex.minimumUnit):'—';
 
     const box=shell.querySelector('#pxSimResult');
     if(!item || !p || !p.costUnit){
@@ -4401,10 +4443,11 @@ function renderPricingExactModel(){
 
     if(!bid){
       box.innerHTML=`
-        <h4>Resultado da simulação</h4>
-        <div class="px-sim-row"><span>Margem atual no estimado</span><strong>${flex?.marginEstimated!=null?flex.marginEstimated.toFixed(2).replace('.',',')+'%':'—'}</strong></div>
+        <h4>Resultado atual</h4>
+        <div class="px-sim-row"><span>Status</span><strong>${esc(flex?.status||'—')}</strong></div>
         <div class="px-sim-row"><span>Lucro no estimado</span><strong>${flex?.profitEstimated!=null?money(flex.profitEstimated):'—'}</strong></div>
-        <div class="px-sim-row"><span>Preço sugerido</span><strong>${flex?.suggestedUnit?money(flex.suggestedUnit):'—'}</strong></div>
+        <div class="px-sim-row"><span>Margem no estimado</span><strong>${flex?.marginEstimated!=null?flex.marginEstimated.toFixed(2).replace('.',',')+'%':'—'}</strong></div>
+        <div class="px-sim-row"><span>Preço mínimo</span><strong>${flex?.minimumUnit?money(flex.minimumUnit):'—'}</strong></div>
       `;
       return;
     }

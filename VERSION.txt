@@ -1,6 +1,8 @@
-INOVA V34.1
-Corrige status da precificação conforme modo escolhido.
-Margem -> compara margem.
-Lucro R$ -> compara lucro.
-Automático -> aceita atingir margem OU lucro.
-Limita margem inválida para evitar preço sugerido absurdo.
+INOVA V35.0
+Nova lógica de precificação:
+- Automático: não pede campos; avalia lucro absoluto + margem.
+- Margem %: exibe somente um campo de margem.
+- Lucro R$: exibe somente um campo de lucro.
+- Status: Prejuízo / Baixo / Viável / Bom / Excelente.
+- R$ 2.000 de lucro com 5% pode ser classificado como Bom.
+- Exibe custo, estimado, lucro, margem, meta e preço mínimo.
