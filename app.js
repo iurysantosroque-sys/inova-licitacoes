@@ -114,9 +114,350 @@ function marginText(v){
   const n=Number(v); return n<0 ? `${n.toFixed(1)}% (prejuízo)` : `${n.toFixed(1)}%`;
 }
 function statusBadge(status){
-  const map={Excelente:'good',Oportunidade:'warn',Ruim:'bad','Sem cotação':'neutral','Sem estimado':'neutral'};
+  const map={
+    Excelente:'good',
+    Oportunidade:'warn',
+    Ruim:'bad',
+    'Sem cotação':'neutral',
+    'Sem estimado':'neutral'
+  };
+
   return `<span class="badge ${map[status]||'neutral'}">${esc(status||'-')}</span>`;
 }
+
+
+function precoLucroMinimo(item, p){
+  if(!p || !p.costUnit) return null;
+
+  const c = state.config || {};
+
+  const qty = Math.max(
+    Number(item.quantidade || 0),
+    0.0001
+  );
+
+  const imposto =
+    Number(c.imposto || 0) / 100;
+
+  const reserva =
+    Number(c.reserva_operacional || 0) / 100;
+
+  const overhead =
+    imposto + reserva;
+
+  const lucroMinimo =
+    Number(c.lucro_minimo || 0);
+
+  const lucroMinimoPorUnidade =
+    lucroMinimo / qty;
+
+  const divisor =
+    1 - overhead;
+
+  if(divisor <= 0)
+    return null;
+
+  return (
+    p.costUnit +
+    lucroMinimoPorUnidade
+  ) / divisor;
+}
+
+
+function precoParada(item, p){
+
+  if(!p)
+    return null;
+
+  const lucroMin =
+    precoLucroMinimo(item, p);
+
+  const margemMin =
+    Number(p.limitUnit || 0);
+
+  return Math.max(
+    Number(lucroMin || 0),
+    margemMin
+  );
+}
+
+
+function renderBidSimulator(){
+
+  const select = $('#simItem');
+  const input = $('#simBid');
+  const result = $('#simResult');
+
+  if(!select || !input || !result)
+    return;
+
+
+  const item =
+    state.itens.find(
+      i => i.id === select.value
+    );
+
+
+  if(!item){
+
+    result.innerHTML = `
+      <p class="hint">
+        Selecione um item para iniciar a simulação.
+      </p>
+    `;
+
+    return;
+  }
+
+
+  const p = pricing(item);
+
+
+  if(!p || !p.costUnit){
+
+    result.innerHTML = `
+      <div class="notice">
+        Este item ainda não possui cotação.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  const lance =
+    Number(input.value || 0);
+
+
+  const lucroMinimoUnit =
+    precoLucroMinimo(item, p);
+
+
+  const parada =
+    precoParada(item, p);
+
+
+  if(!lance){
+
+    result.innerHTML = `
+
+      <div class="sim-grid">
+
+        <div class="sim-card">
+          <span>Preço-alvo</span>
+          <strong>
+            ${money(p.targetUnit)}
+          </strong>
+        </div>
+
+        <div class="sim-card">
+          <span>Preço p/ lucro mínimo</span>
+          <strong>
+            ${money(lucroMinimoUnit)}
+          </strong>
+        </div>
+
+        <div class="sim-card">
+          <span>Preço de parada</span>
+          <strong>
+            ${money(parada)}
+          </strong>
+        </div>
+
+        <div class="sim-card">
+          <span>Ponto de equilíbrio</span>
+          <strong>
+            ${money(p.breakEvenUnit)}
+          </strong>
+        </div>
+
+      </div>
+
+    `;
+
+    return;
+  }
+
+
+  const c =
+    state.config || {};
+
+
+  const qty =
+    Number(item.quantidade || 0);
+
+
+  const imposto =
+    Number(c.imposto || 0) / 100;
+
+
+  const reserva =
+    Number(c.reserva_operacional || 0) / 100;
+
+
+  const overhead =
+    imposto + reserva;
+
+
+  const receita =
+    lance * qty;
+
+
+  const custoTotal =
+    p.costUnit * qty;
+
+
+  const lucro =
+    (
+      lance *
+      (1 - overhead) -
+      p.costUnit
+    ) * qty;
+
+
+  const margem =
+    lance > 0
+      ? (
+          (
+            lance *
+            (1 - overhead) -
+            p.costUnit
+          ) / lance
+        ) * 100
+      : 0;
+
+
+  let status = '';
+  let classe = '';
+  let mensagem = '';
+
+
+  if(
+    lance <
+    Number(p.breakEvenUnit || 0)
+  ){
+
+    status =
+      'PREJUÍZO';
+
+    classe =
+      'bad';
+
+    mensagem =
+      'Não dê este lance. O valor está abaixo do ponto de equilíbrio.';
+
+  }
+
+  else if(
+    lance <
+    Number(parada || 0)
+  ){
+
+    status =
+      'ABAIXO DO PREÇO DE PARADA';
+
+    classe =
+      'bad';
+
+    mensagem =
+      'O lance ainda dá resultado positivo, mas viola sua margem mínima ou seu lucro mínimo.';
+
+  }
+
+  else if(
+    lance <
+    Number(p.targetUnit || 0)
+  ){
+
+    status =
+      'PARTICIPAR COM CAUTELA';
+
+    classe =
+      'warn';
+
+    mensagem =
+      'O lance é aceitável, mas ficará abaixo da margem desejada.';
+
+  }
+
+  else {
+
+    status =
+      'PODE DAR O LANCE';
+
+    classe =
+      'good';
+
+    mensagem =
+      'O lance atende às regras configuradas para este item.';
+
+  }
+
+
+  result.innerHTML = `
+
+    <div class="bid-decision ${classe}">
+
+      <strong>
+        ${status}
+      </strong>
+
+      <span>
+        ${mensagem}
+      </span>
+
+    </div>
+
+
+    <div class="sim-grid">
+
+      <div class="sim-card">
+        <span>Lance informado</span>
+        <strong>
+          ${money(lance)}
+        </strong>
+      </div>
+
+      <div class="sim-card">
+        <span>Lucro total</span>
+        <strong class="${lucro < 0 ? 'negative' : 'positive'}">
+          ${money(lucro)}
+        </strong>
+      </div>
+
+      <div class="sim-card">
+        <span>Margem líquida</span>
+        <strong class="${margem < 0 ? 'negative' : 'positive'}">
+          ${margem.toFixed(2)}%
+        </strong>
+      </div>
+
+      <div class="sim-card">
+        <span>Receita total</span>
+        <strong>
+          ${money(receita)}
+        </strong>
+      </div>
+
+      <div class="sim-card">
+        <span>Custo total</span>
+        <strong>
+          ${money(custoTotal)}
+        </strong>
+      </div>
+
+      <div class="sim-card">
+        <span>Preço de parada</span>
+        <strong>
+          ${money(parada)}
+        </strong>
+      </div>
+
+    </div>
+
+  `;
+}
+
 
 async function ensureProfile(){
   if(!state.user || state.demo)return;
@@ -193,10 +534,178 @@ function renderAll(){
   $('#cotacaoItem').innerHTML='<option value="">Selecione o item</option>'+state.itens.map(i=>`<option value="${i.id}">${esc(itemName(i))}</option>`).join('');
   const fornOpts='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join(''); $('#cotacaoFornecedor').innerHTML=fornOpts; $('#arquivoFornecedor').innerHTML=fornOpts;
   $('#comparativoLista').innerHTML=table(['Item','Melhor fornecedor','Produto un.','Frete un.','Custo real un.','Apresentação'],state.itens.map(i=>{const q=bestQuote(i.id);if(!q)return [esc(itemName(i)),'<span class="badge neutral">Sem cotação</span>','-','-','-','-'];const f=state.fornecedores.find(x=>x.id===q.fornecedor_id);return [esc(itemName(i)),esc(f?.nome||'-'),money(q.custoProduto??q.custoEq),money(q.freteUnit||0),money(q.custoEq),esc(q.apresentacao||'-')];}));
-  const precRows=state.itens.map(i=>{const p=pricing(i);if(!p)return [esc(itemName(i)),'-','-','-',money(i.valor_estimado),'-','-','-','-','-','-',statusBadge('Sem cotação'),'Cotação necessária'];return [esc(itemName(i)),esc(p.supplierName||'-'),money(p.costUnit),money(p.freightUnit||0),money(i.valor_estimado),p.targetUnit==null?'-':money(p.targetUnit),p.limitUnit==null?'-':money(p.limitUnit),p.breakEvenUnit==null?'-':money(p.breakEvenUnit),p.profit==null?'-':money(p.profit),marginText(p.margin),signedMoney(p.differenceTarget),statusBadge(p.status),esc(p.recommendation||'-')];});
-  $('#precificacaoLista').innerHTML=table(['Item','Melhor fornecedor','Custo real un.','Frete un.','Estimado un.',`Lance p/ ${Number(c.margem_alvo||25)}%`,'Lance mínimo','Ponto de equilíbrio','Lucro no estimado','Margem líquida','Dif. p/ alvo','Status','Recomendação'],precRows);
-  const summary={excelente:0,oportunidade:0,ruim:0,sem:0,lucro:0}; ps.forEach(p=>{if(p.status==='Excelente')summary.excelente++;else if(p.status==='Oportunidade')summary.oportunidade++;else if(p.status==='Ruim')summary.ruim++;else summary.sem++;summary.lucro+=Math.max(0,Number(p.profit||0));});
-  const sumEl=$('#pricingSummary'); if(sumEl)sumEl.innerHTML=`<div class="mini-stat"><span>Excelentes</span><strong>${summary.excelente}</strong></div><div class="mini-stat"><span>Oportunidades</span><strong>${summary.oportunidade}</strong></div><div class="mini-stat"><span>Não participar</span><strong>${summary.ruim}</strong></div><div class="mini-stat"><span>Lucro positivo no estimado</span><strong>${money(summary.lucro)}</strong></div>`;
+  const precRows = state.itens.map(i => {
+
+  const p = pricing(i);
+
+  if(!p){
+    return [
+      esc(itemName(i)),
+      '-',
+      '-',
+      '-',
+      money(i.valor_estimado),
+      '-',
+      '-',
+      '-',
+      '-',
+      '-',
+      '-',
+      '-',
+      statusBadge('Sem cotação'),
+      'Cotação necessária'
+    ];
+  }
+
+  const lucroMinUnit = precoLucroMinimo(i, p);
+  const parada = precoParada(i, p);
+
+  return [
+    esc(itemName(i)),
+    esc(p.supplierName || '-'),
+    money(p.costUnit),
+    money(p.freightUnit || 0),
+    money(i.valor_estimado),
+
+    p.targetUnit == null
+      ? '-'
+      : money(p.targetUnit),
+
+    lucroMinUnit == null
+      ? '-'
+      : money(lucroMinUnit),
+
+    parada == null
+      ? '-'
+      : money(parada),
+
+    p.breakEvenUnit == null
+      ? '-'
+      : money(p.breakEvenUnit),
+
+    p.profit == null
+      ? '-'
+      : money(p.profit),
+
+    marginText(p.margin),
+
+    signedMoney(p.differenceTarget),
+
+    statusBadge(p.status),
+
+    esc(p.recommendation || '-')
+  ];
+});
+
+
+$('#precificacaoLista').innerHTML = table(
+  [
+    'Item',
+    'Melhor fornecedor',
+    'Custo real un.',
+    'Frete un.',
+    'Estimado un.',
+    `Preço-alvo ${Number(c.margem_alvo || 25)}%`,
+    'Preço p/ lucro mín.',
+    'Preço de parada',
+    'Ponto de equilíbrio',
+    'Lucro no estimado',
+    'Margem líquida',
+    'Dif. p/ alvo',
+    'Status',
+    'Recomendação'
+  ],
+  precRows
+);
+
+
+const summary = {
+  excelente: 0,
+  oportunidade: 0,
+  ruim: 0,
+  sem: 0,
+  lucro: 0
+};
+
+
+ps.forEach(p => {
+
+  if(p.status === 'Excelente')
+    summary.excelente++;
+
+  else if(p.status === 'Oportunidade')
+    summary.oportunidade++;
+
+  else if(p.status === 'Ruim')
+    summary.ruim++;
+
+  else
+    summary.sem++;
+
+  summary.lucro += Math.max(
+    0,
+    Number(p.profit || 0)
+  );
+
+});
+
+
+const sumEl = $('#pricingSummary');
+
+if(sumEl){
+
+  sumEl.innerHTML = `
+    <div class="mini-stat">
+      <span>Excelentes</span>
+      <strong>${summary.excelente}</strong>
+    </div>
+
+    <div class="mini-stat">
+      <span>Oportunidades</span>
+      <strong>${summary.oportunidade}</strong>
+    </div>
+
+    <div class="mini-stat">
+      <span>Não participar</span>
+      <strong>${summary.ruim}</strong>
+    </div>
+
+    <div class="mini-stat">
+      <span>Lucro positivo no estimado</span>
+      <strong>${money(summary.lucro)}</strong>
+    </div>
+  `;
+}
+
+
+const simItem = $('#simItem');
+
+if(simItem){
+
+  const selecionado = simItem.value;
+
+  simItem.innerHTML =
+    '<option value="">Selecione o item</option>' +
+    state.itens
+      .map(
+        i =>
+          `<option value="${i.id}">
+            ${esc(itemName(i))}
+          </option>`
+      )
+      .join('');
+
+  if(
+    state.itens.some(
+      i => i.id === selecionado
+    )
+  ){
+    simItem.value = selecionado;
+  }
+}
+
+
+renderBidSimulator();
   $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado',''],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);const action=d.status==='processado'?'<span class="badge good">Concluído</span>':`<button class="action-btn" data-process-doc="${d.id}">Processar IA</button>`;return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge ${d.status==='processado'?'good':'neutral'}">${esc(d.status||'enviado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),action];}));
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
@@ -241,5 +750,60 @@ document.addEventListener('click',async e=>{
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.tab).classList.add('active');}));
 let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').hidden=false;});$('#installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').hidden=true;});
 if('serviceWorker' in navigator)window.addEventListener('load',async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}catch{}});
-if(configured)supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')showOnly('authScreen');if(event==='SIGNED_IN'&&session)state.user=session.user;});
+if(configured)supabase.auth.onAuthStateChange((event,session)=>{
+  if(event==='SIGNED_OUT')showOnly('authScreen');
+  if(event==='SIGNED_IN'&&session)state.user=session.user;
+});
+
+
+$('#simItem')?.addEventListener(
+  'change',
+  () => {
+
+    const item =
+      state.itens.find(
+        i =>
+          i.id ===
+          $('#simItem').value
+      );
+
+    const p =
+      item
+        ? pricing(item)
+        : null;
+
+
+    if(
+      item &&
+      p &&
+      p.targetUnit
+    ){
+
+      $('#simBid').value =
+        Number(
+          p.targetUnit
+        ).toFixed(4);
+
+    }
+
+    else {
+
+      $('#simBid').value =
+        '';
+
+    }
+
+
+    renderBidSimulator();
+
+  }
+);
+
+
+$('#simBid')?.addEventListener(
+  'input',
+  renderBidSimulator
+);
+
+
 boot();
