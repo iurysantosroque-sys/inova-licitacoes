@@ -219,8 +219,34 @@ function tenderStatusInfo(l){
 }
 
 
+
+function quotesForItem(itemId){
+  return state.cotacoes.filter(
+    q=>String(q.item_id)===String(itemId)
+  );
+}
+
+function itemHasQuote(itemId){
+  return quotesForItem(itemId).some(
+    q=>Number(q.preco||0)>0
+  );
+}
+
 function bestQuote(itemId){
-  const server=state.pricingMap.find(p=>p.item_id===itemId && p.supplier_id);
+  const item=state.itens.find(
+    i=>String(i.id)===String(itemId)
+  );
+
+  // Usa o motor do banco somente quando existe fornecedor e custo real válido.
+  // Isso evita uma linha antiga da pricing_map com "sem cotação" esconder
+  // uma cotação que já foi cadastrada em quote_items.
+  const server=state.pricingMap.find(
+    p=>
+      String(p.item_id)===String(itemId) &&
+      p.supplier_id &&
+      Number(p.real_unit_cost||0)>0
+  );
+
   if(server){
     return {
       fornecedor_id:server.supplier_id,
@@ -233,32 +259,68 @@ function bestQuote(itemId){
       origem:'motor'
     };
   }
-  const item=state.itens.find(i=>i.id===itemId);
+
   const qty=Math.max(Number(item?.quantidade||0),0.0001);
-  const qs=state.cotacoes.filter(q=>q.item_id===itemId).map(q=>{
-    const fator=Math.max(Number(q.fator_equivalencia||1),0.0001);
-    const fornecedor=state.fornecedores.find(f=>f.id===q.fornecedor_id);
-    const freteApresentacao=Number(q.frete_rateado||0);
-    const pacotes=Math.ceil(qty/fator);
-    const freteTotal=freteApresentacao>0 ? pacotes*freteApresentacao : Number(fornecedor?.frete_padrao||0);
-    const custoProduto=Number(q.preco||0)/fator;
-    const freteUnit=freteTotal/qty;
-    return {...q,custoProduto,freteTotal,freteUnit,custoEq:custoProduto+freteUnit};
-  });
-  return qs.sort((a,b)=>a.custoEq-b.custoEq)[0] || null;
+
+  const qs=quotesForItem(itemId)
+    .filter(q=>Number(q.preco||0)>0)
+    .map(q=>{
+      const fator=Math.max(Number(q.fator_equivalencia||1),0.0001);
+      const fornecedor=state.fornecedores.find(
+        f=>String(f.id)===String(q.fornecedor_id)
+      );
+
+      const freteApresentacao=Number(q.frete_rateado||0);
+      const pacotes=Math.ceil(qty/fator);
+
+      const freteTotal=
+        freteApresentacao>0
+          ? pacotes*freteApresentacao
+          : Number(fornecedor?.frete_padrao||0);
+
+      const custoProduto=Number(q.preco||0)/fator;
+      const freteUnit=freteTotal/qty;
+
+      return {
+        ...q,
+        custoProduto,
+        freteTotal,
+        freteUnit,
+        custoEq:custoProduto+freteUnit,
+        origem:'cotacao'
+      };
+    });
+
+  return qs.sort((a,b)=>a.custoEq-b.custoEq)[0]||null;
 }
 
 function pricing(item){
-  const server=state.pricingMap.find(p=>p.item_id===item.id);
-  if(server){
+  const q=bestQuote(item.id);
+
+  // Se existe cotação salva, ela tem prioridade sobre uma pricing_map
+  // desatualizada. O motor só é usado quando também possui cotação válida.
+  const server=state.pricingMap.find(
+    p=>
+      String(p.item_id)===String(item.id) &&
+      p.supplier_id &&
+      Number(p.real_unit_cost||0)>0
+  );
+
+  if(server && q && String(server.supplier_id)===String(q.fornecedor_id)){
     return {
-      q:server.supplier_id?{fornecedor_id:server.supplier_id,apresentacao:server.package_description||'',custoEq:Number(server.real_unit_cost||0)}:null,
-      supplierName:server.supplier_name||'',
+      q:{
+        fornecedor_id:server.supplier_id,
+        apresentacao:server.package_description||'',
+        custoEq:Number(server.real_unit_cost||0)
+      },
+      supplierName:server.supplier_name||
+        state.fornecedores.find(f=>String(f.id)===String(server.supplier_id))?.nome||
+        '',
       productCostUnit:Number(server.product_unit_cost||0),
       freightUnit:Number(server.freight_unit||0),
       freightTotal:Number(server.freight_total||0),
       costUnit:Number(server.real_unit_cost||0),
-      totalCost:Number(server.real_unit_cost||0)*Number(server.quantity||0),
+      totalCost:Number(server.real_unit_cost||0)*Number(server.quantity||item.quantidade||0),
       targetUnit:server.target_bid==null?null:Number(server.target_bid),
       limitUnit:server.minimum_bid==null?null:Number(server.minimum_bid),
       breakEvenUnit:server.break_even_bid==null?null:Number(server.break_even_bid),
@@ -267,34 +329,100 @@ function pricing(item){
       margin:server.margin_at_estimated_percent==null?null:Number(server.margin_at_estimated_percent),
       differenceTarget:server.difference_to_target==null?null:Number(server.difference_to_target),
       differenceMinimum:server.difference_to_minimum==null?null:Number(server.difference_to_minimum),
-      status:server.status||'Sem cotação',
+      status:server.status||'Sem estimado',
       recommendation:server.recommendation||''
     };
   }
 
-  // Fallback para modo demonstração.
-  const q=bestQuote(item.id); if(!q)return null;
-  const c=state.config || {imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
-  const qty=Math.max(Number(item.quantidade||0),0.0001), costUnit=q.custoEq, totalCost=costUnit*qty;
-  const overhead=(Number(c.imposto||0)+Number(c.reserva_operacional||0))/100;
-  const targetMargin=Number(c.margem_alvo||0)/100, minMargin=Number(c.margem_minima||0)/100;
+  if(!q)return null;
+
+  // Cálculo local imediato. Assim a cotação já aparece na precificação
+  // mesmo antes de qualquer view/motor do Supabase ser atualizado.
+  const c=state.config||{
+    imposto:6,
+    margem_alvo:25,
+    lucro_minimo:500,
+    margem_minima:10,
+    reserva_operacional:0
+  };
+
+  const qty=Math.max(Number(item.quantidade||0),0.0001);
+  const costUnit=Number(q.custoEq||0);
+  const totalCost=costUnit*qty;
+
+  const overhead=
+    (Number(c.imposto||0)+Number(c.reserva_operacional||0))/100;
+
+  const targetMargin=Number(c.margem_alvo||0)/100;
+  const minMargin=Number(c.margem_minima||0)/100;
   const est=Number(item.valor_estimado||0);
-  const targetUnit=costUnit/Math.max(1-overhead-targetMargin,0.01);
-  const minByMargin=costUnit/Math.max(1-overhead-minMargin,0.01);
-  const minByProfit=(costUnit+(Number(c.lucro_minimo||0)/qty))/Math.max(1-overhead,0.01);
+
+  const targetUnit=
+    costUnit/Math.max(1-overhead-targetMargin,0.01);
+
+  const minByMargin=
+    costUnit/Math.max(1-overhead-minMargin,0.01);
+
+  const minByProfit=
+    (costUnit+(Number(c.lucro_minimo||0)/qty))/
+    Math.max(1-overhead,0.01);
+
   const limitUnit=Math.max(minByMargin,minByProfit);
   const breakEvenUnit=costUnit/Math.max(1-overhead,0.01);
-  const revenue=est*qty, profit=est ? revenue*(1-overhead)-totalCost : null;
-  const margin=est ? profit/revenue*100 : null;
-  let status='Sem estimado', recommendation='Informe o valor estimado do edital';
+
+  const revenue=est*qty;
+  const profit=est
+    ? revenue*(1-overhead)-totalCost
+    : null;
+
+  const margin=est
+    ? profit/revenue*100
+    : null;
+
+  let status='Sem estimado';
+  let recommendation='Informe o valor estimado do edital';
+
   if(est){
-    if(est<breakEvenUnit){status='Ruim';recommendation='Não participar — estimado abaixo do ponto de equilíbrio';}
-    else if(est<limitUnit){status='Ruim';recommendation='Não participar — estimado abaixo do lance mínimo';}
-    else if(est<targetUnit){status='Oportunidade';recommendation='Participar com cautela — margem abaixo da desejada';}
-    else if(profit<Number(c.lucro_minimo||0)){status='Oportunidade';recommendation='Participar com cautela — lucro total abaixo do mínimo';}
-    else {status='Excelente';recommendation='Boa oportunidade — estimado atende a margem desejada';}
+    if(est<breakEvenUnit){
+      status='Ruim';
+      recommendation='Não participar — estimado abaixo do ponto de equilíbrio';
+    }else if(est<limitUnit){
+      status='Ruim';
+      recommendation='Não participar — estimado abaixo do lance mínimo';
+    }else if(est<targetUnit){
+      status='Oportunidade';
+      recommendation='Participar com cautela — margem abaixo da desejada';
+    }else if(profit<Number(c.lucro_minimo||0)){
+      status='Oportunidade';
+      recommendation='Participar com cautela — lucro total abaixo do mínimo';
+    }else{
+      status='Excelente';
+      recommendation='Boa oportunidade — estimado atende a margem desejada';
+    }
   }
-  return {q,supplierName:state.fornecedores.find(f=>f.id===q.fornecedor_id)?.nome||'',productCostUnit:q.custoProduto,freightUnit:q.freteUnit,freightTotal:q.freteTotal,costUnit,totalCost,targetUnit,limitUnit,breakEvenUnit,sellUnit:est||null,profit,margin,differenceTarget:est?est-targetUnit:null,differenceMinimum:est?est-limitUnit:null,status,recommendation};
+
+  return {
+    q,
+    supplierName:
+      state.fornecedores.find(
+        f=>String(f.id)===String(q.fornecedor_id)
+      )?.nome||'',
+    productCostUnit:q.custoProduto,
+    freightUnit:q.freteUnit,
+    freightTotal:q.freteTotal,
+    costUnit,
+    totalCost,
+    targetUnit,
+    limitUnit,
+    breakEvenUnit,
+    sellUnit:est||null,
+    profit,
+    margin,
+    differenceTarget:est?est-targetUnit:null,
+    differenceMinimum:est?est-limitUnit:null,
+    status,
+    recommendation
+  };
 }
 
 function signedMoney(v){
@@ -341,6 +469,147 @@ function precoParada(item, p){
   );
 }
 
+
+function ensurePricingModernStyles(){
+  if(document.getElementById('pricingModernStyles'))return;
+
+  const style=document.createElement('style');
+  style.id='pricingModernStyles';
+
+  style.textContent=`
+    #precificacao{
+      --p-bg:#07141c;
+      --p-panel:#0a1922;
+      --p-line:#263b47;
+      --p-text:#edf3f6;
+      --p-muted:#91a1ab;
+      --p-yellow:#f2b52a;
+      --p-green:#35d379;
+      --p-red:#ff645f;
+      --p-blue:#56a8ff;
+    }
+
+    #precificacao #pricingTenderViewer{
+      border:1px solid var(--p-line);
+      background:#091821;
+      border-radius:11px;
+      padding:16px;
+    }
+
+    #precificacao #pricingSummary{
+      display:grid;
+      grid-template-columns:repeat(5,minmax(130px,1fr));
+      gap:10px;
+      margin:14px 0;
+    }
+
+    #precificacao #pricingSummary .mini-stat{
+      border:1px solid var(--p-line);
+      border-radius:9px;
+      background:#0a1922;
+      padding:13px 14px;
+    }
+
+    #precificacao #pricingSummary .mini-stat span{
+      color:var(--p-muted);
+      font-size:.72rem;
+    }
+
+    #precificacao #pricingSummary .mini-stat strong{
+      display:block;
+      margin-top:4px;
+      color:var(--p-text);
+      font-size:1.18rem;
+    }
+
+    #precificacao .simulator-panel,
+    #precificacao .panel:has(#simItem){
+      border:1px solid var(--p-line);
+      border-radius:12px;
+      background:linear-gradient(145deg,#0a1922,#091720);
+      overflow:hidden;
+    }
+
+    #precificacao .panel:has(#simItem) .panel-title{
+      color:var(--p-yellow);
+    }
+
+    #precificacao #simItem,
+    #precificacao #simBid{
+      min-height:42px;
+      border:1px solid #34505e;
+      border-radius:8px;
+      background:#07151d;
+      color:var(--p-text);
+      padding:0 11px;
+    }
+
+    #precificacao #simResult{
+      margin-top:12px;
+    }
+
+    #precificacao .bid-decision{
+      display:grid;
+      grid-template-columns:170px 1fr;
+      gap:16px;
+      align-items:center;
+      min-height:68px;
+      border-radius:9px;
+      border:1px solid var(--p-line);
+      padding:13px 15px;
+      background:#091821;
+    }
+
+    #precificacao .bid-decision.good{
+      border-color:#236b43;
+      background:#09251b;
+    }
+
+    #precificacao .bid-decision.warn{
+      border-color:#72591a;
+      background:#241e0d;
+    }
+
+    #precificacao .bid-decision.bad{
+      border-color:#71302e;
+      background:#211213;
+    }
+
+    #precificacao .bid-decision strong{
+      color:var(--p-yellow);
+      font-size:.84rem;
+      letter-spacing:.03em;
+    }
+
+    #precificacao .bid-decision.good strong{color:var(--p-green)}
+    #precificacao .bid-decision.bad strong{color:var(--p-red)}
+    #precificacao .bid-decision span{color:#c4cfd5;font-size:.8rem}
+
+    #precificacao #precificacaoLista table{
+      min-width:1450px;
+    }
+
+    #precificacao #precificacaoLista th{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:#08151d;
+      color:var(--p-yellow);
+    }
+
+    #precificacao #precificacaoLista tbody tr:hover td{
+      background:#0d2029;
+    }
+
+    @media(max-width:900px){
+      #precificacao #pricingSummary{grid-template-columns:repeat(2,1fr)}
+      #precificacao .bid-decision{grid-template-columns:1fr}
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
 function renderBidSimulator(){
   const select = $('#simItem');
   const input = $('#simBid');
@@ -362,15 +631,23 @@ function renderBidSimulator(){
   const p = pricing(item);
 
   if(!p || !p.costUnit){
+    const savedCount=quotesForItem(item.id).length;
     result.innerHTML = `
       <div class="bid-decision bad">
-        <strong>SEM COTAÇÃO</strong>
-        <span>Cadastre uma cotação para este item antes de simular um lance.</span>
+        <strong>${savedCount?'COTAÇÃO SEM CUSTO VÁLIDO':'SEM COTAÇÃO'}</strong>
+        <span>
+          ${
+            savedCount
+              ? `Existe ${savedCount} cotação salva, mas o preço/equivalência precisa ser revisado.`
+              : 'Cadastre uma cotação para este item antes de simular um lance.'
+          }
+        </span>
       </div>
     `;
     return;
   }
 
+  const quoteCount=quotesForItem(item.id).length;
   const lance = Number(input.value || 0);
   const lucroMinimoUnit = precoLucroMinimo(item, p);
   const parada = precoParada(item, p);
@@ -2811,6 +3088,7 @@ function pricingItemsForSelectedTender(){
 }
 
 function renderPricingByTender(){
+  ensurePricingModernStyles();
   const list=$('#precificacaoLista');
   if(!list)return;
 
@@ -2836,11 +3114,11 @@ function renderPricingByTender(){
 
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   const allItems=pricingItemsForSelectedTender();
-  const quotedCount=allItems.filter(i=>pricing(i)).length;
+  const quotedCount=allItems.filter(i=>itemHasQuote(i.id)).length;
   const missingCount=allItems.length-quotedCount;
 
   const items=state.pricingOnlyMissing
-    ? allItems.filter(i=>!pricing(i))
+    ? allItems.filter(i=>!itemHasQuote(i.id))
     : allItems;
 
   const info=$('#pricingTenderViewInfo');
@@ -2853,7 +3131,7 @@ function renderPricingByTender(){
 
   const precRows=items.map(i=>{
     const p=pricing(i);
-    const quoteCount=state.cotacoes.filter(q=>String(q.item_id)===String(i.id)).length;
+    const quoteCount=quotesForItem(i.id).length;
     const action=quoteCount
       ? `<button type="button" class="action-btn danger-btn" title="Retirar as cotações salvas deste item" data-remove-item-quotes="${esc(i.id)}">Retirar cotação${quoteCount>1?' ('+quoteCount+')':''}</button>`
       : '<span class="hint">—</span>';

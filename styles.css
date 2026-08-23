@@ -297,6 +297,67 @@ tr:hover td{background:#0a141a}
   background:rgba(230,170,52,.025)!important;
 }
 
-/* V12 — associação por IA */
-.ai-match-btn{background:linear-gradient(135deg,#e6aa34,#f0c76a)!important;color:#091015!important;border-color:#f0c76a!important}
-.ai-match-btn:disabled{opacity:.45;cursor:not-allowed}
+/* ===== INOVA V27 — cabeçalho horizontal oficial ===== */
+.topbar-v27{
+  min-height:72px;
+  height:72px;
+  padding:0 24px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:26px;
+  background:#050b0f;
+  border-bottom:1px solid #1d2c35;
+  position:sticky;
+  top:0;
+  z-index:40;
+}
+.brand-row-v27{gap:0;min-width:auto}
+.header-logo-v27{
+  width:116px!important;
+  height:58px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block;
+}
+.tabs-v27{
+  position:static;
+  height:72px;
+  padding:0;
+  border:0;
+  background:transparent;
+  display:flex;
+  align-items:stretch;
+  overflow-x:auto;
+  gap:4px;
+}
+.tabs-v27 button{
+  height:72px;
+  border:0!important;
+  border-bottom:3px solid transparent!important;
+  padding:0 18px;
+  background:transparent!important;
+  color:#aeb9c1;
+  font-weight:600;
+  font-size:.92rem;
+}
+.tabs-v27 button:hover{color:#fff;background:rgba(255,255,255,.025)!important}
+.tabs-v27 button.active{
+  color:#fff!important;
+  border-bottom-color:var(--gold)!important;
+  background:transparent!important;
+}
+.topbar-v27 .top-actions{justify-self:end}
+.topbar-v27 + main{padding-top:28px}
+
+@media(max-width:1100px){
+  .topbar-v27{grid-template-columns:auto 1fr;padding:0 14px;gap:12px}
+  .topbar-v27 .top-actions{display:none}
+  .header-logo-v27{width:92px!important;height:52px!important}
+  .tabs-v27 button{padding:0 12px;font-size:.84rem}
+}
+@media(max-width:720px){
+  .topbar-v27{height:auto;min-height:64px;grid-template-columns:auto minmax(0,1fr)}
+  .tabs-v27{height:64px}
+  .tabs-v27 button{height:64px;padding:0 10px}
+}

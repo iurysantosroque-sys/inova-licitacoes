@@ -1,34 +1,40 @@
-INOVA LICITAÇÕES — V12 IA
+INOVA LICITAÇÕES — V11.4
 
-NOVO FLUXO DE COTAÇÃO
-1. Selecione licitação e fornecedor.
-2. Envie PDF/Excel/CSV.
-3. Clique em Ler cotação.
-4. Clique em Relacionar com IA.
-5. A IA compara os produtos com TODOS os itens do edital.
-6. Correspondências com confiança >= 70% são relacionadas automaticamente.
-7. Casos incertos ficam para revisão manual.
-8. A tabela é organizada na ordem oficial do edital.
-9. Confira e clique em Salvar cotações selecionadas.
+CORREÇÃO DO RELACIONAMENTO COTAÇÃO x EDITAL
 
-SUPABASE
-A Edge Function ai-match-quote já foi criada no projeto.
+O sistema não "chuta" mais itens com pouca semelhança.
 
-FALTA UMA CONFIGURAÇÃO:
-Cadastre no Supabase o secret:
-OPENAI_API_KEY = sua chave da OpenAI API
+Agora o algoritmo compara:
+- família do produto (primeiras palavras);
+- palavras relevantes da descrição;
+- números e medidas;
+- dimensões;
+- frações;
+- litros, mm, cm, kg, watts, volts etc.
 
-Nunca coloque a chave no app.js, index.html ou GitHub.
+Exemplos que deixam de acontecer:
+- CADEADO 20 -> ADAPTADORES
+- TE SOLD 20 -> ADAPTADORES
+- TINTA 15L -> BISNAGA DE TINTA
+- TE SOLD 25 -> BOIAS 25 MM
+
+Regra:
+- só associa automaticamente com confiança alta;
+- se houver dúvida, fica "Não relacionado";
+- sugestões intermediárias aparecem apenas como texto amarelo;
+- seleção manual continua disponível;
+- itens associados seguem na ordem oficial do edital;
+- não relacionados ficam no final.
 
 PUBLICAÇÃO
-Substitua:
+Substitua no GitHub:
 - index.html
 - app.js
 - styles.css
 
-Mantenha:
+Não altere:
 - app-config.js
 - assets
 
 Commit sugerido:
-Adicionar associacao de cotacao por IA V12
+Melhorar associacao segura cotacao edital V11.4
