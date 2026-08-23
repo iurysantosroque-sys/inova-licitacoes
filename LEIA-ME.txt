@@ -1,52 +1,27 @@
-INOVA LICITAÇÕES — V11
+INOVA LICITAÇÕES — V11.1
 
-NOVIDADES
+MELHORIA DE FLUXO PNCP
 
-1. ITENS AUTOMÁTICOS DO EDITAL
-Ao importar uma contratação pelo link do PNCP, todos os itens retornados pelo PNCP são cadastrados automaticamente:
-- número;
-- descrição;
-- quantidade;
-- unidade;
-- valor unitário estimado.
-
-Licitações PNCP ficam identificadas no sistema.
-Também existe o botão "Atualizar itens do PNCP", que:
-- atualiza itens existentes pelo número;
-- adiciona itens novos;
-- mantém a licitação ligada ao PNCP.
-
-2. IMPORTAR COTAÇÃO DO FORNECEDOR
-Na aba Cotações:
-- selecione a licitação;
-- selecione o fornecedor;
-- envie Excel, CSV ou PDF;
-- clique em Ler cotação;
-- revise a prévia;
-- confira o item do edital relacionado;
-- ajuste preço, apresentação, equivalência e marca;
-- salve as linhas selecionadas.
-
-Excel/CSV têm maior precisão.
-PDF funciona quando possui texto selecionável. PDFs escaneados como imagem não são lidos automaticamente nesta versão.
-
-3. SEGURANÇA DA IMPORTAÇÃO
-Nenhuma linha da cotação é salva sem prévia/revisão.
-O sistema faz associação aproximada entre a descrição do fornecedor e a descrição do edital, mas marca associações fracas para revisão.
-
-BANCO
-O Supabase já foi atualizado para guardar:
-- pncp_control
-- source_url
+Após importar uma licitação do PNCP com sucesso, o sistema agora:
+- limpa o campo de pesquisa/link;
+- remove os resultados encontrados;
+- fecha e apaga a prévia do edital;
+- remove a lista de itens da área de pesquisa;
+- limpa a mensagem de status;
+- mantém o ano atual;
+- volta a UF para PB;
+- mantém a licitação e seus itens cadastrados normalmente;
+- deixa o cursor pronto para pesquisar/importar o próximo edital.
 
 PUBLICAÇÃO
 Substitua no GitHub:
 - index.html
 - app.js
-- styles.css
-- mantenha sua pasta assets
 
-Não altere app-config.js.
+Você pode manter:
+- styles.css
+- app-config.js
+- pasta assets
 
 Commit sugerido:
-Adicionar importação de cotações e itens PNCP V11
+Limpar busca PNCP apos importar licitacao V11.1

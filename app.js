@@ -686,9 +686,40 @@ async function importPncpPreview(){
       setPncpStatus(`Importando itens… ${Math.min(start+chunk.length,items.length)}/${items.length}`,'loading');
     }
 
-    setPncpStatus(`Importação concluída: ${items.length} itens cadastrados.`,'success');
-    toast('Licitação do PNCP importada com sucesso.');
+    toast(`Licitação importada com sucesso: ${items.length} itens cadastrados.`);
+
+    // Limpa completamente a área de busca do PNCP após a importação.
+    state.pncpPreview=null;
+
+    const searchForm=$('#pncpSearchForm');
+    if(searchForm){
+      searchForm.reset();
+      const year=$('#pncpYear');
+      if(year)year.value=new Date().getFullYear();
+      const uf=$('#pncpUf');
+      if(uf)uf.value='PB';
+    }
+
+    const results=$('#pncpSearchResults');
+    if(results)results.innerHTML='';
+
+    const preview=$('#pncpPreview');
+    if(preview){
+      preview.innerHTML='';
+      preview.hidden=true;
+    }
+
+    const status=$('#pncpSearchStatus');
+    if(status){
+      status.textContent='';
+      status.hidden=true;
+      status.className='pncp-status';
+    }
+
     await refreshAll();
+
+    // Mantém a aba de Licitações aberta e pronta para uma nova importação.
+    $('#pncpQuery')?.focus();
   }catch(e){
     setPncpStatus(`Erro ao importar: ${e?.message||e}`,'error');
     toast(e?.message||'Erro ao importar PNCP','error');
