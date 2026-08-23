@@ -5430,6 +5430,24 @@ function ensureDashboardModelStyles(){
   document.head.appendChild(style);
 }
 
+
+function dashboardCalendarLocalYMD(v){
+  if(!v)return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return '';
+
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'America/Fortaleza',
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit'
+  }).formatToParts(d);
+
+  const get=type=>parts.find(p=>p.type===type)?.value||'';
+
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 function dashboardDeadlineMeta(l){
   const raw=l.proposalEndAt || l.raw?.dispute_at;
   if(!raw)return null;
@@ -5787,7 +5805,20 @@ function renderAll(){
   const c=state.config||{}; const buckets={excelente:0,oportunidade:0,ruim:0,sem:0};
   state.itens.forEach(i=>{const p=pricing(i);if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')buckets.sem++;else if(p.status==='Ruim')buckets.ruim++;else if(p.status==='Oportunidade')buckets.oportunidade++;else buckets.excelente++;});
   $('#resumoOportunidades').innerHTML=`<div class="opp"><strong>${buckets.excelente}</strong><span>Excelentes</span></div><div class="opp"><strong>${buckets.oportunidade}</strong><span>Oportunidades</span></div><div class="opp"><strong>${buckets.ruim}</strong><span>Ruins</span></div><div class="opp"><strong>${buckets.sem}</strong><span>Sem cotação</span></div>`;
-  renderDashboardModel();
+  try{
+    renderDashboardModel();
+  }catch(err){
+    console.error('Dashboard render error:',err);
+    const dash=$('#dashboard');
+    if(dash){
+      dash.classList.remove('dashboard-model');
+      const broken=$('#dashboardModelShell');
+      if(broken)broken.remove();
+      dash.querySelector(':scope > .cards')?.style.removeProperty('display');
+      dash.querySelector(':scope > .two-col')?.style.removeProperty('display');
+    }
+    toast('O novo Dashboard encontrou um erro e o sistema voltou ao Dashboard padrão.','error');
+  }
   renderTenderManagement();
   $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');

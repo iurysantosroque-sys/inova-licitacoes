@@ -1,1 +1,2 @@
-INOVA V32.1 - Dashboard novo - 2026-08-23
+INOVA V32.2 - correção runtime Dashboard
+Corrige dashboardCalendarLocalYMD ausente e adiciona fallback seguro.
