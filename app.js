@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, demo:false
 };
 
 function toast(msg,type='success'){
@@ -3272,8 +3272,15 @@ function ensurePricingExactModelStyles(){
   const style=document.createElement('style');
   style.id='pricingExactModelStyles';
   style.textContent=`
+    /* A Precificação só pode ocupar a tela quando a aba estiver ativa.
+       A regra anterior usava display:grid sempre e anulava o display:none
+       padrão das outras abas, por isso ela aparecia embaixo de todas. */
     #precificacao.pricing-exact{
-      display:grid;
+      display:none !important;
+    }
+
+    #precificacao.pricing-exact.tab.active{
+      display:grid !important;
       grid-template-columns:196px minmax(0,1fr);
       min-height:calc(100vh - 62px);
       background:#06131b;
@@ -3760,7 +3767,7 @@ function ensurePricingExactModelStyles(){
     }
 
     @media(max-width:1250px){
-      #precificacao.pricing-exact{grid-template-columns:1fr}
+      #precificacao.pricing-exact.tab.active{grid-template-columns:1fr}
       #precificacao.pricing-exact .pricing-side{display:none}
       #precificacao.pricing-exact > .panel,
       #precificacao.pricing-exact > #pricingSummary,
@@ -4944,6 +4951,416 @@ function renderTenderManagement(){
   setTimeout(()=>autoSyncPncpTenders(false),400);
 }
 
+
+function ensureDashboardCalendarStyles(){
+  if(document.getElementById('dashboardCalendarStyles'))return;
+
+  const style=document.createElement('style');
+  style.id='dashboardCalendarStyles';
+  style.textContent=`
+    .dashboard-calendar-panel{
+      margin-top:18px;
+      border:1px solid #243945;
+      border-radius:12px;
+      background:#091821;
+      overflow:hidden;
+    }
+
+    .dashboard-calendar-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+      padding:16px 18px;
+      border-bottom:1px solid #243945;
+    }
+
+    .dashboard-calendar-title h2{
+      margin:0;
+      color:#f1b52a;
+      font-size:1.05rem;
+    }
+
+    .dashboard-calendar-title p{
+      margin:5px 0 0;
+      color:#93a2ac;
+      font-size:.76rem;
+    }
+
+    .dashboard-calendar-nav{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .dashboard-calendar-nav button{
+      width:36px;
+      height:36px;
+      border:1px solid #2d4653;
+      border-radius:8px;
+      background:#081720;
+      color:#dfe7eb;
+      cursor:pointer;
+    }
+
+    .dashboard-calendar-month{
+      min-width:165px;
+      text-align:center;
+      color:#eef3f6;
+      font-weight:800;
+      text-transform:capitalize;
+    }
+
+    .dashboard-calendar-grid{
+      display:grid;
+      grid-template-columns:repeat(7,minmax(115px,1fr));
+      min-width:805px;
+    }
+
+    .dashboard-calendar-weekday{
+      padding:10px 9px;
+      background:#07151d;
+      color:#8fa0aa;
+      font-size:.68rem;
+      text-align:center;
+      border-right:1px solid #20343f;
+      border-bottom:1px solid #20343f;
+      text-transform:uppercase;
+      font-weight:750;
+    }
+
+    .dashboard-calendar-day{
+      min-height:118px;
+      padding:9px;
+      background:#091821;
+      border-right:1px solid #20343f;
+      border-bottom:1px solid #20343f;
+    }
+
+    .dashboard-calendar-day.other-month{
+      opacity:.42;
+      background:#07151d;
+    }
+
+    .dashboard-calendar-day.today{
+      box-shadow:inset 0 0 0 1px #d7a225;
+    }
+
+    .dashboard-calendar-number{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:7px;
+      color:#dfe7eb;
+      font-size:.74rem;
+      font-weight:800;
+    }
+
+    .dashboard-calendar-number .today-label{
+      color:#f1b52a;
+      font-size:.6rem;
+      text-transform:uppercase;
+    }
+
+    .dashboard-tender-event{
+      display:block;
+      width:100%;
+      margin:5px 0;
+      padding:6px 7px;
+      border:1px solid #315063;
+      border-left:3px solid #55a8ff;
+      border-radius:6px;
+      background:#0b202b;
+      color:#dfe8ed;
+      font-size:.64rem;
+      line-height:1.3;
+      cursor:pointer;
+      text-align:left;
+    }
+
+    .dashboard-tender-event.deadline{
+      border-left-color:#ff625d;
+      background:#201315;
+    }
+
+    .dashboard-tender-event.opening{
+      border-left-color:#35d379;
+      background:#0a2118;
+    }
+
+    .dashboard-tender-event strong{
+      display:block;
+      color:#f3f6f8;
+      font-size:.67rem;
+      margin-bottom:2px;
+    }
+
+    .dashboard-tender-event span{
+      display:block;
+      color:#9cabB4;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .dashboard-calendar-legend{
+      display:flex;
+      gap:18px;
+      flex-wrap:wrap;
+      padding:11px 18px 14px;
+      color:#9aa8b1;
+      font-size:.7rem;
+    }
+
+    .dashboard-calendar-legend i{
+      display:inline-block;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      margin-right:6px;
+    }
+
+    .dashboard-calendar-scroll{
+      overflow:auto;
+    }
+
+    .dashboard-calendar-detail{
+      margin:0 18px 16px;
+      padding:12px 14px;
+      border:1px solid #2a4350;
+      border-radius:8px;
+      background:#07161e;
+      color:#b9c5cc;
+      font-size:.75rem;
+    }
+
+    .dashboard-calendar-detail strong{
+      color:#f1b52a;
+    }
+
+    @media(max-width:900px){
+      .dashboard-calendar-head{
+        align-items:flex-start;
+        flex-direction:column;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function calendarTenderDates(l){
+  const dates=[];
+
+  if(l.publicationAt){
+    dates.push({
+      type:'publication',
+      date:l.publicationAt,
+      label:'Publicação'
+    });
+  }
+
+  if(l.proposalOpenAt){
+    dates.push({
+      type:'opening',
+      date:l.proposalOpenAt,
+      label:'Abre propostas'
+    });
+  }
+
+  if(l.proposalEndAt){
+    dates.push({
+      type:'deadline',
+      date:l.proposalEndAt,
+      label:'Fecha propostas'
+    });
+  }else if(l.raw?.dispute_at){
+    dates.push({
+      type:'deadline',
+      date:l.raw.dispute_at,
+      label:'Data da disputa'
+    });
+  }
+
+  return dates;
+}
+
+function dashboardCalendarLocalYMD(v){
+  if(!v)return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return '';
+  const y=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',year:'numeric'});
+  const m=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',month:'2-digit'});
+  const day=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',day:'2-digit'});
+  return `${y}-${m}-${day}`;
+}
+
+function renderDashboardCalendar(){
+  const dashboard=$('#dashboard');
+  if(!dashboard)return;
+
+  ensureDashboardCalendarStyles();
+
+  let panel=$('#dashboardCalendarPanel');
+  if(!panel){
+    panel=document.createElement('div');
+    panel.id='dashboardCalendarPanel';
+    panel.className='dashboard-calendar-panel';
+
+    // Coloca o calendário logo após os cards e os blocos iniciais do Dashboard.
+    dashboard.appendChild(panel);
+  }
+
+  if(!state.dashboardCalendarDate){
+    const nextDeadline=state.licitacoes
+      .map(l=>l.proposalEndAt || l.proposalOpenAt || l.publicationAt || l.raw?.dispute_at)
+      .filter(Boolean)
+      .map(v=>new Date(v))
+      .filter(d=>!Number.isNaN(d.getTime()))
+      .sort((a,b)=>a-b)[0];
+
+    const base=nextDeadline || new Date();
+    state.dashboardCalendarDate=new Date(base.getFullYear(),base.getMonth(),1);
+  }
+
+  const view=new Date(state.dashboardCalendarDate);
+  const year=view.getFullYear();
+  const month=view.getMonth();
+
+  const first=new Date(year,month,1);
+  const firstWeekday=first.getDay();
+  const gridStart=new Date(year,month,1-firstWeekday);
+
+  const monthLabel=new Intl.DateTimeFormat('pt-BR',{
+    month:'long',
+    year:'numeric'
+  }).format(view);
+
+  const eventMap=new Map();
+
+  state.licitacoes.forEach(l=>{
+    calendarTenderDates(l).forEach(ev=>{
+      const key=dashboardCalendarLocalYMD(ev.date);
+      if(!key)return;
+      if(!eventMap.has(key))eventMap.set(key,[]);
+      eventMap.get(key).push({
+        ...ev,
+        tender:l
+      });
+    });
+  });
+
+  const todayKey=dashboardCalendarLocalYMD(new Date());
+
+  const cells=[];
+  for(let i=0;i<42;i++){
+    const d=new Date(gridStart);
+    d.setDate(gridStart.getDate()+i);
+
+    const key=[
+      d.getFullYear(),
+      String(d.getMonth()+1).padStart(2,'0'),
+      String(d.getDate()).padStart(2,'0')
+    ].join('-');
+
+    const events=eventMap.get(key)||[];
+    const other=d.getMonth()!==month;
+    const today=key===todayKey;
+
+    cells.push(`
+      <div class="dashboard-calendar-day ${other?'other-month':''} ${today?'today':''}">
+        <div class="dashboard-calendar-number">
+          <span>${d.getDate()}</span>
+          ${today?'<span class="today-label">Hoje</span>':''}
+        </div>
+
+        ${events.slice(0,4).map(ev=>`
+          <button
+            type="button"
+            class="dashboard-tender-event ${esc(ev.type)}"
+            data-calendar-tender="${esc(ev.tender.id)}"
+            data-calendar-date-type="${esc(ev.type)}"
+          >
+            <strong>${esc(ev.tender.numero)} • ${esc(ev.label)}</strong>
+            <span>${esc(ev.tender.orgao||'')}</span>
+          </button>
+        `).join('')}
+
+        ${events.length>4?`<div class="hint">+ ${events.length-4} evento(s)</div>`:''}
+      </div>
+    `);
+  }
+
+  panel.innerHTML=`
+    <div class="dashboard-calendar-head">
+      <div class="dashboard-calendar-title">
+        <h2>Calendário de licitações</h2>
+        <p>Veja publicação, abertura e fechamento das propostas de cada edital.</p>
+      </div>
+
+      <div class="dashboard-calendar-nav">
+        <button type="button" id="dashboardCalendarPrev">‹</button>
+        <div class="dashboard-calendar-month">${esc(monthLabel)}</div>
+        <button type="button" id="dashboardCalendarNext">›</button>
+        <button type="button" id="dashboardCalendarToday" style="width:auto;padding:0 10px">Hoje</button>
+      </div>
+    </div>
+
+    <div class="dashboard-calendar-scroll">
+      <div class="dashboard-calendar-grid">
+        ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`
+          <div class="dashboard-calendar-weekday">${d}</div>
+        `).join('')}
+        ${cells.join('')}
+      </div>
+    </div>
+
+    <div class="dashboard-calendar-legend">
+      <span><i style="background:#55a8ff"></i>Publicação</span>
+      <span><i style="background:#35d379"></i>Abertura para propostas</span>
+      <span><i style="background:#ff625d"></i>Fechamento das propostas / disputa</span>
+    </div>
+
+    <div id="dashboardCalendarDetail" class="dashboard-calendar-detail">
+      Clique em uma licitação no calendário para ver os detalhes.
+    </div>
+  `;
+
+  $('#dashboardCalendarPrev')?.addEventListener('click',()=>{
+    state.dashboardCalendarDate=new Date(year,month-1,1);
+    renderDashboardCalendar();
+  });
+
+  $('#dashboardCalendarNext')?.addEventListener('click',()=>{
+    state.dashboardCalendarDate=new Date(year,month+1,1);
+    renderDashboardCalendar();
+  });
+
+  $('#dashboardCalendarToday')?.addEventListener('click',()=>{
+    const now=new Date();
+    state.dashboardCalendarDate=new Date(now.getFullYear(),now.getMonth(),1);
+    renderDashboardCalendar();
+  });
+
+  panel.querySelectorAll('[data-calendar-tender]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.calendarTender;
+      const l=state.licitacoes.find(x=>String(x.id)===String(id));
+      if(!l)return;
+
+      const detail=$('#dashboardCalendarDetail');
+      if(!detail)return;
+
+      detail.innerHTML=`
+        <strong>${esc(l.numero)} • ${esc(l.orgao||'')}</strong><br>
+        ${esc(l.cidade||'')} • ${esc(l.plataforma||'')}<br>
+        ${l.proposalOpenAt?`Abertura para propostas: <b>${dateBR(l.proposalOpenAt,true)}</b><br>`:''}
+        ${l.proposalEndAt?`Fecha propostas: <b>${dateBR(l.proposalEndAt,true)}</b><br>`:''}
+        ${l.objeto?`Objeto: ${esc(l.objeto)}`:''}
+      `;
+    });
+  });
+}
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -4972,6 +5389,7 @@ function renderAll(){
   const c=state.config||{}; const buckets={excelente:0,oportunidade:0,ruim:0,sem:0};
   state.itens.forEach(i=>{const p=pricing(i);if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')buckets.sem++;else if(p.status==='Ruim')buckets.ruim++;else if(p.status==='Oportunidade')buckets.oportunidade++;else buckets.excelente++;});
   $('#resumoOportunidades').innerHTML=`<div class="opp"><strong>${buckets.excelente}</strong><span>Excelentes</span></div><div class="opp"><strong>${buckets.oportunidade}</strong><span>Oportunidades</span></div><div class="opp"><strong>${buckets.ruim}</strong><span>Ruins</span></div><div class="opp"><strong>${buckets.sem}</strong><span>Sem cotação</span></div>`;
+  renderDashboardCalendar();
   renderTenderManagement();
   $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
