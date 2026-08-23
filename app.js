@@ -4952,411 +4952,809 @@ function renderTenderManagement(){
 }
 
 
-function ensureDashboardCalendarStyles(){
-  if(document.getElementById('dashboardCalendarStyles'))return;
+
+function ensureDashboardModelStyles(){
+  if(document.getElementById('dashboardModelStyles'))return;
 
   const style=document.createElement('style');
-  style.id='dashboardCalendarStyles';
+  style.id='dashboardModelStyles';
   style.textContent=`
-    .dashboard-calendar-panel{
-      margin-top:18px;
-      border:1px solid #243945;
-      border-radius:12px;
-      background:#091821;
-      overflow:hidden;
+    #dashboard.dashboard-model{
+      background:#06131b;
+      color:#edf3f6;
+      padding:0!important;
     }
 
-    .dashboard-calendar-head{
+    #dashboard.dashboard-model > .cards,
+    #dashboard.dashboard-model > .two-col{
+      display:none!important;
+    }
+
+    .db-shell{
+      display:grid;
+      grid-template-columns:198px minmax(0,1fr);
+      min-height:calc(100vh - 62px);
+    }
+
+    .db-side{
+      border-right:1px solid #1f3340;
+      background:#07151d;
+      padding:18px 12px;
+      display:flex;
+      flex-direction:column;
+      min-height:calc(100vh - 62px);
+    }
+
+    .db-brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:3px 8px 18px;
+      color:#f4f7f8;
+      font-weight:900;
+      font-size:1.15rem;
+    }
+
+    .db-brand-mark{
+      width:30px;height:30px;
+      border-radius:50%;
+      display:grid;place-items:center;
+      background:#f2b52a;color:#06131b;
+      font-weight:950;
+    }
+
+    .db-menu-label{
+      color:#6f818c;
+      font-size:.66rem;
+      letter-spacing:.08em;
+      margin:8px 10px 12px;
+      text-transform:uppercase;
+    }
+
+    .db-nav{
+      display:grid;
+      gap:6px;
+    }
+
+    .db-nav button{
+      height:42px;
+      border:0;
+      border-radius:8px;
+      background:transparent;
+      color:#b6c2c9;
+      text-align:left;
+      padding:0 12px;
+      font-weight:650;
+      cursor:pointer;
+    }
+
+    .db-nav button.active{
+      background:#252313;
+      color:#f2b52a;
+    }
+
+    .db-nav button:hover{
+      background:#0d2029;
+    }
+
+    .db-support{
+      margin-top:auto;
+      border:1px solid #203844;
+      border-radius:10px;
+      background:#0a1a23;
+      padding:14px;
+    }
+
+    .db-support strong{display:block;color:#f2f5f7;margin-bottom:5px}
+    .db-support span{display:block;color:#66b7f7;font-size:.72rem;margin-bottom:10px}
+    .db-support button{
+      width:100%;height:36px;border:0;border-radius:7px;
+      background:#1568c7;color:white;font-weight:800
+    }
+
+    .db-side-footer{
+      margin-top:16px;
+      color:#7f909a;
+      font-size:.67rem;
+      line-height:1.55;
+    }
+
+    .db-main{
+      padding:18px 16px 26px;
+      min-width:0;
+    }
+
+    .db-head{
       display:flex;
       justify-content:space-between;
-      align-items:center;
+      align-items:flex-start;
       gap:16px;
-      padding:16px 18px;
-      border-bottom:1px solid #243945;
+      margin-bottom:17px;
     }
 
-    .dashboard-calendar-title h2{
+    .db-title h1{
       margin:0;
-      color:#f1b52a;
-      font-size:1.05rem;
+      font-size:1.72rem;
+      color:#f2f5f7;
+      letter-spacing:-.02em;
     }
 
-    .dashboard-calendar-title p{
+    .db-title p{
       margin:5px 0 0;
-      color:#93a2ac;
+      color:#95a4ae;
+      font-size:.8rem;
+    }
+
+    .db-date-pill{
+      border:1px solid #27414f;
+      border-radius:8px;
+      background:#081720;
+      color:#e3e9ed;
+      padding:10px 13px;
       font-size:.76rem;
     }
 
-    .dashboard-calendar-nav{
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-
-    .dashboard-calendar-nav button{
-      width:36px;
-      height:36px;
-      border:1px solid #2d4653;
-      border-radius:8px;
-      background:#081720;
-      color:#dfe7eb;
-      cursor:pointer;
-    }
-
-    .dashboard-calendar-month{
-      min-width:165px;
-      text-align:center;
-      color:#eef3f6;
-      font-weight:800;
-      text-transform:capitalize;
-    }
-
-    .dashboard-calendar-grid{
+    .db-kpis{
       display:grid;
-      grid-template-columns:repeat(7,minmax(115px,1fr));
-      min-width:805px;
+      grid-template-columns:repeat(4,minmax(180px,1fr));
+      gap:12px;
+      margin-bottom:14px;
     }
 
-    .dashboard-calendar-weekday{
-      padding:10px 9px;
-      background:#07151d;
-      color:#8fa0aa;
-      font-size:.68rem;
-      text-align:center;
-      border-right:1px solid #20343f;
-      border-bottom:1px solid #20343f;
-      text-transform:uppercase;
-      font-weight:750;
-    }
-
-    .dashboard-calendar-day{
-      min-height:118px;
-      padding:9px;
+    .db-kpi{
+      min-height:92px;
+      border:1px solid #203743;
+      border-radius:11px;
       background:#091821;
-      border-right:1px solid #20343f;
-      border-bottom:1px solid #20343f;
+      padding:15px 16px;
+      display:grid;
+      grid-template-columns:48px 1fr;
+      gap:13px;
+      align-items:center;
     }
 
-    .dashboard-calendar-day.other-month{
-      opacity:.42;
-      background:#07151d;
+    .db-kpi-icon{
+      width:48px;height:48px;
+      border-radius:11px;
+      display:grid;place-items:center;
+      font-size:1.3rem;
+      font-weight:900;
     }
 
-    .dashboard-calendar-day.today{
-      box-shadow:inset 0 0 0 1px #d7a225;
+    .db-kpi-icon.yellow{background:#3b3210;color:#f2b52a}
+    .db-kpi-icon.red{background:#46171d;color:#ff625d}
+    .db-kpi-icon.green{background:#123a26;color:#35d379}
+    .db-kpi-icon.purple{background:#251a43;color:#b18bff}
+
+    .db-kpi small{display:block;color:#93a3ad;font-size:.67rem;text-transform:uppercase}
+    .db-kpi strong{display:block;color:#f4f7f9;font-size:1.45rem;line-height:1.1;margin-top:4px}
+    .db-kpi span{display:block;color:#9aa8b2;font-size:.68rem;margin-top:5px}
+
+    .db-grid{
+      display:grid;
+      grid-template-columns:238px minmax(0,1fr) 320px;
+      gap:14px;
+      align-items:start;
     }
 
-    .dashboard-calendar-number{
+    .db-card{
+      border:1px solid #203743;
+      border-radius:11px;
+      background:#081720;
+      overflow:hidden;
+    }
+
+    .db-card-head{
       display:flex;
       justify-content:space-between;
       align-items:center;
-      margin-bottom:7px;
-      color:#dfe7eb;
-      font-size:.74rem;
-      font-weight:800;
+      gap:10px;
+      padding:13px 15px;
+      border-bottom:1px solid #203743;
     }
 
-    .dashboard-calendar-number .today-label{
-      color:#f1b52a;
-      font-size:.6rem;
-      text-transform:uppercase;
+    .db-card-head strong{
+      color:#f2b52a;
+      font-size:.9rem;
     }
 
-    .dashboard-tender-event{
-      display:block;
-      width:100%;
-      margin:5px 0;
-      padding:6px 7px;
-      border:1px solid #315063;
-      border-left:3px solid #55a8ff;
-      border-radius:6px;
-      background:#0b202b;
-      color:#dfe8ed;
-      font-size:.64rem;
-      line-height:1.3;
-      cursor:pointer;
-      text-align:left;
-    }
-
-    .dashboard-tender-event.deadline{
-      border-left-color:#ff625d;
-      background:#201315;
-    }
-
-    .dashboard-tender-event.opening{
-      border-left-color:#35d379;
-      background:#0a2118;
-    }
-
-    .dashboard-tender-event strong{
-      display:block;
-      color:#f3f6f8;
-      font-size:.67rem;
-      margin-bottom:2px;
-    }
-
-    .dashboard-tender-event span{
-      display:block;
-      color:#9cabB4;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .dashboard-calendar-legend{
-      display:flex;
-      gap:18px;
-      flex-wrap:wrap;
-      padding:11px 18px 14px;
-      color:#9aa8b1;
+    .db-card-head button{
+      border:1px solid #2c4654;
+      border-radius:7px;
+      background:#07151d;
+      color:#cbd5da;
+      height:32px;
+      padding:0 10px;
       font-size:.7rem;
     }
 
-    .dashboard-calendar-legend i{
-      display:inline-block;
-      width:9px;
-      height:9px;
-      border-radius:50%;
-      margin-right:6px;
+    .db-deadlines{
+      padding:4px 12px 10px;
     }
 
-    .dashboard-calendar-scroll{
-      overflow:auto;
+    .db-deadline{
+      position:relative;
+      padding:12px 10px 12px 18px;
+      border-bottom:1px solid #1b303a;
     }
 
-    .dashboard-calendar-detail{
-      margin:0 18px 16px;
-      padding:12px 14px;
-      border:1px solid #2a4350;
-      border-radius:8px;
-      background:#07161e;
-      color:#b9c5cc;
-      font-size:.75rem;
+    .db-deadline:last-child{border-bottom:0}
+
+    .db-deadline:before{
+      content:'';
+      position:absolute;
+      left:2px;top:13px;bottom:13px;width:4px;border-radius:999px;
+      background:#4b9cff;
     }
 
-    .dashboard-calendar-detail strong{
-      color:#f1b52a;
+    .db-deadline.urgent:before{background:#ff334a}
+    .db-deadline.soon:before{background:#ffc21c}
+
+    .db-deadline-time{
+      font-weight:850;
+      font-size:.78rem;
+      color:#e9eef1;
     }
 
-    @media(max-width:900px){
-      .dashboard-calendar-head{
-        align-items:flex-start;
-        flex-direction:column;
-      }
+    .db-deadline.urgent .db-deadline-time{color:#ff5d66}
+    .db-deadline.soon .db-deadline-time{color:#ffd02d}
+
+    .db-deadline-title{
+      color:#e8edf0;
+      font-size:.72rem;
+      margin-top:4px;
+      line-height:1.35;
+    }
+
+    .db-deadline-meta{
+      color:#8f9fa9;
+      font-size:.66rem;
+      margin-top:3px;
+    }
+
+    .db-calendar{
+      padding:12px 14px 14px;
+    }
+
+    .db-calendar-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .db-calendar-month{
+      color:#eef3f6;
+      font-weight:850;
+      text-transform:capitalize;
+    }
+
+    .db-cal-nav{
+      display:flex;gap:7px;align-items:center
+    }
+
+    .db-cal-nav button{
+      height:32px;
+      min-width:32px;
+      border:1px solid #2d4654;
+      border-radius:7px;
+      background:#07151d;
+      color:#d6e0e5;
+      padding:0 9px;
+    }
+
+    .db-cal-legend{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      color:#9aa8b2;
+      font-size:.64rem;
+      margin-bottom:8px;
+      flex-wrap:wrap;
+    }
+
+    .db-cal-legend i{
+      width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px
+    }
+
+    .db-cal-grid{
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      border:1px solid #203743;
+      border-radius:9px;
+      overflow:hidden;
+    }
+
+    .db-cal-week{
+      padding:8px 4px;
+      background:#07151d;
+      text-align:center;
+      color:#a8b5bd;
+      font-size:.66rem;
+      border-right:1px solid #1d313c;
+      border-bottom:1px solid #1d313c;
+      font-weight:700;
+    }
+
+    .db-cal-day{
+      min-height:66px;
+      padding:6px;
+      background:#091821;
+      border-right:1px solid #1d313c;
+      border-bottom:1px solid #1d313c;
+      color:#e1e8ec;
+      font-size:.68rem;
+    }
+
+    .db-cal-day.other{opacity:.38;background:#07151d}
+    .db-cal-day.today{box-shadow:inset 0 0 0 1px #f2b52a}
+
+    .db-cal-num{
+      font-weight:800;
+      margin-bottom:5px;
+    }
+
+    .db-cal-event{
+      display:block;
+      width:100%;
+      border:0;
+      border-radius:6px;
+      padding:5px 6px;
+      text-align:left;
+      font-size:.61rem;
+      line-height:1.25;
+      color:#fff;
+      cursor:pointer;
+      background:#145ea7;
+    }
+
+    .db-cal-event.urgent{background:#9f1e2e}
+    .db-cal-event.soon{background:#b98900;color:#161000}
+
+    .db-right{
+      display:grid;
+      gap:14px;
+    }
+
+    .db-company{
+      padding:8px 14px 13px;
+    }
+
+    .db-company-row{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:8px 0;
+      border-bottom:1px solid #1d313c;
+      color:#c6d1d7;
+      font-size:.72rem;
+    }
+
+    .db-company-row:last-child{border-bottom:0}
+    .db-company-row strong{color:#f1f5f7}
+
+    .db-status{
+      padding:13px 14px 15px;
+      display:grid;
+      grid-template-columns:110px 1fr;
+      gap:14px;
+      align-items:center;
+    }
+
+    .db-donut{
+      width:100px;height:100px;border-radius:50%;
+      background:conic-gradient(#35d379 0 28%, #55a8ff 28% 36%, #8d9aa3 36% 100%);
+      display:grid;place-items:center;
+      position:relative;
+    }
+
+    .db-donut:after{
+      content:'';
+      width:65px;height:65px;border-radius:50%;
+      background:#081720;position:absolute;
+    }
+
+    .db-donut strong{
+      position:relative;z-index:2;font-size:1.15rem;color:#f4f7f8
+    }
+
+    .db-status-list{
+      display:grid;gap:8px;font-size:.7rem;color:#b6c2c9
+    }
+
+    .db-status-list span{
+      display:flex;justify-content:space-between;gap:10px
+    }
+
+    .db-tip{
+      padding:13px 14px;
+      color:#c3ced4;
+      font-size:.71rem;
+      line-height:1.5;
+    }
+
+    .db-tip div{margin:7px 0}
+    .db-tip b{color:#35d379}
+
+    .db-bottom{
+      margin-top:14px;
+      border:1px solid #203743;
+      border-radius:11px;
+      background:#081720;
+      overflow:hidden;
+    }
+
+    .db-bottom table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    .db-bottom th{
+      background:#07151d;
+      color:#a9b5bd;
+      text-align:left;
+      font-size:.67rem;
+      padding:10px 11px;
+      border-bottom:1px solid #203743;
+    }
+
+    .db-bottom td{
+      background:#091821;
+      color:#e1e8ec;
+      font-size:.71rem;
+      padding:10px 11px;
+      border-bottom:1px solid #1d313c;
+    }
+
+    .db-progress{
+      height:7px;
+      border-radius:999px;
+      background:#1b2e39;
+      overflow:hidden;
+      min-width:90px;
+    }
+
+    .db-progress span{
+      display:block;height:100%;background:#35d379;border-radius:inherit
+    }
+
+    @media(max-width:1250px){
+      .db-shell{grid-template-columns:1fr}
+      .db-side{display:none}
+      .db-grid{grid-template-columns:1fr}
+      .db-kpis{grid-template-columns:repeat(2,1fr)}
     }
   `;
   document.head.appendChild(style);
 }
 
-function calendarTenderDates(l){
-  const dates=[];
+function dashboardDeadlineMeta(l){
+  const raw=l.proposalEndAt || l.raw?.dispute_at;
+  if(!raw)return null;
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime()))return null;
 
-  if(l.publicationAt){
-    dates.push({
-      type:'publication',
-      date:l.publicationAt,
-      label:'Publicação'
-    });
-  }
+  const ms=d.getTime()-Date.now();
+  const days=Math.ceil(ms/86400000);
 
-  if(l.proposalOpenAt){
-    dates.push({
-      type:'opening',
-      date:l.proposalOpenAt,
-      label:'Abre propostas'
-    });
-  }
-
-  if(l.proposalEndAt){
-    dates.push({
-      type:'deadline',
-      date:l.proposalEndAt,
-      label:'Fecha propostas'
-    });
-  }else if(l.raw?.dispute_at){
-    dates.push({
-      type:'deadline',
-      date:l.raw.dispute_at,
-      label:'Data da disputa'
-    });
-  }
-
-  return dates;
+  return {
+    date:d,
+    days,
+    cls:days<=2?'urgent':days<=5?'soon':'normal'
+  };
 }
 
-function dashboardCalendarLocalYMD(v){
-  if(!v)return '';
-  const d=new Date(v);
-  if(Number.isNaN(d.getTime()))return '';
-  const y=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',year:'numeric'});
-  const m=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',month:'2-digit'});
-  const day=d.toLocaleString('en-CA',{timeZone:'America/Fortaleza',day:'2-digit'});
-  return `${y}-${m}-${day}`;
+function dashboardTenderCloseYMD(l){
+  const raw=l.proposalEndAt || l.raw?.dispute_at;
+  if(!raw)return '';
+  return dashboardCalendarLocalYMD(raw);
 }
 
-function renderDashboardCalendar(){
+function renderDashboardModel(){
   const dashboard=$('#dashboard');
   if(!dashboard)return;
 
-  ensureDashboardCalendarStyles();
+  ensureDashboardModelStyles();
+  dashboard.classList.add('dashboard-model');
 
-  let panel=$('#dashboardCalendarPanel');
-  if(!panel){
-    panel=document.createElement('div');
-    panel.id='dashboardCalendarPanel';
-    panel.className='dashboard-calendar-panel';
-
-    // Coloca o calendário logo após os cards e os blocos iniciais do Dashboard.
-    dashboard.appendChild(panel);
+  let shell=$('#dashboardModelShell');
+  if(!shell){
+    shell=document.createElement('div');
+    shell.id='dashboardModelShell';
+    shell.className='db-shell';
+    dashboard.appendChild(shell);
   }
 
-  if(!state.dashboardCalendarDate){
-    const nextDeadline=state.licitacoes
-      .map(l=>l.proposalEndAt || l.proposalOpenAt || l.publicationAt || l.raw?.dispute_at)
-      .filter(Boolean)
-      .map(v=>new Date(v))
-      .filter(d=>!Number.isNaN(d.getTime()))
-      .sort((a,b)=>a-b)[0];
+  const allTenders=[...state.licitacoes];
+  const activeTenders=allTenders.filter(l=>{
+    const meta=dashboardDeadlineMeta(l);
+    return !meta || meta.date.getTime()>=Date.now();
+  });
 
-    const base=nextDeadline || new Date();
+  const allItems=state.itens;
+  const quotedItems=allItems.filter(i=>itemHasQuote(i.id));
+  const opportunities=allItems.filter(i=>pricing(i)?.status==='Excelente');
+
+  const closingWeek=activeTenders.filter(l=>{
+    const m=dashboardDeadlineMeta(l);
+    return m && m.days>=0 && m.days<=7;
+  });
+
+  const upcoming=activeTenders
+    .map(l=>({l,meta:dashboardDeadlineMeta(l)}))
+    .filter(x=>x.meta)
+    .sort((a,b)=>a.meta.date-b.meta.date)
+    .slice(0,3);
+
+  if(!state.dashboardCalendarDate){
+    const base=upcoming[0]?.meta?.date || new Date();
     state.dashboardCalendarDate=new Date(base.getFullYear(),base.getMonth(),1);
   }
 
   const view=new Date(state.dashboardCalendarDate);
   const year=view.getFullYear();
   const month=view.getMonth();
-
   const first=new Date(year,month,1);
-  const firstWeekday=first.getDay();
-  const gridStart=new Date(year,month,1-firstWeekday);
-
-  const monthLabel=new Intl.DateTimeFormat('pt-BR',{
-    month:'long',
-    year:'numeric'
-  }).format(view);
+  const gridStart=new Date(year,month,1-first.getDay());
+  const todayKey=dashboardCalendarLocalYMD(new Date());
 
   const eventMap=new Map();
-
-  state.licitacoes.forEach(l=>{
-    calendarTenderDates(l).forEach(ev=>{
-      const key=dashboardCalendarLocalYMD(ev.date);
-      if(!key)return;
-      if(!eventMap.has(key))eventMap.set(key,[]);
-      eventMap.get(key).push({
-        ...ev,
-        tender:l
-      });
-    });
+  activeTenders.forEach(l=>{
+    const key=dashboardTenderCloseYMD(l);
+    if(!key)return;
+    if(!eventMap.has(key))eventMap.set(key,[]);
+    eventMap.get(key).push(l);
   });
-
-  const todayKey=dashboardCalendarLocalYMD(new Date());
 
   const cells=[];
   for(let i=0;i<42;i++){
     const d=new Date(gridStart);
     d.setDate(gridStart.getDate()+i);
-
-    const key=[
-      d.getFullYear(),
-      String(d.getMonth()+1).padStart(2,'0'),
-      String(d.getDate()).padStart(2,'0')
-    ].join('-');
-
+    const key=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
     const events=eventMap.get(key)||[];
     const other=d.getMonth()!==month;
     const today=key===todayKey;
 
+    const event=events[0];
+    const meta=event?dashboardDeadlineMeta(event):null;
+
     cells.push(`
-      <div class="dashboard-calendar-day ${other?'other-month':''} ${today?'today':''}">
-        <div class="dashboard-calendar-number">
-          <span>${d.getDate()}</span>
-          ${today?'<span class="today-label">Hoje</span>':''}
-        </div>
-
-        ${events.slice(0,4).map(ev=>`
-          <button
-            type="button"
-            class="dashboard-tender-event ${esc(ev.type)}"
-            data-calendar-tender="${esc(ev.tender.id)}"
-            data-calendar-date-type="${esc(ev.type)}"
-          >
-            <strong>${esc(ev.tender.numero)} • ${esc(ev.label)}</strong>
-            <span>${esc(ev.tender.orgao||'')}</span>
+      <div class="db-cal-day ${other?'other':''} ${today?'today':''}">
+        <div class="db-cal-num">${d.getDate()}</div>
+        ${event?`
+          <button class="db-cal-event ${meta?.cls||''}" data-db-tender="${event.id}">
+            ${dateBR(event.proposalEndAt||event.raw?.dispute_at,true).split(' ')[1]||''}<br>
+            Edital ${esc(event.numero)}
           </button>
-        `).join('')}
-
-        ${events.length>4?`<div class="hint">+ ${events.length-4} evento(s)</div>`:''}
+        `:''}
       </div>
     `);
   }
 
-  panel.innerHTML=`
-    <div class="dashboard-calendar-head">
-      <div class="dashboard-calendar-title">
-        <h2>Calendário de licitações</h2>
-        <p>Veja publicação, abertura e fechamento das propostas de cada edital.</p>
+  const monthLabel=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(view);
+
+  const tenderRows=activeTenders
+    .map(l=>{
+      const items=allItems.filter(i=>String(i.licitacao_id)===String(l.id));
+      const quoted=items.filter(i=>itemHasQuote(i.id)).length;
+      const missing=items.length-quoted;
+      const pct=items.length?quoted/items.length*100:0;
+      const meta=dashboardDeadlineMeta(l);
+      return {l,items,quoted,missing,pct,meta};
+    })
+    .sort((a,b)=>(a.meta?.date||Infinity)-(b.meta?.date||Infinity))
+    .slice(0,5);
+
+  shell.innerHTML=`
+    <aside class="db-side">
+      <div class="db-brand">
+        <div class="db-brand-mark">◆</div>
+        <span>INOVA</span>
       </div>
 
-      <div class="dashboard-calendar-nav">
-        <button type="button" id="dashboardCalendarPrev">‹</button>
-        <div class="dashboard-calendar-month">${esc(monthLabel)}</div>
-        <button type="button" id="dashboardCalendarNext">›</button>
-        <button type="button" id="dashboardCalendarToday" style="width:auto;padding:0 10px">Hoje</button>
+      <div class="db-menu-label">Menu</div>
+
+      <div class="db-nav">
+        <button class="active" data-db-tab="dashboard">⌂ Dashboard</button>
+        <button data-db-tab="licitacoes">▣ Licitações</button>
+        <button data-db-tab="cotacoes">⇄ Cotações</button>
+        <button data-db-tab="precificacao">◉ Precificação</button>
+        <button data-db-tab="fornecedores">♙ Fornecedores</button>
+        <button data-db-tab="arquivos">▤ Relatórios</button>
       </div>
-    </div>
 
-    <div class="dashboard-calendar-scroll">
-      <div class="dashboard-calendar-grid">
-        ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`
-          <div class="dashboard-calendar-weekday">${d}</div>
-        `).join('')}
-        ${cells.join('')}
+      <div class="db-support">
+        <strong>Dúvidas?</strong>
+        <span>Fale com o suporte</span>
+        <button type="button">Abrir WhatsApp</button>
       </div>
-    </div>
 
-    <div class="dashboard-calendar-legend">
-      <span><i style="background:#55a8ff"></i>Publicação</span>
-      <span><i style="background:#35d379"></i>Abertura para propostas</span>
-      <span><i style="background:#ff625d"></i>Fechamento das propostas / disputa</span>
-    </div>
+      <div class="db-side-footer">
+        INOVA SISTEMA<br>
+        Dashboard de licitações
+      </div>
+    </aside>
 
-    <div id="dashboardCalendarDetail" class="dashboard-calendar-detail">
-      Clique em uma licitação no calendário para ver os detalhes.
-    </div>
+    <main class="db-main">
+      <div class="db-head">
+        <div class="db-title">
+          <h1>Dashboard</h1>
+          <p>Visão geral das suas licitações, prazos e oportunidades.</p>
+        </div>
+        <div class="db-date-pill">
+          ${new Intl.DateTimeFormat('pt-BR',{weekday:'short',day:'2-digit',month:'long',year:'numeric'}).format(new Date())}
+        </div>
+      </div>
+
+      <div class="db-kpis">
+        <div class="db-kpi">
+          <div class="db-kpi-icon yellow">▤</div>
+          <div><small>Editais ativos</small><strong>${activeTenders.length}</strong><span>Em andamento</span></div>
+        </div>
+
+        <div class="db-kpi">
+          <div class="db-kpi-icon red">◷</div>
+          <div><small>Fecham esta semana</small><strong>${closingWeek.length}</strong><span>Licitações</span></div>
+        </div>
+
+        <div class="db-kpi">
+          <div class="db-kpi-icon green">◆</div>
+          <div><small>Itens cotados</small><strong>${quotedItems.length} / ${allItems.length}</strong><span>${allItems.length?((quotedItems.length/allItems.length)*100).toFixed(1):'0,0'}% cotados</span></div>
+        </div>
+
+        <div class="db-kpi">
+          <div class="db-kpi-icon purple">✦</div>
+          <div><small>Oportunidades</small><strong>${opportunities.length}</strong><span>Itens com margem</span></div>
+        </div>
+      </div>
+
+      <div class="db-grid">
+        <section class="db-card">
+          <div class="db-card-head"><strong>◷ Próximos prazos</strong></div>
+          <div class="db-deadlines">
+            ${upcoming.length?upcoming.map(({l,meta})=>`
+              <div class="db-deadline ${meta.cls}">
+                <div class="db-deadline-time">${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}</div>
+                <div class="db-deadline-title">Edital ${esc(l.numero)} • ${esc(l.cidade||l.orgao||'')}</div>
+                <div class="db-deadline-meta">${state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length} itens</div>
+              </div>
+            `).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
+          </div>
+        </section>
+
+        <section class="db-card">
+          <div class="db-card-head">
+            <strong>▣ Calendário de Fechamento de Propostas</strong>
+          </div>
+
+          <div class="db-calendar">
+            <div class="db-calendar-top">
+              <div class="db-cal-nav">
+                <button id="dbCalPrev">‹</button>
+              </div>
+              <div class="db-calendar-month">${esc(monthLabel)}</div>
+              <div class="db-cal-nav">
+                <button id="dbCalToday">Hoje</button>
+                <button id="dbCalNext">›</button>
+              </div>
+            </div>
+
+            <div class="db-cal-legend">
+              <span><i style="background:#ff334a"></i>Hoje / Até 2 dias</span>
+              <span><i style="background:#ffc21c"></i>3 a 5 dias</span>
+              <span><i style="background:#4b9cff"></i>Mais de 5 dias</span>
+            </div>
+
+            <div class="db-cal-grid">
+              ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="db-cal-week">${d}</div>`).join('')}
+              ${cells.join('')}
+            </div>
+          </div>
+        </section>
+
+        <aside class="db-right">
+          <section class="db-card">
+            <div class="db-card-head"><strong>▦ Resumo da empresa</strong></div>
+            <div class="db-company">
+              <div class="db-company-row"><span>Itens cadastrados</span><strong>${allItems.length}</strong></div>
+              <div class="db-company-row"><span>Itens cotados</span><strong>${quotedItems.length}</strong></div>
+              <div class="db-company-row"><span>Taxa de cotação</span><strong>${allItems.length?((quotedItems.length/allItems.length)*100).toFixed(1).replace('.',','):'0,0'}%</strong></div>
+              <div class="db-company-row"><span>Oportunidades</span><strong>${opportunities.length}</strong></div>
+            </div>
+          </section>
+
+          <section class="db-card">
+            <div class="db-card-head"><strong>▥ Licitações por status</strong></div>
+            <div class="db-status">
+              <div class="db-donut"><strong>${allTenders.length}</strong></div>
+              <div class="db-status-list">
+                <span><i>Em andamento</i><b>${activeTenders.length}</b></span>
+                <span><i>Próximas</i><b>${closingWeek.length}</b></span>
+                <span><i>Encerradas</i><b>${Math.max(0,allTenders.length-activeTenders.length)}</b></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="db-card">
+            <div class="db-card-head"><strong>💡 Dicas rápidas</strong></div>
+            <div class="db-tip">
+              <div><b>✓</b> Mantenha as cotações atualizadas.</div>
+              <div><b>✓</b> Priorize itens com fechamento nos próximos 2 dias.</div>
+              <div><b>✓</b> Use o simulador para definir lances mais competitivos.</div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="db-bottom">
+        <div class="db-card-head"><strong>⚒ Editais em andamento</strong></div>
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Edital</th>
+                <th>Órgão / Município</th>
+                <th>Itens</th>
+                <th>Cotados</th>
+                <th>Faltam cotação</th>
+                <th>% Cotado</th>
+                <th>Fechamento de propostas</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tenderRows.map(r=>`
+                <tr>
+                  <td><strong>${esc(r.l.numero)}</strong></td>
+                  <td>${esc(r.l.orgao||r.l.cidade||'-')}</td>
+                  <td>${r.items.length}</td>
+                  <td>${r.quoted}</td>
+                  <td>${r.missing}</td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div class="db-progress"><span style="width:${Math.min(100,r.pct)}%"></span></div>
+                      <span>${r.pct.toFixed(1).replace('.',',')}%</span>
+                    </div>
+                  </td>
+                  <td>${r.meta?dateBR(r.l.proposalEndAt||r.l.raw?.dispute_at,true):'-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   `;
 
-  $('#dashboardCalendarPrev')?.addEventListener('click',()=>{
+  shell.querySelectorAll('[data-db-tab]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelector(`#mainTabs [data-tab="${btn.dataset.dbTab}"]`)?.click();
+    });
+  });
+
+  $('#dbCalPrev')?.addEventListener('click',()=>{
     state.dashboardCalendarDate=new Date(year,month-1,1);
-    renderDashboardCalendar();
+    renderDashboardModel();
   });
 
-  $('#dashboardCalendarNext')?.addEventListener('click',()=>{
+  $('#dbCalNext')?.addEventListener('click',()=>{
     state.dashboardCalendarDate=new Date(year,month+1,1);
-    renderDashboardCalendar();
+    renderDashboardModel();
   });
 
-  $('#dashboardCalendarToday')?.addEventListener('click',()=>{
+  $('#dbCalToday')?.addEventListener('click',()=>{
     const now=new Date();
     state.dashboardCalendarDate=new Date(now.getFullYear(),now.getMonth(),1);
-    renderDashboardCalendar();
+    renderDashboardModel();
   });
 
-  panel.querySelectorAll('[data-calendar-tender]').forEach(btn=>{
+  shell.querySelectorAll('[data-db-tender]').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const id=btn.dataset.calendarTender;
+      const id=btn.dataset.dbTender;
       const l=state.licitacoes.find(x=>String(x.id)===String(id));
       if(!l)return;
-
-      const detail=$('#dashboardCalendarDetail');
-      if(!detail)return;
-
-      detail.innerHTML=`
-        <strong>${esc(l.numero)} • ${esc(l.orgao||'')}</strong><br>
-        ${esc(l.cidade||'')} • ${esc(l.plataforma||'')}<br>
-        ${l.proposalOpenAt?`Abertura para propostas: <b>${dateBR(l.proposalOpenAt,true)}</b><br>`:''}
-        ${l.proposalEndAt?`Fecha propostas: <b>${dateBR(l.proposalEndAt,true)}</b><br>`:''}
-        ${l.objeto?`Objeto: ${esc(l.objeto)}`:''}
-      `;
+      toast(`Edital ${l.numero} fecha em ${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}.`);
     });
   });
 }
@@ -5389,7 +5787,7 @@ function renderAll(){
   const c=state.config||{}; const buckets={excelente:0,oportunidade:0,ruim:0,sem:0};
   state.itens.forEach(i=>{const p=pricing(i);if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')buckets.sem++;else if(p.status==='Ruim')buckets.ruim++;else if(p.status==='Oportunidade')buckets.oportunidade++;else buckets.excelente++;});
   $('#resumoOportunidades').innerHTML=`<div class="opp"><strong>${buckets.excelente}</strong><span>Excelentes</span></div><div class="opp"><strong>${buckets.oportunidade}</strong><span>Oportunidades</span></div><div class="opp"><strong>${buckets.ruim}</strong><span>Ruins</span></div><div class="opp"><strong>${buckets.sem}</strong><span>Sem cotação</span></div>`;
-  renderDashboardCalendar();
+  renderDashboardModel();
   renderTenderManagement();
   $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
