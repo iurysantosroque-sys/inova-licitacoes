@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 function toast(msg,type='success'){
@@ -3857,6 +3857,12 @@ function pricingStatusClass(status){
 }
 
 
+
+try{
+  const savedCostConfig=JSON.parse(localStorage.getItem('inova_cost_config')||'null');
+  if(savedCostConfig) state.costConfig={...(state.costConfig||{}),...savedCostConfig};
+}catch(e){}
+
 function getPricingTarget(itemId){
   state.pricingTargets ||= {};
   const key=String(itemId);
@@ -3875,12 +3881,21 @@ function calcPricingByFlexibleTarget(item,p){
 
   const qty=Math.max(Number(item.quantidade||0),0.0001);
   const costUnit=Math.max(Number(p.costUnit||0),0);
-  const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0))/100;
+  const extraTax=Number(state.costConfig?.outros_impostos||0);
+  const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0)+extraTax)/100;
   const target=getPricingTarget(item.id);
 
   const estimated=Number(item.valor_estimado||0);
   const revenueEstimated=estimated*qty;
   const totalCost=costUnit*qty;
+
+  // O imposto configurado é sobre a VENDA, não sobre a compra.
+  // Por isso ele não deve ser somado ao preço da cotação.
+  const taxRate=Number(state.config?.imposto||0)/100;
+  const reserveRate=Number(state.config?.reserva_operacional||0)/100;
+  const taxUnitEstimated=estimated*taxRate;
+  const reserveUnitEstimated=estimated*reserveRate;
+  const netRevenueUnitEstimated=estimated*(1-taxRate-reserveRate);
 
   const profitEstimated=estimated
     ? revenueEstimated*(1-overhead)-totalCost
@@ -4010,6 +4025,11 @@ function calcPricingByFlexibleTarget(item,p){
     costUnit,
     totalCost,
     revenueEstimated,
+    taxRate,
+    reserveRate,
+    taxUnitEstimated,
+    reserveUnitEstimated,
+    netRevenueUnitEstimated,
     profitEstimated,
     marginEstimated,
     profitOnCostEstimated,
@@ -4029,6 +4049,67 @@ function calcPricingByFlexibleTarget(item,p){
 function pricingProfitBadge(info){
   if(!info)return '';
   return `<span class="px-status ${info.statusClass||'neutral'}" title="${esc(info.statusReason||'')}">${esc(info.status||'Sem status')}</span>`;
+}
+
+
+function renderCostSettings(){
+  const root=document.querySelector('#app')||document.body;
+  state.costConfig ||= {frete_fixo:0,gasolina:0,outros_impostos:0};
+  const c=state.costConfig;
+  const imposto=Number(state.config?.imposto||0);
+  const reserva=Number(state.config?.reserva_operacional||0);
+
+  root.innerHTML=`
+    ${typeof renderTopNav==='function'?renderTopNav('costs'):''}
+    <main style="max-width:1450px;margin:0 auto;padding:28px 30px;color:#eef3f6">
+      <div style="margin-bottom:22px">
+        <h1 style="margin:0;font-size:30px">Custos & Impostos</h1>
+        <p style="color:#8fa0aa;margin-top:7px">Edite os custos usados na precificação. As alterações ficam disponíveis para os cálculos do sistema.</p>
+      </div>
+
+      <section style="border:1px solid #203744;background:#071720;border-radius:14px;padding:22px">
+        <h2 style="font-size:17px;color:#f6b91f;margin:0 0 18px">Configuração geral</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          ${costField('cfg-tax','Imposto sobre venda (%)',imposto,'Ex.: Simples Nacional, 6%')}
+          ${costField('cfg-reserve','Reserva operacional (%)',reserva,'Custos extras sobre a venda')}
+          ${costField('cfg-freight','Frete fixo (R$)',Number(c.frete_fixo||0),'Frete total da operação')}
+          ${costField('cfg-gas','Gasolina (R$)',Number(c.gasolina||0),'Combustível da entrega/retirada')}
+          ${costField('cfg-other-tax','Outros impostos/taxas (%)',Number(c.outros_impostos||0),'Taxas adicionais, se houver')}
+        </div>
+
+        <div style="margin-top:20px;padding:15px;border:1px solid #234250;border-radius:10px;background:#06131b;color:#9fb0ba;font-size:13px;line-height:1.55">
+          <b style="color:#eef3f6">Como o sistema deve calcular:</b><br>
+          Preço do fornecedor + frete rateado + gasolina rateada = custo de aquisição.<br>
+          Imposto e outras taxas percentuais são calculados sobre o preço de venda, não sobre a compra.
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:20px">
+          <button id="saveCostSettings" style="border:0;border-radius:9px;padding:12px 22px;background:#f6b91f;color:#071018;font-weight:850;cursor:pointer">Salvar configurações</button>
+        </div>
+      </section>
+    </main>`;
+
+  root.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
+    const n=id=>Math.max(0,Number(root.querySelector('#'+id)?.value||0));
+    state.config ||= {};
+    state.costConfig ||= {};
+    state.config.imposto=n('cfg-tax');
+    state.config.reserva_operacional=n('cfg-reserve');
+    state.costConfig.frete_fixo=n('cfg-freight');
+    state.costConfig.gasolina=n('cfg-gas');
+    state.costConfig.outros_impostos=n('cfg-other-tax');
+    try{ localStorage.setItem('inova_cost_config',JSON.stringify(state.costConfig)); }catch(e){}
+    alert('Custos e impostos atualizados.');
+  });
+}
+
+function costField(id,label,value,help){
+  return `<label style="display:block">
+    <span style="display:block;font-size:12px;color:#aebbc3;margin-bottom:7px">${label}</span>
+    <input id="${id}" type="number" min="0" step="0.01" value="${Number(value||0)}"
+      style="width:100%;box-sizing:border-box;height:43px;border:1px solid #2a4350;border-radius:8px;background:#06131b;color:#fff;padding:0 12px;font-size:14px">
+    <small style="display:block;color:#718590;margin-top:6px">${help}</small>
+  </label>`;
 }
 
 function renderPricingExactModel(){
@@ -4101,7 +4182,7 @@ function renderPricingExactModel(){
   shell.innerHTML=`
     <div class="px-head">
       <div class="px-title">
-        <h1>Precificação</h1>
+        <h1>Precificação</h1><button type="button" id="openCostSettings" class="px-action" style="margin-left:14px">⚙ Custos & Impostos</button>
         <p>Defina preços, calcule lucro e simule lances.</p>
       </div>
       <button class="px-export" type="button">⇩ Exportar planilha</button>
@@ -4179,8 +4260,10 @@ function renderPricingExactModel(){
                 <th>Descrição do item</th>
                 <th>Fornecedor</th>
                 <th>Preço da cotação</th>
-                <th>Custo total<br><small>(com impostos)</small></th>
+                <th>Frete / un.</th>
+                <th>Custo real / un.<br><small>produto + frete</small></th>
                 <th>Estimado do edital</th>
+                <th>Imposto / un.<br><small>sobre a venda</small></th>
                 <th>Lucro no estimado</th>
                 <th>Margem no estimado</th>
                 <th>Minha meta</th>
@@ -4249,6 +4332,8 @@ function renderPricingExactModel(){
     </div>
   `;
 
+  shell.querySelector('#openCostSettings')?.addEventListener('click',()=>renderCostSettings());
+
   const renderRows=()=>{
     const q=quoteNormalize(shell.querySelector('#pxSearch')?.value||'');
     const st=shell.querySelector('#pxStatus')?.value||'all';
@@ -4288,14 +4373,39 @@ function renderPricingExactModel(){
           <td>
             ${
               q
-                ? `<span class="px-price">${money(q.preco||q.custoProduto||q.custoEq)}</span>`
+                ? `<span class="px-price">${money(
+                    q.preco!=null
+                      ? Number(q.preco)/Math.max(Number(q.fator_equivalencia||1),0.0001)
+                      : Number(p?.productCostUnit||q.custoProduto||q.custoEq||0)
+                  )}</span>
+                   <div class="px-item-meta">valor do fornecedor por unidade equivalente</div>`
                 : '<span class="px-status neutral">Sem cotação</span>'
             }
           </td>
 
-          <td>${p?money(p.costUnit):'—'}</td>
+          <td>
+            ${p?money(Number(p.freightUnit||0)):'—'}
+          </td>
+
+          <td>
+            ${
+              p
+                ? `<span class="px-price">${money(Number(p.productCostUnit||0)+Number(p.freightUnit||0))}</span>
+                   <div class="px-item-meta">sem imposto de venda</div>`
+                : '—'
+            }
+          </td>
 
           <td>${i.valor_estimado?money(i.valor_estimado):'—'}</td>
+
+          <td>
+            ${
+              flex?.estimated
+                ? `<span>${money(flex.taxUnitEstimated||0)}</span>
+                   <div class="px-item-meta">${(Number(state.config?.imposto||0)).toFixed(2).replace('.',',')}% do preço de venda</div>`
+                : '—'
+            }
+          </td>
 
           <td>
             ${
@@ -4445,6 +4555,9 @@ function renderPricingExactModel(){
       box.innerHTML=`
         <h4>Resultado atual</h4>
         <div class="px-sim-row"><span>Status</span><strong>${esc(flex?.status||'—')}</strong></div>
+        <div class="px-sim-row"><span>Custo produto + frete</span><strong>${p?money(p.costUnit):'—'}</strong></div>
+        <div class="px-sim-row"><span>Imposto por un. no estimado</span><strong>${flex?.estimated?money(flex.taxUnitEstimated||0):'—'}</strong></div>
+        <div class="px-sim-row"><span>Receita líquida por un.</span><strong>${flex?.estimated?money(flex.netRevenueUnitEstimated||0):'—'}</strong></div>
         <div class="px-sim-row"><span>Lucro no estimado</span><strong>${flex?.profitEstimated!=null?money(flex.profitEstimated):'—'}</strong></div>
         <div class="px-sim-row"><span>Margem no estimado</span><strong>${flex?.marginEstimated!=null?flex.marginEstimated.toFixed(2).replace('.',',')+'%':'—'}</strong></div>
         <div class="px-sim-row"><span>Preço mínimo</span><strong>${flex?.minimumUnit?money(flex.minimumUnit):'—'}</strong></div>
