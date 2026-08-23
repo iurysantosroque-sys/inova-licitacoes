@@ -1,41 +1,39 @@
-# INOVA Licitações — Versão 1 compartilhada
+# INOVA Licitações
 
-Aplicativo web instalável (PWA) para trabalhar em família com a mesma base de licitações.
+Aplicação web/PWA para acompanhar editais, itens, fornecedores, cotações e preços de disputa em uma empresa compartilhada.
 
-## O que esta V1 já contém
-- Login individual por e-mail e senha
-- Uma empresa compartilhada entre vários usuários
-- Código de convite para seu pai/irmão entrarem na mesma base
-- Dashboard de licitações, itens e oportunidades
-- Cadastro de licitações e itens
-- Cadastro de fornecedores
-- Cotações manuais
-- Equivalência de embalagem (ex.: galão 5 L x unidade em litro)
-- Escolha automática do menor custo equivalente
-- Imposto, margem desejada, margem mínima e lucro mínimo em reais
-- Preço-alvo e preço-limite por item
-- Upload privado de PDF, Excel e CSV
-- Estrutura de IA no servidor para extrair cotações e associar aos itens do edital
-- Instalação como PWA no notebook/celular
-- Modo demonstração quando ainda não há Supabase configurado
+## Funcionalidades
 
-## 1) Testar agora sem conta
-Execute na pasta:
+- autenticação individual e empresa compartilhada por código de convite;
+- importação e sincronização de editais/itens pelo PNCP;
+- cadastro manual de licitações, itens, fornecedores e cotações;
+- leitura local de cotações em Excel, CSV e PDF com texto;
+- associação conservadora por texto e associação inteligente por Edge Function, sempre com revisão humana;
+- cálculo de custo equivalente, frete, impostos, reserva, margem e lucro mínimo;
+- metas por item salvas no navegador e configurações globais salvas no Supabase;
+- arquivamento privado de cotações no Storage (PDF/Excel/CSV, até 25 MB);
+- modo demonstração local e instalação como PWA.
+
+## Desenvolvimento local
+
+Requer Node.js e pnpm:
 
 ```bash
-python -m http.server 8080
+pnpm install
+pnpm dev
 ```
 
-Abra `http://localhost:8080` e clique em **Abrir modo demonstração**.
+Abra o endereço mostrado pelo Vite. Em desenvolvimento o service worker não é registrado, evitando cache de arquivos em edição.
 
-## 2) Ativar o banco compartilhado
-1. Crie um projeto no Supabase.
-2. No Supabase, abra **SQL Editor**.
-3. Cole e execute todo o arquivo `supabase/schema.sql`.
-4. No painel do Supabase, copie:
-   - Project URL
-   - Publishable Key
-5. Abra `app-config.js` e preencha:
+Para gerar a versão de produção:
+
+```bash
+pnpm build
+```
+
+## Configuração do frontend
+
+Copie a configuração pública para `app-config.js` e `public/app-config.js`:
 
 ```js
 window.INOVA_CONFIG = {
@@ -44,60 +42,38 @@ window.INOVA_CONFIG = {
 };
 ```
 
-A Publishable Key pode ficar no frontend quando o banco está protegido por RLS. **Nunca** coloque Service Role Key ou chave da OpenAI no `app-config.js`.
+A Publishable Key é pública por definição e só é segura quando tabelas, funções e Storage estão protegidos por RLS e grants. Nunca coloque `service_role`, senhas ou chaves de provedor de IA no frontend.
 
-## 3) Primeiro acesso da família
-1. Você cria sua conta.
-2. No primeiro acesso, clique **Criar empresa**.
-3. Abra a aba **Equipe** e copie o código.
-4. Seu pai e seu irmão criam contas separadas.
-5. Eles escolhem **Entrar em uma empresa** e digitam o código.
-6. Todos passam a ver os mesmos pregões, fornecedores e cotações.
+## Supabase
 
-> Se a confirmação de e-mail estiver ativada no Supabase, cada pessoa precisa confirmar o e-mail antes do primeiro login.
+- `supabase/schema.sql`: bootstrap completo para um projeto novo, usando as tabelas atuais em inglês.
+- `supabase/migrations/`: alterações incrementais revisáveis. A migração de hardening incluída no repositório **não é aplicada automaticamente**.
+- `supabase/functions/pncp-import`: proxy PNCP autenticado, com orçamento total de tempo e limites de paginação.
+- `supabase/functions/ai-match-quote`: associação Gemini que valida o usuário, a empresa, a licitação e busca os itens oficiais pelo JWT/RLS.
 
-## 4) Colocar online e instalar como app
-Esta pasta é um site estático. Pode ser publicada no Netlify, Cloudflare Pages, Vercel ou hospedagem HTTPS equivalente.
+Secrets necessários para `ai-match-quote`:
 
-Depois de publicada em HTTPS:
-- Windows/Chrome/Edge: abrir o sistema e usar **Instalar App**.
-- Android/Chrome: abrir o sistema e usar **Instalar aplicativo/Adicionar à tela inicial**.
-- iPhone/iPad: abrir no Safari, Compartilhar e **Adicionar à Tela de Início**.
+```text
+GEMINI_API_KEY
+GEMINI_MODEL          # opcional
+```
 
-## 5) Ativar a IA que lê cotações
-A função está em `supabase/functions/processar-cotacao/index.ts`.
+As variáveis `SUPABASE_URL` e `SUPABASE_ANON_KEY` são fornecidas pelo ambiente das Edge Functions.
 
-Ela foi desenhada para:
-1. receber o ID de um PDF/Excel já enviado ao Storage;
-2. baixar o arquivo de forma privada;
-3. enviar o arquivo para a OpenAI;
-4. extrair descrição, marca, apresentação e preço;
-5. comparar com os itens da licitação;
-6. calcular `fator_equivalencia`;
-7. gravar automaticamente as associações com confiança >= 55%;
-8. guardar o JSON completo da análise no documento.
+Depois de aplicar qualquer mudança de banco, execute os Security e Performance Advisors do Supabase e teste com dois usuários de empresas diferentes.
 
-Para ativá-la, configure no Supabase Edge Functions os secrets:
-- `OPENAI_API_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+## Fluxo recomendado da cotação
 
-A chave da OpenAI fica somente no servidor.
+1. Cadastre ou importe a licitação e seus itens.
+2. Cadastre o fornecedor.
+3. Na aba **Cotações**, selecione licitação, fornecedor e arquivo.
+4. Leia o arquivo; use a IA online se desejar.
+5. Revise descrições, embalagem, equivalência, preço e correspondências abaixo de 85%.
+6. Salve. Reimportar a mesma combinação substitui os itens correspondentes sem acumular duplicatas.
+7. Revise os custos e metas na aba **Precificação** e exporte o CSV quando necessário.
 
-### Observação importante sobre a IA
-A associação automática deve ser revisada quando a confiança for baixa ou quando embalagem/especificação técnica puder alterar a conformidade com o edital. A IA auxilia a cotação; ela não substitui a conferência da especificação do item.
+## Publicação
 
-## Estrutura
-- `index.html` — interface
-- `styles.css` — layout responsivo
-- `app.js` — login, dados, cálculos e upload
-- `app-config.js` — somente URL + Publishable Key do Supabase
-- `manifest.json` / `service-worker.js` — instalação PWA
-- `supabase/schema.sql` — banco, RLS, storage e funções de empresa
-- `supabase/functions/processar-cotacao/index.ts` — processamento por IA
+O projeto usa caminhos relativos e funciona no GitHub Pages sob `/inova-licitacoes/`. A publicação deve servir `index.html`, `app.js`, `styles.css`, `app-config.js`, manifest, service worker e assets no mesmo diretório-base.
 
-## Próxima evolução já prevista no banco
-- Busca automática no PNCP pelo número/órgão
-- Importação automática de itens e documentos do edital
-- Leitura do edital com alertas de amostra, habilitação e prazo
-- Sala de disputa com simulação de lance
-- Empenhos, entregas, NF, pagamentos e atestados
+URL atual: <https://iurysantosroque-sys.github.io/inova-licitacoes/>

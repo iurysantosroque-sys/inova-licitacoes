@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm';
 
 const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
@@ -149,8 +149,15 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
+
+const MAX_QUOTE_FILE_SIZE=25*1024*1024;
+const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
+const QUOTE_FILE_MIME_TYPES=new Set([
+  'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/octet-stream',''
+]);
 
 function toast(msg,type='success'){
   const el=$('#toast'); el.textContent=msg; el.className=`toast ${type}`; el.hidden=false;
@@ -968,10 +975,20 @@ async function searchPncp(query,year,uf){
   const results=$('#pncpSearchResults');
   if(results)results.innerHTML='';
   setPncpStatus('Consultando o PNCP…','loading');
+  if(state.demo || !configured || !supabase || !state.user){
+    setPncpStatus('A consulta ao PNCP exige uma sessão online. No modo demonstração, use os editais fictícios já carregados.','warn');
+    return;
+  }
 
-  const {data,error}=await supabase.functions.invoke('pncp-import',{
-    body:{query,year:year?Number(year):undefined,uf:uf||undefined}
-  });
+  let data,error;
+  try{
+    ({data,error}=await supabase.functions.invoke('pncp-import',{
+      body:{query,year:year?Number(year):undefined,uf:uf||undefined}
+    }));
+  }catch(err){
+    setPncpStatus(`Não foi possível consultar o PNCP: ${err?.message||err}`,'error');
+    return;
+  }
 
   if(error){
     setPncpStatus(`Não foi possível consultar o PNCP: ${error.message}`,'error');
@@ -983,13 +1000,13 @@ async function searchPncp(query,year,uf){
   }
 
   if(data?.mode==='detail'){
-    setPncpStatus('Edital encontrado. Confira os dados antes de importar.','success');
+    setPncpStatus(`Edital encontrado. Confira os dados antes de importar.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');
     renderPncpPreview(data);
     return;
   }
 
   const rows=data?.results||[];
-  setPncpStatus(rows.length ? `Resultados encontrados${uf ? ' em '+uf : ''}. Selecione o edital correto.` : `Nenhum resultado encontrado${uf ? ' em '+uf : ''}.`,rows.length?'success':'warn');
+  setPncpStatus((rows.length ? `Resultados encontrados${uf ? ' em '+uf : ''}. Selecione o edital correto.` : `Nenhum resultado encontrado${uf ? ' em '+uf : ''}.`)+(data?.message?` ${data.message}`:''),rows.length&&!data?.has_more?'success':'warn');
   renderPncpSearchResults(rows);
 }
 
@@ -997,6 +1014,10 @@ async function openPncpResult(btn){
   const control=btn.dataset.pncpControl;
   setPncpStatus('Carregando dados e itens do edital…','loading');
   clearPncpPreview();
+  if(state.demo || !configured || !supabase || !state.user){
+    setPncpStatus('A abertura de editais do PNCP está disponível somente com sessão online.','warn');
+    return;
+  }
 
   const payload=control
     ? {query:control}
@@ -1011,7 +1032,7 @@ async function openPncpResult(btn){
     setPncpStatus(data.error,'error');
     return;
   }
-  setPncpStatus('Dados carregados. Revise e importe quando estiver pronto.','success');
+  setPncpStatus(`Dados carregados. Revise e importe quando estiver pronto.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');
   renderPncpPreview(data);
 }
 
@@ -1127,6 +1148,10 @@ async function syncPncpItems(){
   const tenderId=$('#pncpSyncTender')?.value;
   const l=state.licitacoes.find(x=>x.id===tenderId);
   if(!l)return toast('Selecione uma licitação.','error');
+  if(state.demo || !configured || !supabase || !state.user){
+    setPncpSyncStatus('A sincronização do PNCP exige uma sessão online. Os dados da demonstração não são alterados.','warn');
+    return;
+  }
 
   const query=l.source_url || l.pncp_control;
   if(!query){
@@ -1798,11 +1823,11 @@ async function parsePdfFile(file){
 
 function setupManualQuoteMode(){
   const aiBtn=$('#quoteAiMatchBtn');
-  if(aiBtn)aiBtn.style.display='none';
+  if(aiBtn)aiBtn.hidden=state.demo;
 
   const help=$('.quote-import-help span');
   if(help){
-    help.innerHTML='Primeiro leia a cotação. Os <b>itens oficiais do edital ficam fixos e na ordem correta</b>. Em cada item, pesquise e selecione o produto correspondente encontrado no PDF do fornecedor. Depois revise e salve.';
+    help.innerHTML='Primeiro leia a cotação. Use a <b>associação inteligente</b> no modo online ou relacione manualmente. Os itens oficiais do edital ficam fixos e a decisão final é sempre sua.';
   }
 
   const titleHint=document.querySelector('#view-cotacoes .panel .panel-title .hint, #view-cotacoes .panel-title .hint');
@@ -2441,9 +2466,10 @@ function renderQuoteImportPreview(){
         </span>
       </div>
 
-      <button type="button" id="quoteSaveImportedBtn">
-        Salvar cotações selecionadas
-      </button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        ${!state.demo?'<button type="button" id="quoteAiMatchBtn" class="secondary">Associar com IA</button>':''}
+        <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
+      </div>
     </div>
 
     <div class="qv-stats">
@@ -2667,6 +2693,7 @@ function renderQuoteImportPreview(){
   `;
 
   $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
+  $('#quoteAiMatchBtn')?.addEventListener('click',matchImportedQuotesWithAi);
 
   $('#quoteGlobalSearch')?.addEventListener('input',e=>{
     syncQuoteRowsFromDom();
@@ -2783,6 +2810,9 @@ function renderQuoteImportPreview(){
       selectedRow.itemId=item.id;
       selectedRow.editalItemNumber=Number(item.numero);
       selectedRow.manualMatched=true;
+      selectedRow.aiMatched=false;
+      selectedRow.aiMatchConfidence=1;
+      selectedRow.needsReview=false;
       selectedRow.selected=true;
 
       state.quoteSupplierSearches ||= {};
@@ -2808,6 +2838,9 @@ function renderQuoteImportPreview(){
       row.itemId='';
       row.editalItemNumber=null;
       row.manualMatched=false;
+      row.aiMatched=false;
+      row.aiMatchConfidence=null;
+      row.needsReview=true;
 
       renderQuoteImportPreview();
       toast('Produto retirado deste item do edital.');
@@ -2835,6 +2868,10 @@ async function readQuoteImportFile(){
   if(!tenderId)return toast('Selecione a licitação.','error');
   if(!supplierId)return toast('Selecione o fornecedor.','error');
   if(!file)return toast('Selecione o arquivo da cotação.','error');
+  const inputExt=file.name.toLowerCase().split('.').pop()||'';
+  if(!QUOTE_FILE_EXTENSIONS.has(inputExt))return toast('Formato não suportado. Use PDF, Excel ou CSV.','error');
+  if(file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo excede o limite de 25 MB.','error');
+  if(file.type && !QUOTE_FILE_MIME_TYPES.has(String(file.type).toLowerCase()))return toast('O tipo do arquivo não corresponde a PDF, Excel ou CSV.','error');
 
   const btn=$('#quoteReadBtn');
   if(btn){btn.disabled=true;btn.textContent='Lendo…';}
@@ -2843,7 +2880,7 @@ async function readQuoteImportFile(){
   renderQuoteImportPreview();
 
   try{
-    const ext=file.name.toLowerCase().split('.').pop();
+    const ext=inputExt;
     let rows=[];
     if(['xlsx','xls','csv'].includes(ext))rows=await parseSpreadsheetFile(file);
     else if(ext==='pdf')rows=await parsePdfFile(file);
@@ -2895,6 +2932,60 @@ async function readQuoteImportFile(){
   }
 }
 
+async function matchImportedQuotesWithAi(){
+  syncQuoteRowsFromDom();
+  const tenderId=$('#quoteImportTender')?.value;
+  const rows=state.quoteImportRows||[];
+  if(state.demo || !configured || !supabase || !state.user){
+    return toast('No modo demonstração, o relacionamento textual local já foi aplicado.','error');
+  }
+  if(!tenderId || !rows.length)return toast('Leia uma cotação antes de usar a associação inteligente.','error');
+
+  const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
+  if(!tenderItems.length)return toast('A licitação selecionada não possui itens.','error');
+  const btn=$('#quoteAiMatchBtn');
+  if(btn){btn.disabled=true;btn.textContent='Associando…';}
+  setQuoteImportStatus('Comparando os produtos com os itens oficiais do edital…','loading');
+
+  try{
+    const {data,error}=await supabase.functions.invoke('ai-match-quote',{
+      body:{
+        tender_id:tenderId,
+        tender_items:tenderItems.map(i=>({id:i.id,item_number:i.numero,description:i.descricao,quantity:i.quantidade,unit:i.unidade})),
+        quote_items:rows.map((r,rowIndex)=>({
+          row_index:rowIndex,code:r.code||'',description:r.description||'',quantity:r.quantity||null,
+          unit:r.unit||'',price:Number(r.price||0),brand:r.brand||'',presentation:r.presentation||''
+        }))
+      }
+    });
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    const allowed=new Set(tenderItems.map(i=>String(i.id)));
+    let associated=0;
+    for(const match of (data?.matches||[])){
+      const row=rows[Number(match.row_index)];
+      if(!row)continue;
+      const confidence=Math.max(0,Math.min(1,Number(match.confidence||0)));
+      row.aiMatchConfidence=confidence;
+      row.aiReason=String(match.reason||'');
+      row.needsReview=confidence<0.85 || !match.match;
+      if(match.match && confidence>=0.5 && allowed.has(String(match.tender_item_id))){
+        row.itemId=String(match.tender_item_id);
+        row.editalItemNumber=Number(match.item_number||tenderItems.find(i=>String(i.id)===String(match.tender_item_id))?.numero||0);
+        row.manualMatched=false;
+        row.aiMatched=true;
+        associated++;
+      }
+    }
+    setQuoteImportStatus(`${associated} produto${associated===1?'':'s'} associado${associated===1?'':'s'} pela IA. Revise especialmente as correspondências abaixo de 85% antes de salvar.`,'success');
+    renderQuoteImportPreview();
+  }catch(err){
+    setQuoteImportStatus(`A IA não respondeu; o relacionamento textual local foi preservado. ${err?.message||err}`,'warn');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Associar com IA';}
+  }
+}
+
 
 async function saveImportedQuotes(){
   syncQuoteRowsFromDom();
@@ -2941,15 +3032,31 @@ async function saveImportedQuotes(){
     if(!proceed)return;
   }
 
-  if(!confirm(`Salvar ${rows.length} cotação${rows.length===1?'':'ões'} para este fornecedor?`))return;
+  if(!confirm(`Salvar ${rows.length} cotação${rows.length===1?'':'ões'} para este fornecedor? Uma nova importação substituirá os itens correspondentes desta mesma cotação.`))return;
 
   const btn=$('#quoteSaveImportedBtn');
   if(btn){btn.disabled=true;btn.textContent='Salvando…';}
   setQuoteImportStatus('Salvando cotações…','loading');
 
   try{
+    if(state.demo){
+      for(const r of rows){
+        const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
+        const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor||1),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),needs_review:Boolean(r.needsReview)};
+        if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
+      }
+      state.quoteImportRows=[];
+      renderAll();
+      setQuoteImportStatus(`${rows.length} cotações salvas apenas nesta demonstração.`,'success');
+      return;
+    }
+
     const q=await findOrCreateQuote(tenderId,supplierId);
     if(!q)throw new Error('Não foi possível criar a cotação.');
+
+    const selectedItemIds=[...new Set(rows.map(r=>String(r.itemId)))];
+    const {data:oldRows,error:oldError}=await supabase.from('quote_items').select('id,tender_item_id').eq('quote_id',q.id).in('tender_item_id',selectedItemIds);
+    if(oldError)throw oldError;
 
     const payload=rows.map(r=>({
       quote_id:q.id,
@@ -2959,13 +3066,23 @@ async function saveImportedQuotes(){
       package_description:r.presentation||null,
       package_base_quantity:Number(r.factor||1),
       unit_price:Number(r.price),
-      freight_per_package:0
+      freight_per_package:0,
+      ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),
+      needs_review:Boolean(r.needsReview)
     }));
 
+    const insertedIds=[];
     for(let start=0;start<payload.length;start+=300){
       const chunk=payload.slice(start,start+300);
-      const {error}=await supabase.from('quote_items').insert(chunk);
+      const {data:inserted,error}=await supabase.from('quote_items').insert(chunk).select('id');
       if(error)throw error;
+      insertedIds.push(...(inserted||[]).map(x=>x.id));
+    }
+
+    const obsoleteIds=(oldRows||[]).map(x=>x.id).filter(id=>!insertedIds.includes(id));
+    if(obsoleteIds.length){
+      const {error:deleteError}=await supabase.from('quote_items').delete().in('id',obsoleteIds);
+      if(deleteError)throw new Error(`Os novos itens foram salvos, mas a versão anterior não pôde ser removida: ${deleteError.message}`);
     }
 
     setQuoteImportStatus(`${payload.length} cotações salvas. A precificação foi atualizada.`,'success');
@@ -3876,11 +3993,38 @@ function getPricingTarget(itemId){
   return state.pricingTargets[key];
 }
 
+function pricingTargetsStorageKey(){
+  return `inova_pricing_targets:${currentCompanyId()||'local'}`;
+}
+
+function loadPricingTargets(){
+  const key=pricingTargetsStorageKey();
+  if(state.pricingTargetsLoadedFor===key)return;
+  state.pricingTargetsLoadedFor=key;
+  try{
+    const saved=JSON.parse(localStorage.getItem(key)||'{}');
+    state.pricingTargets=saved&&typeof saved==='object'?saved:{};
+  }catch{
+    state.pricingTargets={};
+  }
+}
+
+function persistPricingTargets(){
+  try{
+    localStorage.setItem(pricingTargetsStorageKey(),JSON.stringify(state.pricingTargets||{}));
+  }catch{
+    toast('Não foi possível salvar as metas neste navegador.','error');
+  }
+}
+
 function calcPricingByFlexibleTarget(item,p){
   if(!item || !p)return null;
 
   const qty=Math.max(Number(item.quantidade||0),0.0001);
-  const costUnit=Math.max(Number(p.costUnit||0),0);
+  const fixedOperationCost=Math.max(0,Number(state.costConfig?.frete_fixo||0))+Math.max(0,Number(state.costConfig?.gasolina||0));
+  const fixedOperationUnit=fixedOperationCost/qty;
+  const baseCostUnit=Math.max(Number(p.costUnit||0),0);
+  const costUnit=baseCostUnit+fixedOperationUnit;
   const extraTax=Number(state.costConfig?.outros_impostos||0);
   const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0)+extraTax)/100;
   const target=getPricingTarget(item.id);
@@ -3891,7 +4035,7 @@ function calcPricingByFlexibleTarget(item,p){
 
   // O imposto configurado é sobre a VENDA, não sobre a compra.
   // Por isso ele não deve ser somado ao preço da cotação.
-  const taxRate=Number(state.config?.imposto||0)/100;
+  const taxRate=(Number(state.config?.imposto||0)+extraTax)/100;
   const reserveRate=Number(state.config?.reserva_operacional||0)/100;
   const taxUnitEstimated=estimated*taxRate;
   const reserveUnitEstimated=estimated*reserveRate;
@@ -3914,6 +4058,7 @@ function calcPricingByFlexibleTarget(item,p){
 
   const globalMargin=Math.max(0,Number(state.config?.margem_alvo||25));
   const globalProfit=Math.max(0,Number(state.config?.lucro_minimo||500));
+  const globalMinimumMargin=Math.max(0,Number(state.config?.margem_minima||10));
 
   let desiredMargin=
     target.margin==null || target.margin===''
@@ -3939,7 +4084,12 @@ function calcPricingByFlexibleTarget(item,p){
 
   const mode=target.mode||'auto';
 
-  let minimumUnit=breakEvenUnit;
+  const minimumMargin=Math.max(0,Number(state.config?.margem_minima||0));
+  const minimumProfit=Math.max(0,Number(state.config?.lucro_minimo||0));
+  const priceByMinimumMargin=costUnit/Math.max(1-overhead-(minimumMargin/100),0.005);
+  const priceByMinimumProfit=(costUnit+(minimumProfit/qty))/Math.max(1-overhead,0.005);
+
+  let minimumUnit=Math.max(breakEvenUnit,priceByMinimumMargin,priceByMinimumProfit);
   if(mode==='margin')minimumUnit=priceByMargin;
   if(mode==='profit')minimumUnit=priceByProfit;
 
@@ -3952,27 +4102,18 @@ function calcPricingByFlexibleTarget(item,p){
       autoStatus='Prejuízo';
       autoClass='bad';
       autoReason='O valor estimado está abaixo do custo total do item.';
-    }else if(
-      profitEstimated>=5000 ||
-      (profitEstimated>=2000 && marginEstimated>=10)
-    ){
+    }else if(profitEstimated>=globalProfit && marginEstimated>=globalMargin){
       autoStatus='Excelente';
       autoClass='good';
-      autoReason='Lucro absoluto alto e margem saudável.';
-    }else if(
-      profitEstimated>=2000 ||
-      marginEstimated>=25
-    ){
+      autoReason='Lucro mínimo e margem desejada foram atingidos.';
+    }else if(profitEstimated>=globalProfit || marginEstimated>=globalMargin){
       autoStatus='Bom';
       autoClass='good';
-      autoReason='Bom lucro absoluto, mesmo que a margem percentual seja menor.';
-    }else if(
-      profitEstimated>=500 ||
-      marginEstimated>=10
-    ){
+      autoReason='Uma das metas principais foi atingida; confira a outra antes da disputa.';
+    }else if(profitEstimated>0 && marginEstimated>=globalMinimumMargin){
       autoStatus='Viável';
       autoClass='warn';
-      autoReason='Resultado positivo e aceitável, mas merece acompanhamento.';
+      autoReason='Resultado positivo e acima da margem mínima, mas abaixo das metas desejadas.';
     }else{
       autoStatus='Baixo';
       autoClass='warn';
@@ -4022,6 +4163,9 @@ function calcPricingByFlexibleTarget(item,p){
     desiredMargin,
     desiredProfit,
     estimated,
+    baseCostUnit,
+    fixedOperationCost,
+    fixedOperationUnit,
     costUnit,
     totalCost,
     revenueEstimated,
@@ -4036,6 +4180,8 @@ function calcPricingByFlexibleTarget(item,p){
     breakEvenUnit,
     priceByMargin,
     priceByProfit,
+    priceByMinimumMargin,
+    priceByMinimumProfit,
     minimumUnit,
     status,
     statusClass,
@@ -4057,6 +4203,9 @@ function renderCostSettings(){
   const c=state.costConfig;
   const imposto=Number(state.config?.imposto||0);
   const reserva=Number(state.config?.reserva_operacional||0);
+  const margemAlvo=Number(state.config?.margem_alvo||25);
+  const margemMinima=Number(state.config?.margem_minima||10);
+  const lucroMinimo=Number(state.config?.lucro_minimo||500);
 
   // NÃO substitui mais #app. A tela abre como overlay e o sistema continua intacto.
   document.querySelector('#costSettingsOverlay')?.remove();
@@ -4087,6 +4236,9 @@ function renderCostSettings(){
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
           ${costField('cfg-tax','Imposto sobre venda (%)',imposto,'Ex.: Simples Nacional, 6%')}
           ${costField('cfg-reserve','Reserva operacional (%)',reserva,'Custos extras sobre a venda')}
+          ${costField('cfg-target-margin','Margem desejada (%)',margemAlvo,'Meta padrão para o preço sugerido')}
+          ${costField('cfg-min-margin','Margem mínima (%)',margemMinima,'Limite mínimo aceitável sobre a venda')}
+          ${costField('cfg-min-profit','Lucro mínimo por item (R$)',lucroMinimo,'Lucro total mínimo para toda a quantidade')}
           ${costField('cfg-freight','Frete fixo (R$)',Number(c.frete_fixo||0),'Frete total da operação')}
           ${costField('cfg-gas','Gasolina (R$)',Number(c.gasolina||0),'Combustível da entrega/retirada')}
           ${costField('cfg-other-tax','Outros impostos/taxas (%)',Number(c.outros_impostos||0),'Taxas adicionais, se houver')}
@@ -4117,6 +4269,7 @@ function renderCostSettings(){
     const pricingTab=document.querySelector('[data-tab="precificacao"]');
     if(pricingTab){
       pricingTab.click();
+      if(typeof renderPricingExactModel==='function')renderPricingExactModel();
     }else{
       document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
       document.querySelector('#precificacao')?.classList.add('active');
@@ -4132,21 +4285,44 @@ function renderCostSettings(){
     closeAndReturn();
   });
 
-  overlay.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
+  overlay.querySelector('#saveCostSettings')?.addEventListener('click',async()=>{
     const n=id=>Math.max(0,Number(overlay.querySelector('#'+id)?.value||0));
+    const saveBtn=overlay.querySelector('#saveCostSettings');
+    if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Salvando…';}
 
     state.config ||= {};
     state.costConfig ||= {};
 
     state.config.imposto=n('cfg-tax');
     state.config.reserva_operacional=n('cfg-reserve');
+    state.config.margem_alvo=n('cfg-target-margin');
+    state.config.margem_minima=n('cfg-min-margin');
+    state.config.lucro_minimo=n('cfg-min-profit');
     state.costConfig.frete_fixo=n('cfg-freight');
     state.costConfig.gasolina=n('cfg-gas');
     state.costConfig.outros_impostos=n('cfg-other-tax');
 
     try{
       localStorage.setItem('inova_cost_config',JSON.stringify(state.costConfig));
+      if(state.demo)localStorage.setItem('inova_demo_pricing_config',JSON.stringify(state.config));
     }catch(e){}
+
+    if(!state.demo){
+      const row={
+        company_id:currentCompanyId(),
+        tax_percent:state.config.imposto,
+        target_margin_percent:state.config.margem_alvo,
+        minimum_profit_amount:state.config.lucro_minimo,
+        minimum_margin_percent:state.config.margem_minima,
+        operational_reserve_percent:state.config.reserva_operacional,
+        updated_at:new Date().toISOString()
+      };
+      const {error}=await supabase.from('pricing_settings').upsert(row,{onConflict:'company_id'});
+      if(error){
+        if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Salvar configurações';}
+        return toast(`Não foi possível salvar as regras: ${error.message}`,'error');
+      }
+    }
 
     closeAndReturn();
 
@@ -4172,6 +4348,7 @@ function renderPricingExactModel(){
   if(!section)return;
 
   ensurePricingExactModelStyles();
+  loadPricingTargets();
   section.classList.add('pricing-exact');
 
   let side=section.querySelector('.pricing-side');
@@ -4224,7 +4401,7 @@ function renderPricingExactModel(){
   const cotados=items.filter(i=>itemHasQuote(i.id)).length;
   const semCotacao=items.length-cotados;
   const priced=items.map(i=>pricing(i)).filter(Boolean);
-  const excellent=priced.filter(p=>p.status==='Excelente').length;
+  const pricedCount=priced.length;
   const avgMargin=priced.length
     ? priced.reduce((s,p)=>s+Number(p.margin||0),0)/priced.length
     : 0;
@@ -4240,13 +4417,15 @@ function renderPricingExactModel(){
         <h1>Precificação</h1><button type="button" id="openCostSettings" class="px-action" style="margin-left:14px">⚙ Custos & Impostos</button>
         <p>Defina preços, calcule lucro e simule lances.</p>
       </div>
-      <button class="px-export" type="button">⇩ Exportar planilha</button>
+      <button class="px-export" id="pxExport" type="button">⇩ Exportar planilha</button>
     </div>
 
     <div class="px-context">
       <div class="px-context-item">
         <span>Licitação</span>
-        <strong>${tender?`${esc(tender.numero)} • ${esc(tender.orgao)} / ${esc(tender.cidade||'')}`:'Selecione uma licitação'}</strong>
+        <select id="pxTenderSelect" aria-label="Licitação para precificar" style="min-width:280px;max-width:100%;height:38px;border:1px solid #31434f;border-radius:7px;background:#07141c;color:#fff;padding:0 10px">
+          ${state.licitacoes.length?state.licitacoes.map(l=>`<option value="${esc(l.id)}" ${String(l.id)===String(tenderId)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}
+        </select>
       </div>
       <div class="px-context-item">
         <span>Fornecedor</span>
@@ -4277,8 +4456,8 @@ function renderPricingExactModel(){
       </div>
       <div class="px-kpi">
         <small>Precificados</small>
-        <strong>${excellent}</strong>
-        <span>${items.length?((excellent/items.length)*100).toFixed(1):'0,0'}%</span>
+        <strong>${pricedCount}</strong>
+        <span>${items.length?((pricedCount/items.length)*100).toFixed(1):'0,0'}%</span>
       </div>
       <div class="px-kpi">
         <small>Lucro médio</small>
@@ -4300,9 +4479,6 @@ function renderPricingExactModel(){
             <option value="all">Todos os status</option>
             <option value="priced">Precificados</option>
             <option value="unquoted">Sem cotação</option>
-          </select>
-          <select>
-            <option>Todos os grupos</option>
           </select>
           <button type="button" class="px-clear" id="pxClear">Limpar filtros</button>
         </div>
@@ -4333,17 +4509,7 @@ function renderPricingExactModel(){
 
         <div class="px-footer">
           <span id="pxCount"></span>
-          <div class="px-pages">
-            <span class="px-page">«</span>
-            <span class="px-page">‹</span>
-            <span class="px-page active">1</span>
-            <span class="px-page">2</span>
-            <span class="px-page">3</span>
-            <span class="px-page">…</span>
-            <span class="px-page">›</span>
-            <span class="px-page">»</span>
-          </div>
-          <span>Itens por página: 10</span>
+          <span>Todos os itens filtrados são exibidos.</span>
         </div>
       </div>
 
@@ -4388,6 +4554,10 @@ function renderPricingExactModel(){
   `;
 
   shell.querySelector('#openCostSettings')?.addEventListener('click',()=>renderCostSettings());
+  shell.querySelector('#pxTenderSelect')?.addEventListener('change',event=>{
+    state.pricingViewTenderId=event.target.value||'';
+    renderPricingExactModel();
+  });
 
   const renderRows=()=>{
     const q=quoteNormalize(shell.querySelector('#pxSearch')?.value||'');
@@ -4401,7 +4571,7 @@ function renderPricingExactModel(){
       return true;
     });
 
-    shell.querySelector('#pxRows').innerHTML=rows.slice(0,10).map(i=>{
+    shell.querySelector('#pxRows').innerHTML=rows.map(i=>{
       const p=pricing(i);
       const q=bestQuote(i.id);
       const f=q?state.fornecedores.find(x=>String(x.id)===String(q.fornecedor_id)):null;
@@ -4444,9 +4614,9 @@ function renderPricingExactModel(){
 
           <td>
             ${
-              p
-                ? `<span class="px-price">${money(Number(p.productCostUnit||0)+Number(p.freightUnit||0))}</span>
-                   <div class="px-item-meta">sem imposto de venda</div>`
+              flex
+                ? `<span class="px-price">${money(flex.costUnit)}</span>
+                   <div class="px-item-meta">produto + fretes + gasolina rateada</div>`
                 : '—'
             }
           </td>
@@ -4545,7 +4715,7 @@ function renderPricingExactModel(){
             ${flex?`<div class="px-item-meta" style="margin-top:5px;max-width:170px">${esc(flex.statusReason)}</div>`:''}
           </td>
 
-          <td><button type="button" class="px-action">${p?'Editar':'Cotação'}</button></td>
+          <td><button type="button" class="px-action" data-px-quote-item="${esc(i.id)}">${p?'Editar cotação':'Adicionar cotação'}</button></td>
         </tr>
       `;
     }).join('');
@@ -4554,6 +4724,7 @@ function renderPricingExactModel(){
       el.addEventListener('change',()=>{
         const t=getPricingTarget(el.dataset.pxTargetMode);
         t.mode=el.value;
+        persistPricingTargets();
         renderRows();
         updateSim();
       });
@@ -4567,6 +4738,7 @@ function renderPricingExactModel(){
           v=Math.max(0,Math.min(90,v));
         }
         t.margin=v;
+        persistPricingTargets();
         renderRows();
         updateSim();
       };
@@ -4579,13 +4751,24 @@ function renderPricingExactModel(){
         let v=el.value===''?null:Number(el.value);
         if(v!=null && Number.isFinite(v))v=Math.max(0,v);
         t.profit=v;
+        persistPricingTargets();
         renderRows();
         updateSim();
       };
       el.addEventListener('change',saveProfit);
     });
 
-    shell.querySelector('#pxCount').textContent=`Mostrando ${Math.min(rows.length,10)} de ${rows.length} itens`;
+    shell.querySelectorAll('[data-px-quote-item]').forEach(btn=>btn.addEventListener('click',()=>{
+      state.quoteViewTenderId=tenderId;
+      document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+      setTimeout(()=>{
+        const itemSelect=$('#cotacaoItem');
+        if(itemSelect)itemSelect.value=btn.dataset.pxQuoteItem;
+        $('#cotacaoFornecedor')?.focus();
+      },0);
+    }));
+
+    shell.querySelector('#pxCount').textContent=`Mostrando ${rows.length} de ${items.length} itens`;
   };
 
   const updateSim=()=>{
@@ -4621,12 +4804,13 @@ function renderPricingExactModel(){
     }
 
     const qty=Math.max(Number(item.quantidade||1),1);
-    const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0))/100;
-    const profitUnit=bid*(1-overhead)-Number(p.costUnit||0);
+    const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0)+Number(state.costConfig?.outros_impostos||0))/100;
+    const profitUnit=bid*(1-overhead)-Number(flex?.costUnit||p.costUnit||0);
     const profit=profitUnit*qty;
     const marginSale=bid?profitUnit/bid*100:0;
-    const marginCost=p.costUnit?profitUnit/p.costUnit*100:0;
-    const position=bid>=Number(p.targetUnit||0)?'Competitivo':bid>=Number(p.limitUnit||0)?'Atenção':'Abaixo do mínimo';
+    const marginCost=flex?.costUnit?profitUnit/flex.costUnit*100:0;
+    const targetReference=flex?.mode==='profit'?flex.priceByProfit:flex?.priceByMargin;
+    const position=bid>=Number(targetReference||0)?'Meta atingida':bid>=Number(flex?.minimumUnit||0)?'Atenção':'Abaixo do mínimo';
 
     box.innerHTML=`
       <h4>Resultado da simulação</h4>
@@ -4646,6 +4830,18 @@ function renderPricingExactModel(){
   });
   shell.querySelector('#pxGoQuotes')?.addEventListener('click',()=>{
     document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+  });
+  shell.querySelector('#pxExport')?.addEventListener('click',()=>{
+    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Custo real unitário','Estimado unitário','Lucro estimado','Margem estimada','Preço mínimo','Status'];
+    const csvRows=items.map(i=>{
+      const p=pricing(i);const flex=p?calcPricingByFlexibleTarget(i,p):null;const q=bestQuote(i.id);
+      const f=q?state.fornecedores.find(x=>String(x.id)===String(q.fornecedor_id)):null;
+      return [i.numero,i.descricao,i.quantidade,i.unidade,f?.nome||'',flex?.costUnit??'',i.valor_estimado||'',flex?.profitEstimated??'',flex?.marginEstimated??'',flex?.minimumUnit??'',flex?.status||'Sem cotação'];
+    });
+    const csv=[header,...csvRows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
+    const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download=`precificacao-${String(tender?.numero||'edital').replace(/[^a-z0-9_-]+/gi,'_')}.csv`;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
   shell.querySelector('#pxSimItem')?.addEventListener('change',updateSim);
   shell.querySelector('#pxSimBid')?.addEventListener('input',updateSim);
@@ -4945,7 +5141,7 @@ function ensureTenderExactStyles(){
       color:#e8edf2;
     }
     #licitacoes.tender-exact-view > .panel{display:none}
-    #licitacoes.tender-exact-view.show-new-tender > .panel:first-of-type{
+    #licitacoes.tender-exact-view.show-new-tender > .panel.tender-manual-panel{
       display:block;
       margin:18px 22px;
       background:#0b1820;
@@ -5198,6 +5394,7 @@ function renderTenderManagement(){
   // apenas ocultos até o botão "+ Novo edital" ser clicado.
   const panels=[...section.querySelectorAll(':scope > .panel')];
   const listPanel=panels.find(p=>p.contains(list));
+  panels.forEach(panel=>panel.classList.toggle('tender-manual-panel',Boolean(panel.querySelector('#licitacaoForm, #itemForm'))));
   if(listPanel)listPanel.style.display='none';
 
   let shell=section.querySelector('.tender-exact-shell');
@@ -5482,7 +5679,7 @@ function renderTenderManagement(){
     const open=section.classList.contains('show-new-tender');
     const btn=shell.querySelector('#txManualTenderToggle');
     if(btn)btn.textContent=open?'Ocultar cadastro manual':'Cadastrar manualmente';
-    if(open)panels[0]?.scrollIntoView({behavior:'smooth',block:'nearest'});
+    if(open)section.querySelector(':scope > .panel.tender-manual-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
   });
 
   // Como este formulário é criado dinamicamente, o evento precisa ser ligado aqui.
@@ -6389,13 +6586,15 @@ function renderAll(){
   if($('#quoteImportSupplier'))$('#quoteImportSupplier').innerHTML=fornOpts;
   renderQuoteTenderComparison();
   renderPricingByTender();
-  $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado',''],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);const action=d.status==='processado'?'<span class="badge good">Concluído</span>':`<button class="action-btn" data-process-doc="${d.id}">Processar IA</button>`;return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge ${d.status==='processado'?'good':'neutral'}">${esc(d.status||'enviado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),action];}));
+  $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado','Próximo passo'],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge neutral">${esc(d.status||'arquivado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),'<span class="hint">Leia e revise na aba Cotações</span>'];}));
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
 }
 
 function demoSeed(){
   state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
+  try{state.config={...state.config,...JSON.parse(localStorage.getItem('inova_demo_pricing_config')||'{}')}}catch{}
+  state.pricingTargetsLoadedFor='';loadPricingTargets();
   state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
   state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
@@ -6409,6 +6608,7 @@ async function findOrCreateQuote(tenderId,supplierId,extra={}){
 }
 
 $('#demoModeBtn')?.addEventListener('click',demoSeed);
+$('#authDemoModeBtn')?.addEventListener('click',demoSeed);
 $('#showLoginBtn').addEventListener('click',()=>{$('#showLoginBtn').classList.add('active');$('#showSignupBtn').classList.remove('active');$('#loginForm').hidden=false;$('#signupForm').hidden=true;});
 $('#showSignupBtn').addEventListener('click',()=>{$('#showSignupBtn').classList.add('active');$('#showLoginBtn').classList.remove('active');$('#signupForm').hidden=false;$('#loginForm').hidden=true;});
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.auth.signInWithPassword({email:f.email,password:f.password});if(error)return toast(error.message,'error');state.user=data.user;await ensureProfile();await loadMembershipAndData();});
@@ -6417,18 +6617,48 @@ $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();c
 $('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');toast('Você entrou na empresa.');await loadMembershipAndData();});
 async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
 
-$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();if(state.demo)return toast('Use o modo online para salvar no banco.','error');const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
+$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});renderAll();return;}const {error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Item adicionado.');await refreshAll();});
-$('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo)return toast('Use o modo online para salvar no banco.','error');const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
-$('#cotacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo)return toast('Use o modo online para salvar no banco.','error');const item=state.itens.find(i=>i.id===f.item_id);if(!item)return;const q=await findOrCreateQuote(item.licitacao_id,f.fornecedor_id);if(!q)return;const {error}=await supabase.from('quote_items').insert({quote_id:q.id,tender_item_id:f.item_id,supplier_description:item.descricao,brand:f.marca||null,package_description:f.apresentacao||null,package_base_quantity:Number(f.fator_equivalencia||1),unit_price:Number(f.preco),freight_per_package:Number(f.frete_rateado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Cotação salva.');await refreshAll();});
-$('#configForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.config=Object.fromEntries(Object.entries(f).map(([k,v])=>[k,Number(v||0)]));renderAll();return toast('Regras atualizadas.');}const row={company_id:currentCompanyId(),tax_percent:Number(f.imposto||0),target_margin_percent:Number(f.margem_alvo||0),minimum_profit_amount:Number(f.lucro_minimo||0),minimum_margin_percent:Number(f.margem_minima||0),operational_reserve_percent:Number(f.reserva_operacional||0),updated_at:new Date().toISOString()};const {error}=await supabase.from('pricing_settings').upsert(row,{onConflict:'company_id'});if(error)return toast(error.message,'error');toast('Regras salvas.');await refreshAll();});
+$('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
+$('#cotacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const item=state.itens.find(i=>i.id===f.item_id);if(!item)return;if(state.demo){state.cotacoes.push({id:crypto.randomUUID(),item_id:f.item_id,fornecedor_id:f.fornecedor_id,preco:Number(f.preco),fator_equivalencia:Number(f.fator_equivalencia||1),frete_rateado:Number(f.frete_rateado||0),apresentacao:f.apresentacao||'',marca:f.marca||''});e.target.reset();renderAll();return toast('Cotação adicionada à demonstração.');}const q=await findOrCreateQuote(item.licitacao_id,f.fornecedor_id);if(!q)return;const {error}=await supabase.from('quote_items').insert({quote_id:q.id,tender_item_id:f.item_id,supplier_description:item.descricao,brand:f.marca||null,package_description:f.apresentacao||null,package_base_quantity:Number(f.fator_equivalencia||1),unit_price:Number(f.preco),freight_per_package:Number(f.frete_rateado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Cotação salva.');await refreshAll();});
+$('#configForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.config=Object.fromEntries(Object.entries(f).map(([k,v])=>[k,Number(v||0)]));try{localStorage.setItem('inova_demo_pricing_config',JSON.stringify(state.config));}catch{}renderAll();return toast('Regras atualizadas neste navegador.');}const row={company_id:currentCompanyId(),tax_percent:Number(f.imposto||0),target_margin_percent:Number(f.margem_alvo||0),minimum_profit_amount:Number(f.lucro_minimo||0),minimum_margin_percent:Number(f.margem_minima||0),operational_reserve_percent:Number(f.reserva_operacional||0),updated_at:new Date().toISOString()};const {error}=await supabase.from('pricing_settings').upsert(row,{onConflict:'company_id'});if(error)return toast(error.message,'error');toast('Regras salvas.');await refreshAll();});
 
-$('#arquivoForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target),file=f.get('arquivo');if(!file?.name)return;if(state.demo)return toast('Upload funciona no modo online.','error');const tenderId=f.get('licitacao_id'),supplierId=f.get('fornecedor_id'),safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');const {data:q,error:qErr}=await supabase.from('quotes').insert({company_id:currentCompanyId(),tender_id:tenderId,supplier_id:supplierId,source_filename:file.name,source_type:file.name.split('.').pop()?.toLowerCase(),status:'uploaded',created_by:state.user.id}).select().single();if(qErr)return toast(qErr.message,'error');const path=`${currentCompanyId()}/${q.id}/${Date.now()}-${safe}`;const {error:upErr}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType:file.type||undefined});if(upErr){await supabase.from('quotes').delete().eq('id',q.id);return toast(upErr.message,'error');}const {error:uErr}=await supabase.from('quotes').update({storage_path:path}).eq('id',q.id);if(uErr)return toast(uErr.message,'error');e.target.reset();toast('Arquivo enviado e pronto para a IA.');await refreshAll();});
+$('#arquivoForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const f=new FormData(e.target),file=f.get('arquivo');
+  if(!file?.name)return;
+  if(state.demo || !configured || !supabase)return toast('O arquivamento privado funciona somente no modo online.','error');
+  const ext=file.name.toLowerCase().split('.').pop()||'';
+  if(!QUOTE_FILE_EXTENSIONS.has(ext))return toast('Formato não suportado. Use PDF, Excel ou CSV.','error');
+  if(file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo excede o limite de 25 MB.','error');
+  if(file.type && !QUOTE_FILE_MIME_TYPES.has(String(file.type).toLowerCase()))return toast('O tipo do arquivo não corresponde a PDF, Excel ou CSV.','error');
+
+  const tenderId=f.get('licitacao_id'),supplierId=f.get('fornecedor_id');
+  const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const inferredMime={pdf:'application/pdf',csv:'text/csv',xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}[ext];
+  const {data:q,error:qErr}=await supabase.from('quotes').insert({company_id:currentCompanyId(),tender_id:tenderId,supplier_id:supplierId,source_filename:file.name,source_type:ext,status:'uploaded',created_by:state.user.id}).select().single();
+  if(qErr)return toast(qErr.message,'error');
+  const path=`${currentCompanyId()}/${q.id}/${Date.now()}-${safe}`;
+  const contentType=!file.type||file.type==='application/octet-stream'?inferredMime:file.type;
+  const {error:upErr}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType});
+  if(upErr){await supabase.from('quotes').delete().eq('id',q.id);return toast(upErr.message,'error');}
+  const {error:uErr}=await supabase.from('quotes').update({storage_path:path}).eq('id',q.id);
+  if(uErr){
+    await supabase.storage.from('quote-files').remove([path]);
+    await supabase.from('quotes').delete().eq('id',q.id);
+    return toast(uErr.message,'error');
+  }
+  e.target.reset();toast('Cotação arquivada com segurança. Use a aba Cotações para ler e relacionar os itens.');await refreshAll();
+});
 
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
 document.addEventListener('click',async e=>{
   const directSync=e.target.closest('[data-direct-pncp-sync]');
   if(directSync){
+    if(state.demo || !configured || !supabase || !state.user){
+      toast('A sincronização PNCP exige uma sessão online.','error');
+      return;
+    }
     const id=directSync.dataset.directPncpSync;
     const l=state.licitacoes.find(x=>String(x.id)===String(id));
     if(!l?.pncp_control)return;
@@ -6480,12 +6710,21 @@ document.addEventListener('click',async e=>{
     return;
   }
 
-  const p=e.target.closest('[data-process-doc]');if(p){return toast('O botão da IA já está preparado. Falta apenas conectar a chave da OpenAI no servidor para ativar a leitura automática.','error');}
-  const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo)return;const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
+  const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.tab).classList.add('active');}));
 let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').hidden=false;});$('#installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').hidden=true;});
-if('serviceWorker' in navigator)window.addEventListener('load',async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}catch{}});
+if('serviceWorker' in navigator)window.addEventListener('load',async()=>{
+  try{
+    const isLocal=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+    if(isLocal){
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.filter(reg=>reg.scope.startsWith(location.origin)).map(reg=>reg.unregister()));
+      return;
+    }
+    await navigator.serviceWorker.register('./service-worker.js',{scope:'./'});
+  }catch(err){console.warn('Service worker:',err?.message||err);}
+});
 if(configured)supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')showOnly('authScreen');if(event==='SIGNED_IN'&&session)state.user=session.user;});
 
 $('#simItem')?.addEventListener('change', () => {

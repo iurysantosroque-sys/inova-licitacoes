@@ -1,1 +1,1 @@
-4.0 - Supabase empacotado pelo build da Vercel (sem CDN externo no navegador)
+36.8 - Fluxos integrados, precificação persistente, IA revisável, PWA e backend versionado.

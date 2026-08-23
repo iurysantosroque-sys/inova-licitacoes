@@ -1,0 +1,5 @@
+[functions.pncp-import]
+verify_jwt = true
+
+[functions.ai-match-quote]
+verify_jwt = true

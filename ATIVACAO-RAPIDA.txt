@@ -1,22 +1,22 @@
-INOVA LICITAÇÕES — ATIVAÇÃO RÁPIDA
+INOVA LICITAÇÕES V36.8 — ATIVAÇÃO RÁPIDA
 
 1. Teste local:
-   python -m http.server 8080
-   Abra http://localhost:8080
-   Clique em "Abrir modo demonstração".
+   pnpm install
+   pnpm dev
+   Abra o endereço mostrado e clique em "Explorar demonstração".
 
-2. Para funcionar com você, seu pai e seu irmão:
-   - Crie um projeto no Supabase.
-   - Rode supabase/schema.sql no SQL Editor.
-   - Copie Project URL e Publishable Key.
-   - Cole em app-config.js.
-   - Publique esta pasta em uma hospedagem HTTPS.
+2. Projeto Supabase novo:
+   - Execute supabase/schema.sql no SQL Editor.
+   - Publique as funções pncp-import e ai-match-quote com verify_jwt=true.
+   - Configure GEMINI_API_KEY nos secrets das Edge Functions.
+   - Copie a Project URL e a Publishable Key para app-config.js e public/app-config.js.
 
-3. Você cria a empresa no primeiro login.
-   Depois copie o código em Equipe.
-   Seu pai e seu irmão criam as próprias contas e entram usando esse código.
+3. Uso compartilhado:
+   - O primeiro usuário cria a empresa.
+   - Em Equipe, copie o código de convite.
+   - Os demais usuários criam suas contas e entram com esse código.
 
-4. Nunca coloque no app-config.js:
-   - OPENAI_API_KEY
-   - SUPABASE_SERVICE_ROLE_KEY
-   Essas chaves ficam apenas no servidor/Edge Functions.
+4. Segurança:
+   - Nunca coloque service_role, GEMINI_API_KEY, senhas ou tokens privados no frontend.
+   - A migração em supabase/migrations não é aplicada automaticamente.
+   - Leia README.md antes de alterar o banco de produção.

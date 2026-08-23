@@ -9,8 +9,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=27.1" />
-  <script src="./app-config.js?v=5.0"></script>
+  <link rel="stylesheet" href="styles.css?v=36.8" />
+  <script src="./app-config.js?v=36.8"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -50,6 +50,11 @@
         <label>Senha<input name="password" type="password" autocomplete="new-password" minlength="6" required /></label>
         <button type="submit">Criar minha conta</button>
       </form>
+      <div class="notice compact">
+        <strong>Quer conhecer antes?</strong>
+        <p>Abra uma demonstração local com dados fictícios. Nada será enviado ao banco.</p>
+      </div>
+      <button id="authDemoModeBtn" type="button" class="secondary full">Explorar demonstração</button>
     </div>
   </section>
 
@@ -355,15 +360,14 @@
 
       <section id="arquivos" class="tab">
         <div class="panel">
-          <div class="panel-title"><div><h2>Importar cotação do fornecedor</h2><p class="hint">PDF, Excel ou CSV. O arquivo fica salvo e preparado para processamento automático.</p></div></div>
+          <div class="panel-title"><div><h2>Arquivar cotação do fornecedor</h2><p class="hint">PDF, Excel ou CSV. O arquivo fica salvo na área privada da empresa; para ler e relacionar os produtos, use a aba Cotações.</p></div></div>
           <form id="arquivoForm" class="grid-form">
             <select name="licitacao_id" id="arquivoLicitacao" required></select>
             <select name="fornecedor_id" id="arquivoFornecedor" required></select>
-            <select name="tipo"><option value="cotacao">Cotação</option><option value="edital">Edital/Anexo</option></select>
-            <input name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv" required />
+            <input name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
             <button type="submit">Enviar arquivo</button>
           </form>
-          <div class="notice compact"><strong>IA:</strong> os arquivos já são enviados para uma área privada. O processamento automático será ativado na próxima etapa, usando a chave da OpenAI somente no servidor.</div>
+          <div class="notice compact"><strong>Importante:</strong> esta área arquiva somente cotações de fornecedores (até 25 MB). A leitura inteligente e a revisão dos vínculos ficam na aba Cotações.</div>
         </div>
         <div class="panel"><h2>Arquivos enviados</h2><div id="arquivosLista" class="table-wrap"></div></div>
       </section>
@@ -468,10 +472,10 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.3</span><i></i><span>Sistema atualizado</span></div>
+      <div class="footer-status"><span>Versão 36.8</span><i></i><span>Sistema atualizado</span></div>
     </footer>
   </div>
 
-  <script type="module" src="./app.js?v=36.3"></script>
+  <script type="module" src="./app.js?v=36.8"></script>
 </body>
 </html>

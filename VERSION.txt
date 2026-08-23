@@ -1,6 +1,7 @@
-INOVA V36.3
-CORREÇÃO REAL DA NAVEGAÇÃO:
-- Custos & Impostos não substitui mais o #app.
-- A tela abre em overlay.
-- Voltar fecha o overlay e retorna para Precificação.
-- Salvar fecha o overlay, retorna para Precificação e mantém o sistema intacto.
+INOVA V36.8
+
+- Formulários manuais e modo demonstração funcionais.
+- Precificação com custos, metas, persistência e exportação.
+- Associação por IA com validação e revisão humana.
+- Upload privado validado e PWA com cache atualizável.
+- Schema, hardening e Edge Functions atuais versionados.
