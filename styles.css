@@ -13,3 +13,4 @@ main{max-width:1500px;margin:auto;padding:24px clamp(12px,3vw,34px)}.tab{display
 .action-btn{border:1px solid #d1d5db;background:#fff;border-radius:8px;padding:6px 9px;font-size:.78rem}.danger-btn{color:#991b1b}
 @media(max-width:900px){.cards{grid-template-columns:1fr 1fr}.two-col{grid-template-columns:1fr}.grid-form{grid-template-columns:1fr 1fr}.company-grid{grid-template-columns:1fr}.tabs{top:76px}}
 @media(max-width:620px){.topbar{padding:12px}.topbar p{display:none}.top-actions{gap:6px}.user-pill span{display:none}.tabs{top:64px;padding:0}.tabs button{padding:12px}.cards{grid-template-columns:1fr 1fr;gap:9px}.card{padding:14px}.card strong{font-size:1.25rem}.grid-form{grid-template-columns:1fr}.panel{padding:14px;border-radius:12px}.opportunity-grid{grid-template-columns:1fr 1fr}.auth-card{padding:20px}.invite-box button{margin-left:0;width:100%}}
+[hidden]{display:none!important;}
