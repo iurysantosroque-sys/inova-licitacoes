@@ -159,9 +159,9 @@ tr:hover td{background:#0a141a}
 
 /* PNCP IMPORTADOR V10 */
 .pncp-panel{border-color:rgba(230,170,52,.55)}
-.pncp-search-form{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(120px,.5fr) auto;gap:12px;align-items:end;margin-top:12px}
+.pncp-search-form{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(120px,.45fr) minmax(130px,.45fr) auto;gap:12px;align-items:end;margin-top:12px}
 .pncp-search-form label{display:grid;gap:6px;font-size:.84rem;color:#d2d7da}
-.pncp-search-form input{width:100%;border:1px solid #31414b;border-radius:10px;padding:12px 13px;background:#091218;color:#fff}
+.pncp-search-form input,.pncp-search-form select{width:100%;border:1px solid #31414b;border-radius:10px;padding:12px 13px;background:#091218;color:#fff}
 .pncp-search-form button{min-height:44px;border:1px solid var(--gold);border-radius:10px;background:var(--gold);color:#090d10;font-weight:800;padding:0 18px}
 .pncp-tip{display:flex;gap:7px;align-items:flex-start;margin-top:12px;padding:11px 13px;background:#091218;border:1px solid var(--line);border-radius:10px;color:#aeb8bf;font-size:.8rem}
 .pncp-tip strong{color:var(--gold)}
@@ -212,3 +212,6 @@ tr:hover td{background:#0a141a}
   .pncp-preview-actions{justify-content:flex-start}
   .pncp-detail-grid{grid-template-columns:1fr}
 }
+
+/* V10.1 - filtro UF PNCP */
+.pncp-search-form select{min-height:44px}

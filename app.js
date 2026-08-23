@@ -581,14 +581,14 @@ function renderPncpPreview(data){
   $('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
 }
 
-async function searchPncp(query,year){
+async function searchPncp(query,year,uf){
   clearPncpPreview();
   const results=$('#pncpSearchResults');
   if(results)results.innerHTML='';
   setPncpStatus('Consultando o PNCP…','loading');
 
   const {data,error}=await supabase.functions.invoke('pncp-import',{
-    body:{query,year:year?Number(year):undefined}
+    body:{query,year:year?Number(year):undefined,uf:uf||undefined}
   });
 
   if(error){
@@ -607,7 +607,7 @@ async function searchPncp(query,year){
   }
 
   const rows=data?.results||[];
-  setPncpStatus(rows.length ? 'Resultados encontrados. Selecione o edital correto.' : 'Nenhum resultado encontrado.',rows.length?'success':'warn');
+  setPncpStatus(rows.length ? `Resultados encontrados${uf ? ' em '+uf : ''}. Selecione o edital correto.` : `Nenhum resultado encontrado${uf ? ' em '+uf : ''}.`,rows.length?'success':'warn');
   renderPncpSearchResults(rows);
 }
 
@@ -958,7 +958,7 @@ $('#pncpYear') && ($('#pncpYear').value = new Date().getFullYear());
 $('#pncpSearchForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const f=Object.fromEntries(new FormData(e.target));
-  await searchPncp(String(f.query||'').trim(),f.year);
+  await searchPncp(String(f.query||'').trim(),f.year,f.uf);
 });
 
 document.addEventListener('click',async e=>{
