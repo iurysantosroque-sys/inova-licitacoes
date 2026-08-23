@@ -1,5 +1,6 @@
-INOVA V36.2
-Correção de navegação:
-- Botão Voltar para Precificação agora chama a tela de Precificação diretamente.
-- Não depende mais de procurar/clicar em uma aba que foi removida do DOM.
-- Salvar configurações também retorna diretamente para Precificação.
+INOVA V36.3
+CORREÇÃO REAL DA NAVEGAÇÃO:
+- Custos & Impostos não substitui mais o #app.
+- A tela abre em overlay.
+- Voltar fecha o overlay e retorna para Precificação.
+- Salvar fecha o overlay, retorna para Precificação e mantém o sistema intacto.

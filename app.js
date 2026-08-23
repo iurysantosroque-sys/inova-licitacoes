@@ -4053,15 +4053,23 @@ function pricingProfitBadge(info){
 
 
 function renderCostSettings(){
-  const root=document.querySelector('#app')||document.body;
   state.costConfig ||= {frete_fixo:0,gasolina:0,outros_impostos:0};
   const c=state.costConfig;
   const imposto=Number(state.config?.imposto||0);
   const reserva=Number(state.config?.reserva_operacional||0);
 
-  root.innerHTML=`
-    ${typeof renderTopNav==='function'?renderTopNav('costs'):''}
-    <main style="max-width:1450px;margin:0 auto;padding:28px 30px;color:#eef3f6">
+  // NÃO substitui mais #app. A tela abre como overlay e o sistema continua intacto.
+  document.querySelector('#costSettingsOverlay')?.remove();
+
+  const overlay=document.createElement('div');
+  overlay.id='costSettingsOverlay';
+  overlay.style.cssText=`
+    position:fixed;inset:0;z-index:99999;
+    background:#06131b;overflow:auto;color:#eef3f6;
+  `;
+
+  overlay.innerHTML=`
+    <div style="max-width:1500px;margin:0 auto;padding:28px 30px">
       <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px">
         <div>
           <h1 style="margin:0;font-size:30px">Custos & Impostos</h1>
@@ -4075,6 +4083,7 @@ function renderCostSettings(){
 
       <section style="border:1px solid #203744;background:#071720;border-radius:14px;padding:22px">
         <h2 style="font-size:17px;color:#f6b91f;margin:0 0 18px">Configuração geral</h2>
+
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
           ${costField('cfg-tax','Imposto sobre venda (%)',imposto,'Ex.: Simples Nacional, 6%')}
           ${costField('cfg-reserve','Reserva operacional (%)',reserva,'Custos extras sobre a venda')}
@@ -4090,39 +4099,61 @@ function renderCostSettings(){
         </div>
 
         <div style="display:flex;justify-content:flex-end;margin-top:20px">
-          <button id="saveCostSettings" style="border:0;border-radius:9px;padding:12px 22px;background:#f6b91f;color:#071018;font-weight:850;cursor:pointer">Salvar configurações</button>
+          <button id="saveCostSettings"
+            style="border:0;border-radius:9px;padding:12px 22px;background:#f6b91f;color:#071018;font-weight:850;cursor:pointer">
+            Salvar configurações
+          </button>
         </div>
       </section>
-    </main>`;
+    </div>
+  `;
 
-  root.querySelector('#backToPricing')?.addEventListener('click',(ev)=>{
-    ev.preventDefault();
-    ev.stopPropagation();
-    // Esta tela substitui o conteúdo do #app, portanto a aba superior pode não
-    // existir mais no DOM. A volta precisa renderizar a Precificação diretamente.
-    if(typeof renderPricingExactModel==='function'){
-      renderPricingExactModel();
-      window.scrollTo({top:0,behavior:'instant'});
+  document.body.appendChild(overlay);
+
+  const closeAndReturn=()=>{
+    overlay.remove();
+
+    // Como o app original nunca foi destruído, basta reabrir/atualizar Precificação.
+    const pricingTab=document.querySelector('[data-tab="precificacao"]');
+    if(pricingTab){
+      pricingTab.click();
+    }else{
+      document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+      document.querySelector('#precificacao')?.classList.add('active');
+      if(typeof renderPricingExactModel==='function'){
+        renderPricingExactModel();
+      }
     }
+    window.scrollTo({top:0,behavior:'auto'});
+  };
+
+  overlay.querySelector('#backToPricing')?.addEventListener('click',(ev)=>{
+    ev.preventDefault();
+    closeAndReturn();
   });
 
-  root.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
-    const n=id=>Math.max(0,Number(root.querySelector('#'+id)?.value||0));
+  overlay.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
+    const n=id=>Math.max(0,Number(overlay.querySelector('#'+id)?.value||0));
+
     state.config ||= {};
     state.costConfig ||= {};
+
     state.config.imposto=n('cfg-tax');
     state.config.reserva_operacional=n('cfg-reserve');
     state.costConfig.frete_fixo=n('cfg-freight');
     state.costConfig.gasolina=n('cfg-gas');
     state.costConfig.outros_impostos=n('cfg-other-tax');
-    try{ localStorage.setItem('inova_cost_config',JSON.stringify(state.costConfig)); }catch(e){}
 
-    alert('Custos e impostos atualizados.');
+    try{
+      localStorage.setItem('inova_cost_config',JSON.stringify(state.costConfig));
+    }catch(e){}
 
-    // Volta diretamente para Precificação após salvar.
-    if(typeof renderPricingExactModel==='function'){
-      renderPricingExactModel();
-      window.scrollTo({top:0,behavior:'instant'});
+    closeAndReturn();
+
+    if(typeof toast==='function'){
+      toast('Custos e impostos atualizados.','success');
+    }else{
+      alert('Custos e impostos atualizados.');
     }
   });
 }
