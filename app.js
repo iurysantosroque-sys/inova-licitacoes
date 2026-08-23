@@ -799,35 +799,144 @@ async function syncPncpItems(){
 function quoteNormalize(v){
   return String(v??'')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .toUpperCase().replace(/[^A-Z0-9 ]/g,' ')
-    .replace(/\s+/g,' ').trim();
+    .toUpperCase()
+    .replace(/Ø/g,' ')
+    .replace(/[×X]/g,' X ')
+    .replace(/[^A-Z0-9.,/'" -]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
 }
+
+const QUOTE_STOPWORDS=new Set([
+  'DE','DA','DO','DAS','DOS','COM','PARA','EM','E','A','O','AS','OS',
+  'UN','UND','UNIDADE','PC','PCA','PÇ','PCT','CX','CT','RL','SC','KG','MT',
+  'MARCA','MODELO','REF','C','SEM','S'
+]);
+
+const QUOTE_GENERIC=new Set([
+  'MATERIAL','PRODUTO','DIVERSOS','GERAL','TIPO','TAMANHO','COR','UND',
+  'KIT','JOGO'
+]);
 
 function quoteTokens(v){
-  const stop=new Set(['DE','DA','DO','DAS','DOS','COM','PARA','EM','E','A','O','UN','UND','UNIDADE','PC','PCT','CX']);
-  return quoteNormalize(v).split(' ').filter(x=>x.length>1&&!stop.has(x));
+  return quoteNormalize(v)
+    .split(/[\s,;:()]+/)
+    .map(x=>x.trim())
+    .filter(x=>x.length>1 && !QUOTE_STOPWORDS.has(x) && !QUOTE_GENERIC.has(x));
 }
 
-function quoteSimilarity(a,b){
-  const A=new Set(quoteTokens(a)), B=new Set(quoteTokens(b));
-  if(!A.size||!B.size)return 0;
+function quoteWordTokens(v){
+  return quoteTokens(v).filter(x=>/[A-Z]/.test(x) && !/^\d/.test(x));
+}
+
+function quoteSpecTokens(v){
+  const s=quoteNormalize(v);
+  const specs=new Set();
+
+  // Medidas e números relevantes: 20, 25MM, 3/4, 1/2, 15L, 4X2,50MM etc.
+  for(const m of s.matchAll(/\b\d+(?:[.,]\d+)?(?:MM|CM|M|KG|G|ML|L|LT|W|V)?\b/g)){
+    let x=m[0].replace(',','.');
+    if(!['1','2','3','4','5','6','7','8','9','10','20','25','30','40','50','60','75','80','90','100','150','200','500','1000'].includes(x) || /[A-Z]/.test(x)){
+      specs.add(x);
+    } else {
+      // ainda preserva números dimensionais comuns, pois são decisivos em hidráulica/ferragens
+      specs.add(x);
+    }
+  }
+  for(const m of s.matchAll(/\b\d+\s*\/\s*\d+\b/g)) specs.add(m[0].replace(/\s/g,''));
+  for(const m of s.matchAll(/\b\d+(?:[.,]\d+)?\s*X\s*\d+(?:[.,]\d+)?(?:\s*X\s*\d+(?:[.,]\d+)?)?/g)){
+    specs.add(m[0].replace(/\s/g,'').replace(/,/g,'.'));
+  }
+  return [...specs];
+}
+
+function quoteLeadingCategory(v){
+  const words=quoteWordTokens(v);
+  if(!words.length)return '';
+  // primeiros termos carregam a família do produto: CADEADO, TINTA, TE, LUVA, JOELHO...
+  return words.slice(0,2).join(' ');
+}
+
+function setOverlap(a,b){
+  const A=new Set(a),B=new Set(b);
   let common=0;
   for(const x of A)if(B.has(x))common++;
-  const union=new Set([...A,...B]).size;
-  const j=common/Math.max(union,1);
-  const an=quoteNormalize(a),bn=quoteNormalize(b);
-  const contains=an.includes(bn)||bn.includes(an)?0.25:0;
-  return Math.min(1,j+contains);
+  return {common,union:new Set([...A,...B]).size};
+}
+
+function quoteMatchScore(a,b){
+  const aw=quoteWordTokens(a), bw=quoteWordTokens(b);
+  const as=quoteSpecTokens(a), bs=quoteSpecTokens(b);
+  if(!aw.length || !bw.length)return {score:0,reason:'sem palavras suficientes'};
+
+  const wo=setOverlap(aw,bw);
+  const wordJ=wo.common/Math.max(wo.union,1);
+
+  const aLead=aw[0]||'', bLead=bw[0]||'';
+  const leadExact=aLead===bLead;
+  const leadRelated=leadExact || (aLead.length>=4 && bLead.length>=4 && (aLead.includes(bLead)||bLead.includes(aLead)));
+
+  const so=setOverlap(as,bs);
+  const specJ=(as.length&&bs.length)?so.common/Math.max(new Set([...as,...bs]).size,1):0;
+
+  // Regras de rejeição forte: evita "CADEADO 20" -> "ADAPTADORES ..."
+  if(!leadRelated && wo.common===0){
+    return {score:0,reason:'família do produto diferente'};
+  }
+
+  // Se só compartilha uma palavra muito genérica (ex.: TINTA) e existem especificações,
+  // exige ao menos alguma especificação em comum.
+  const onlyOneWord=wo.common===1;
+  if(onlyOneWord && (as.length||bs.length) && so.common===0 && wordJ<0.35){
+    return {score:Math.min(wordJ,0.18),reason:'descrição genérica sem medida compatível'};
+  }
+
+  // Se ambos possuem números/medidas e nenhum coincide, aplica penalidade forte.
+  let specPenalty=0;
+  if(as.length && bs.length && so.common===0) specPenalty=0.28;
+
+  // Recompensa família do produto + termos em comum + medidas compatíveis.
+  let score=
+    (wordJ*0.52) +
+    (leadExact?0.22:(leadRelated?0.12:0)) +
+    (specJ*0.22) -
+    specPenalty;
+
+  // descrição contida integralmente ajuda, mas pouco
+  const an=quoteNormalize(a), bn=quoteNormalize(b);
+  if(an.length>8 && bn.length>8 && (an.includes(bn)||bn.includes(an)))score+=0.08;
+
+  score=Math.max(0,Math.min(1,score));
+  return {score,reason:''};
+}
+
+function rankedTenderMatches(description,tenderId){
+  const candidates=state.itens.filter(i=>i.licitacao_id===tenderId);
+  return candidates
+    .map(item=>({item,...quoteMatchScore(description,item.descricao)}))
+    .sort((a,b)=>b.score-a.score);
 }
 
 function bestTenderItemMatch(description,tenderId){
-  const candidates=state.itens.filter(i=>i.licitacao_id===tenderId);
-  let best=null,score=0;
-  for(const item of candidates){
-    const s=quoteSimilarity(description,item.descricao);
-    if(s>score){score=s;best=item;}
-  }
-  return {item:best,score};
+  const ranked=rankedTenderMatches(description,tenderId);
+  const best=ranked[0]||{item:null,score:0,reason:'sem candidatos'};
+  const second=ranked[1]||{score:0};
+
+  // Associação automática somente com confiança alta e distância segura do segundo colocado.
+  const auto=best.score>=0.58 && (best.score-second.score)>=0.10;
+
+  // Uma faixa intermediária vira apenas sugestão visual, sem selecionar automaticamente.
+  const suggest=!auto && best.score>=0.38;
+
+  return {
+    item:auto?best.item:null,
+    suggestedItem:suggest?best.item:null,
+    score:best.score,
+    secondScore:second.score,
+    auto,
+    suggest,
+    reason:best.reason
+  };
 }
 
 function parseBrazilianNumber(value){
@@ -1020,11 +1129,16 @@ function prepareQuoteRowsByTenderOrder(tenderId){
     // Só tenta associar automaticamente se ainda não houver associação manual.
     if(!r.itemId){
       const match=bestTenderItemMatch(r.description,tenderId);
-      if(match.item && match.score>=0.20){
+      r.matchScore=match.score||0;
+      r.suggestedItemId=match.suggestedItem?.id||'';
+      r.matchReason=match.reason||'';
+
+      if(match.auto && match.item){
         r.itemId=match.item.id;
-        r.matchScore=match.score;
+        r.autoMatched=true;
       }else{
-        r.matchScore=match.score||0;
+        r.itemId='';
+        r.autoMatched=false;
       }
     }
 
@@ -1064,7 +1178,10 @@ function renderQuoteImportPreview(){
 
   el.innerHTML=`
     <div class="quote-preview-head">
-      <div><strong>${rows.length} linha${rows.length===1?'':'s'} identificada${rows.length===1?'':'s'}</strong><span>Revise os dados amarelos antes de salvar.</span></div>
+      <div>
+        <strong>${rows.length} linha${rows.length===1?'':'s'} identificada${rows.length===1?'':'s'}</strong>
+        <span>${rows.filter(r=>r.itemId).length} relacionadas automaticamente • ${rows.filter(r=>!r.itemId).length} precisam de revisão</span>
+      </div>
       <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
     </div>
     <div class="table-wrap quote-preview-table">
@@ -1073,13 +1190,20 @@ function renderQuoteImportPreview(){
         <tbody>
           ${rows.map((r,index)=>{
             const itemMatched=state.itens.find(i=>i.id===r.itemId);
+            const suggestedItem=state.itens.find(i=>i.id===r.suggestedItemId);
             const score=Number(r.matchScore||0);
-            const weak=!itemMatched||score<0.25;
+            const weak=!itemMatched;
             return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
               <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
               <td class="quote-edital-number">${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}</td>
               <td><strong>${esc(r.description)}</strong><small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small></td>
-              <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${weak?'<small class="review-note">Confira a associação</small>':''}</td>
+              <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${
+                itemMatched
+                  ? `<small class="match-ok">Correspondência automática ${Math.round(score*100)}%</small>`
+                  : suggestedItem
+                    ? `<small class="review-note">Sugestão: Item ${esc(suggestedItem.numero)} • ${esc(suggestedItem.descricao)} (${Math.round(score*100)}%)</small>`
+                    : `<small class="review-note">Não encontrei correspondência segura</small>`
+              }</td>
               <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
               <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
               <td><input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}"></td>
@@ -1503,7 +1627,10 @@ document.addEventListener('change',e=>{
     if(row){
       const item=state.itens.find(x=>x.id===row.itemId);
       row.editalItemNumber=item?Number(item.numero):null;
-      row.matchScore=row.itemId?1:0; // associação manual é tratada como confirmada
+      row.matchScore=row.itemId?1:0;
+      row.suggestedItemId='';
+      row.autoMatched=false;
+      row.manualMatched=Boolean(row.itemId);
     }
     renderQuoteImportPreview();
   }

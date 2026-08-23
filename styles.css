@@ -281,3 +281,18 @@ tr:hover td{background:#0a141a}
   font-size:.9rem;
 }
 .quote-edital-number span{color:#6f7c84}
+
+
+/* V11.4 — associação segura */
+.match-ok{
+  color:#62d58b!important;
+  font-size:.70rem!important;
+}
+.review-note{
+  max-width:360px;
+  white-space:normal;
+  line-height:1.3;
+}
+.quote-row-review td{
+  background:rgba(230,170,52,.025)!important;
+}

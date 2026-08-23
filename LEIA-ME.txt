@@ -1,23 +1,30 @@
-INOVA LICITAÇÕES — V11.3
+INOVA LICITAÇÕES — V11.4
 
-ORDEM DA COTAÇÃO DE ACORDO COM O EDITAL
+CORREÇÃO DO RELACIONAMENTO COTAÇÃO x EDITAL
 
-A prévia da cotação agora é organizada pela sequência oficial dos itens da licitação.
+O sistema não "chuta" mais itens com pouca semelhança.
 
-Exemplo:
-Item 1 do edital
-Item 2 do edital
-Item 3 do edital
-...
+Agora o algoritmo compara:
+- família do produto (primeiras palavras);
+- palavras relevantes da descrição;
+- números e medidas;
+- dimensões;
+- frações;
+- litros, mm, cm, kg, watts, volts etc.
 
-Funcionamento:
-- o produto do fornecedor é relacionado ao item do edital;
-- os relacionados são ordenados pelo número oficial do item;
-- os produtos sem associação ficam no final para revisão;
-- ao selecionar manualmente outro item, a tabela se reorganiza;
-- ao salvar, as cotações também são processadas na ordem do edital.
+Exemplos que deixam de acontecer:
+- CADEADO 20 -> ADAPTADORES
+- TE SOLD 20 -> ADAPTADORES
+- TINTA 15L -> BISNAGA DE TINTA
+- TE SOLD 25 -> BOIAS 25 MM
 
-Também foi adicionada a coluna "Item edital" na prévia para facilitar a conferência.
+Regra:
+- só associa automaticamente com confiança alta;
+- se houver dúvida, fica "Não relacionado";
+- sugestões intermediárias aparecem apenas como texto amarelo;
+- seleção manual continua disponível;
+- itens associados seguem na ordem oficial do edital;
+- não relacionados ficam no final.
 
 PUBLICAÇÃO
 Substitua no GitHub:
@@ -25,9 +32,9 @@ Substitua no GitHub:
 - app.js
 - styles.css
 
-Mantenha:
+Não altere:
 - app-config.js
 - assets
 
 Commit sugerido:
-Ordenar cotacao conforme itens do edital V11.3
+Melhorar associacao segura cotacao edital V11.4
