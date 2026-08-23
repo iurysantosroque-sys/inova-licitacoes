@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', demo:false
 };
 
 function toast(msg,type='success'){
@@ -1606,6 +1606,241 @@ function renderQuoteTenderComparison(){
   );
 }
 
+
+function ensurePricingTenderViewer(){
+  const list=$('#precificacaoLista');
+  if(!list)return;
+
+  let box=$('#pricingTenderViewer');
+  if(!box){
+    box=document.createElement('div');
+    box.id='pricingTenderViewer';
+    box.style.margin='0 0 18px';
+    box.innerHTML=`
+      <div style="display:grid;grid-template-columns:minmax(280px,1fr) auto;gap:12px;align-items:end">
+        <label style="display:grid;gap:6px">
+          <span>Precificação de qual edital?</span>
+          <select id="pricingTenderViewSelect">
+            <option value="">Selecione a licitação</option>
+          </select>
+        </label>
+        <button type="button" id="pricingTenderViewBtn">Abrir precificação</button>
+      </div>
+      <div id="pricingTenderViewInfo" class="hint" style="margin-top:8px">
+        Selecione um edital e clique em Abrir precificação. Os itens dos outros editais ficarão ocultos.
+      </div>
+    `;
+
+    list.parentNode?.insertBefore(box,list);
+
+    $('#pricingTenderViewBtn')?.addEventListener('click',()=>{
+      const tenderId=$('#pricingTenderViewSelect')?.value||'';
+      state.pricingViewTenderId=tenderId;
+      renderPricingByTender();
+    });
+  }
+
+  const select=$('#pricingTenderViewSelect');
+  if(select){
+    const current=state.pricingViewTenderId||'';
+    select.innerHTML=
+      '<option value="">Selecione a licitação</option>'+
+      state.licitacoes
+        .map(l=>`<option value="${l.id}" ${String(l.id)===String(current)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`)
+        .join('');
+  }
+}
+
+function pricingItemsForSelectedTender(){
+  const tenderId=state.pricingViewTenderId||'';
+  if(!tenderId)return [];
+  return state.itens
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+}
+
+function renderPricingByTender(){
+  const list=$('#precificacaoLista');
+  if(!list)return;
+
+  ensurePricingTenderViewer();
+
+  const tenderId=state.pricingViewTenderId||'';
+  const c=state.config||{};
+
+  if(!tenderId){
+    list.innerHTML=`
+      <p class="hint">
+        Selecione um edital acima e clique em <strong>Abrir precificação</strong>
+        para visualizar somente os itens daquela licitação.
+      </p>
+    `;
+    const sumEl=$('#pricingSummary');
+    if(sumEl)sumEl.innerHTML='';
+    const simItem=$('#simItem');
+    if(simItem)simItem.innerHTML='<option value="">Selecione primeiro um edital</option>';
+    renderBidSimulator();
+    return;
+  }
+
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  const items=pricingItemsForSelectedTender();
+
+  const info=$('#pricingTenderViewInfo');
+  if(info){
+    const quoted=items.filter(i=>pricing(i)).length;
+    info.textContent=
+      `${tender?.numero||'Edital'} • ${items.length} itens • `+
+      `${quoted} com cotação • ${items.length-quoted} sem cotação`;
+  }
+
+  const precRows=items.map(i=>{
+    const p=pricing(i);
+    const quoteCount=state.cotacoes.filter(q=>String(q.item_id)===String(i.id)).length;
+    const action=quoteCount
+      ? `<button type="button" class="action-btn danger-btn" data-remove-item-quotes="${esc(i.id)}">Retirar cotação${quoteCount>1?' ('+quoteCount+')':''}</button>`
+      : '<span class="hint">—</span>';
+
+    if(!p){
+      return [
+        `Item ${esc(i.numero)} • ${esc(i.descricao)}`,
+        '-',
+        '-',
+        '-',
+        money(i.valor_estimado),
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        statusBadge('Sem cotação'),
+        'Cotação necessária',
+        action
+      ];
+    }
+
+    const lucroMinUnit=precoLucroMinimo(i,p);
+    const parada=precoParada(i,p);
+
+    return [
+      `Item ${esc(i.numero)} • ${esc(i.descricao)}`,
+      esc(p.supplierName||'-'),
+      money(p.costUnit),
+      money(p.freightUnit||0),
+      money(i.valor_estimado),
+      p.targetUnit==null?'-':money(p.targetUnit),
+      lucroMinUnit==null?'-':money(lucroMinUnit),
+      parada==null?'-':money(parada),
+      p.breakEvenUnit==null?'-':money(p.breakEvenUnit),
+      p.profit==null?'-':money(p.profit),
+      marginText(p.margin),
+      signedMoney(p.differenceTarget),
+      statusBadge(p.status),
+      esc(p.recommendation||'-'),
+      action
+    ];
+  });
+
+  list.innerHTML=table(
+    [
+      'Item',
+      'Melhor fornecedor',
+      'Custo real un.',
+      'Frete un.',
+      'Estimado un.',
+      `Preço-alvo ${Number(c.margem_alvo||25)}%`,
+      'Preço p/ lucro mín.',
+      'Preço de parada',
+      'Ponto de equilíbrio',
+      'Lucro no estimado',
+      'Margem líquida',
+      'Dif. p/ alvo',
+      'Status',
+      'Recomendação',
+      'Ações'
+    ],
+    precRows
+  );
+
+  const summary={excelente:0,oportunidade:0,ruim:0,sem:0,lucro:0};
+  items.forEach(i=>{
+    const p=pricing(i);
+    if(!p || p.status==='Sem cotação' || p.status==='Sem estimado')summary.sem++;
+    else if(p.status==='Ruim')summary.ruim++;
+    else if(p.status==='Oportunidade')summary.oportunidade++;
+    else summary.excelente++;
+    if(p)summary.lucro+=Math.max(0,Number(p.profit||0));
+  });
+
+  const sumEl=$('#pricingSummary');
+  if(sumEl){
+    sumEl.innerHTML=`
+      <div class="mini-stat"><span>Excelentes</span><strong>${summary.excelente}</strong></div>
+      <div class="mini-stat"><span>Oportunidades</span><strong>${summary.oportunidade}</strong></div>
+      <div class="mini-stat"><span>Não participar</span><strong>${summary.ruim}</strong></div>
+      <div class="mini-stat"><span>Sem cotação</span><strong>${summary.sem}</strong></div>
+      <div class="mini-stat"><span>Lucro positivo no estimado</span><strong>${money(summary.lucro)}</strong></div>
+    `;
+  }
+
+  const simItem=$('#simItem');
+  if(simItem){
+    const selected=simItem.value;
+    simItem.innerHTML=
+      '<option value="">Selecione o item</option>'+
+      items.map(i=>`<option value="${i.id}">Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
+    if(items.some(i=>String(i.id)===String(selected)))simItem.value=selected;
+  }
+
+  renderBidSimulator();
+}
+
+async function removeAllQuotesFromItem(itemId){
+  const item=state.itens.find(i=>String(i.id)===String(itemId));
+  if(!item)return;
+
+  const quotesForItem=state.cotacoes.filter(q=>String(q.item_id)===String(itemId));
+  if(!quotesForItem.length){
+    toast('Este item não possui cotação.','error');
+    return;
+  }
+
+  const message=
+    quotesForItem.length===1
+      ? `Retirar a cotação do Item ${item.numero} — ${item.descricao}?`
+      : `Este item possui ${quotesForItem.length} cotações. Deseja retirar TODAS as cotações do Item ${item.numero} — ${item.descricao}?`;
+
+  if(!confirm(message))return;
+
+  if(state.demo){
+    state.cotacoes=state.cotacoes.filter(q=>String(q.item_id)!==String(itemId));
+    state.pricingMap=state.pricingMap.filter(p=>String(p.item_id)!==String(itemId));
+    renderPricingByTender();
+    toast('Cotação retirada.');
+    return;
+  }
+
+  const ids=quotesForItem.map(q=>q.id).filter(Boolean);
+  if(!ids.length)return;
+
+  const {error}=await supabase.from('quote_items').delete().in('id',ids);
+  if(error){
+    toast(`Erro ao retirar cotação: ${error.message}`,'error');
+    return;
+  }
+
+  toast(
+    quotesForItem.length===1
+      ? 'Cotação retirada do item.'
+      : `${quotesForItem.length} cotações retiradas do item.`
+  );
+
+  await refreshAll();
+  renderPricingByTender();
+}
+
 function renderAll(){
   $('#companyName').textContent=state.company?.name || state.company?.nome || 'Modo demonstração'; $('#userName').textContent=profileName(); $('#inviteCode').textContent=state.company?.invite_code || state.company?.codigo_convite || 'DEMO2026';
   $('#kpiLicitacoes').textContent=state.licitacoes.length; $('#kpiItens').textContent=state.itens.length; $('#kpiFornecedores').textContent=state.fornecedores.length;
@@ -1625,126 +1860,7 @@ function renderAll(){
   $('#cotacaoFornecedor').innerHTML=fornOpts; $('#arquivoFornecedor').innerHTML=fornOpts;
   if($('#quoteImportSupplier'))$('#quoteImportSupplier').innerHTML=fornOpts;
   renderQuoteTenderComparison();
-  const precRows = state.itens.map(i => {
-  const p = pricing(i);
-
-  if(!p){
-    return [
-      esc(itemName(i)),
-      '-',
-      '-',
-      '-',
-      money(i.valor_estimado),
-      '-',
-      '-',
-      '-',
-      '-',
-      '-',
-      '-',
-      '-',
-      statusBadge('Sem cotação'),
-      'Cotação necessária'
-    ];
-  }
-
-  const lucroMinUnit = precoLucroMinimo(i, p);
-  const parada = precoParada(i, p);
-
-  return [
-    esc(itemName(i)),
-    esc(p.supplierName || '-'),
-    money(p.costUnit),
-    money(p.freightUnit || 0),
-    money(i.valor_estimado),
-    p.targetUnit == null ? '-' : money(p.targetUnit),
-    lucroMinUnit == null ? '-' : money(lucroMinUnit),
-    parada == null ? '-' : money(parada),
-    p.breakEvenUnit == null ? '-' : money(p.breakEvenUnit),
-    p.profit == null ? '-' : money(p.profit),
-    marginText(p.margin),
-    signedMoney(p.differenceTarget),
-    statusBadge(p.status),
-    esc(p.recommendation || '-')
-  ];
-});
-
-$('#precificacaoLista').innerHTML = table(
-  [
-    'Item',
-    'Melhor fornecedor',
-    'Custo real un.',
-    'Frete un.',
-    'Estimado un.',
-    `Preço-alvo ${Number(c.margem_alvo || 25)}%`,
-    'Preço p/ lucro mín.',
-    'Preço de parada',
-    'Ponto de equilíbrio',
-    'Lucro no estimado',
-    'Margem líquida',
-    'Dif. p/ alvo',
-    'Status',
-    'Recomendação'
-  ],
-  precRows
-);
-
-const summary = {
-  excelente: 0,
-  oportunidade: 0,
-  ruim: 0,
-  sem: 0,
-  lucro: 0
-};
-
-ps.forEach(p => {
-  if(p.status === 'Excelente') summary.excelente++;
-  else if(p.status === 'Oportunidade') summary.oportunidade++;
-  else if(p.status === 'Ruim') summary.ruim++;
-  else summary.sem++;
-
-  summary.lucro += Math.max(0, Number(p.profit || 0));
-});
-
-const sumEl = $('#pricingSummary');
-
-if(sumEl){
-  sumEl.innerHTML = `
-    <div class="mini-stat">
-      <span>Excelentes</span>
-      <strong>${summary.excelente}</strong>
-    </div>
-    <div class="mini-stat">
-      <span>Oportunidades</span>
-      <strong>${summary.oportunidade}</strong>
-    </div>
-    <div class="mini-stat">
-      <span>Não participar</span>
-      <strong>${summary.ruim}</strong>
-    </div>
-    <div class="mini-stat">
-      <span>Lucro positivo no estimado</span>
-      <strong>${money(summary.lucro)}</strong>
-    </div>
-  `;
-}
-
-const simItem = $('#simItem');
-
-if(simItem){
-  const selecionado = simItem.value;
-
-  simItem.innerHTML =
-    '<option value="">Selecione o item</option>' +
-    state.itens
-      .map(i => `<option value="${i.id}">${esc(itemName(i))}</option>`)
-      .join('');
-
-  if(state.itens.some(i => i.id === selecionado)){
-    simItem.value = selecionado;
-  }
-}
-
-renderBidSimulator();
+  renderPricingByTender();
   $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado',''],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);const action=d.status==='processado'?'<span class="badge good">Concluído</span>':`<button class="action-btn" data-process-doc="${d.id}">Processar IA</button>`;return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge ${d.status==='processado'?'good':'neutral'}">${esc(d.status||'enviado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),action];}));
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
@@ -1783,6 +1899,12 @@ $('#arquivoForm').addEventListener('submit',async e=>{e.preventDefault();const f
 
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
 document.addEventListener('click',async e=>{
+  const removeQuoteBtn=e.target.closest('[data-remove-item-quotes]');
+  if(removeQuoteBtn){
+    await removeAllQuotesFromItem(removeQuoteBtn.dataset.removeItemQuotes);
+    return;
+  }
+
   const p=e.target.closest('[data-process-doc]');if(p){return toast('O botão da IA já está preparado. Falta apenas conectar a chave da OpenAI no servidor para ativar a leitura automática.','error');}
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo)return;const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
