@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, demo:false
 };
 
 function toast(msg,type='success'){
@@ -3598,7 +3598,59 @@ function ensurePricingExactModelStyles(){
       font-weight:850;
     }
 
-    .px-margin-input{
+    
+    .px-target-box{
+      display:grid;
+      grid-template-columns:88px 92px 110px;
+      gap:6px;
+      align-items:center;
+      min-width:310px;
+    }
+
+    .px-target-box select,
+    .px-target-box input{
+      height:36px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#06141c;
+      color:#eef3f6;
+      padding:0 8px;
+      font-size:.7rem;
+    }
+
+    .px-profit{
+      color:#35d379;
+      font-weight:850;
+      white-space:nowrap;
+    }
+
+    .px-margin-current{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+      min-width:82px;
+    }
+
+    .px-margin-current strong{
+      color:#edf3f6;
+      font-size:.75rem;
+    }
+
+    .px-margin-current small{
+      color:#8fa0aa;
+      font-size:.61rem;
+    }
+
+    .px-help{
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      color:#8fa0aa;
+      font-size:.62rem;
+      white-space:nowrap;
+    }
+
+.px-margin-input{
       width:64px;
       height:38px;
       border:1px solid #2e4856;
@@ -3791,6 +3843,130 @@ function pricingStatusClass(status){
   return 'neutral';
 }
 
+
+function getPricingTarget(itemId){
+  state.pricingTargets ||= {};
+  const key=String(itemId);
+  if(!state.pricingTargets[key]){
+    state.pricingTargets[key]={
+      mode:'auto',
+      margin:null,
+      profit:null
+    };
+  }
+  return state.pricingTargets[key];
+}
+
+function calcPricingByFlexibleTarget(item,p){
+  if(!item || !p)return null;
+
+  const qty=Math.max(Number(item.quantidade||0),0.0001);
+  const costUnit=Math.max(Number(p.costUnit||0),0);
+  const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0))/100;
+  const target=getPricingTarget(item.id);
+
+  const estimated=Number(item.valor_estimado||0);
+  const revenueEstimated=estimated*qty;
+  const profitEstimated=estimated
+    ? revenueEstimated*(1-overhead)-costUnit*qty
+    : null;
+
+  const marginEstimated=estimated
+    ? (profitEstimated/revenueEstimated)*100
+    : null;
+
+  const profitOnCostEstimated=estimated && costUnit
+    ? (profitEstimated/(costUnit*qty))*100
+    : null;
+
+  const globalMargin=Number(state.config?.margem_alvo||25);
+  const globalProfit=Number(state.config?.lucro_minimo||0);
+
+  let desiredMargin=
+    target.margin==null || target.margin===''
+      ? globalMargin
+      : Number(target.margin);
+
+  let desiredProfit=
+    target.profit==null || target.profit===''
+      ? globalProfit
+      : Number(target.profit);
+
+  desiredMargin=Math.max(0,desiredMargin);
+  desiredProfit=Math.max(0,desiredProfit);
+
+  const priceByMargin=
+    costUnit/
+    Math.max(1-overhead-(desiredMargin/100),0.01);
+
+  const priceByProfit=
+    (costUnit+(desiredProfit/qty))/
+    Math.max(1-overhead,0.01);
+
+  let suggestedUnit=0;
+  let usedMode=target.mode||'auto';
+
+  if(usedMode==='margin'){
+    suggestedUnit=priceByMargin;
+  }else if(usedMode==='profit'){
+    suggestedUnit=priceByProfit;
+  }else{
+    // AUTO: usa o MENOR preço que ainda atende pelo menos uma meta útil.
+    // Se o lucro absoluto desejado já for atingido com margem menor, não força 25%.
+    const candidates=[priceByMargin];
+    if(desiredProfit>0)candidates.push(priceByProfit);
+
+    suggestedUnit=Math.min(...candidates.filter(v=>Number.isFinite(v)&&v>0));
+  }
+
+  const suggestedRevenue=suggestedUnit*qty;
+  const suggestedProfit=
+    suggestedRevenue*(1-overhead)-costUnit*qty;
+
+  const suggestedMargin=suggestedRevenue
+    ? (suggestedProfit/suggestedRevenue)*100
+    : 0;
+
+  const suggestedProfitOnCost=costUnit
+    ? (suggestedProfit/(costUnit*qty))*100
+    : 0;
+
+  const meetsMargin=suggestedMargin+0.0001>=desiredMargin;
+  const meetsProfit=suggestedProfit+0.01>=desiredProfit;
+
+  return {
+    target,
+    usedMode,
+    desiredMargin,
+    desiredProfit,
+    priceByMargin,
+    priceByProfit,
+    suggestedUnit,
+    suggestedProfit,
+    suggestedMargin,
+    suggestedProfitOnCost,
+    estimated,
+    profitEstimated,
+    marginEstimated,
+    profitOnCostEstimated,
+    meetsMargin,
+    meetsProfit
+  };
+}
+
+function pricingProfitBadge(info){
+  if(!info)return '';
+  if(info.profitEstimated==null)return '<span class="px-status neutral">Sem estimado</span>';
+
+  if(info.profitEstimated>=info.desiredProfit && info.profitEstimated>0){
+    return '<span class="px-status good">Lucro ok</span>';
+  }
+  if(info.profitEstimated>0){
+    return '<span class="px-status warn">Lucro baixo</span>';
+  }
+  return '<span class="px-status bad">Prejuízo</span>';
+}
+
 function renderPricingExactModel(){
   const section=$('#precificacao');
   if(!section)return;
@@ -3940,7 +4116,9 @@ function renderPricingExactModel(){
                 <th>Fornecedor</th>
                 <th>Preço da cotação</th>
                 <th>Custo total<br><small>(com impostos)</small></th>
-                <th>Margem %</th>
+                <th>Margem atual</th>
+                <th>Meta de lucro</th>
+                <th>Lucro estimado</th>
                 <th>Preço de venda<br><small>sugerido</small></th>
                 <th>Status</th>
                 <th>Ações</th>
@@ -4025,6 +4203,9 @@ function renderPricingExactModel(){
       const status=p?.status || 'Sem cotação';
       const cls=pricingStatusClass(status);
 
+      const flex=p?calcPricingByFlexibleTarget(i,p):null;
+      const target=flex?.target;
+
       return `
         <tr>
           <td><span class="px-itemnum">${esc(i.numero)}</span></td>
@@ -4038,13 +4219,103 @@ function renderPricingExactModel(){
           <td>${esc(f?.nome||'—')}</td>
           <td>${q?`<span class="px-price">${money(q.preco||q.custoProduto||q.custoEq)}</span>`:'<span class="px-status neutral">Sem cotação</span>'}</td>
           <td>${p?money(p.costUnit):'—'}</td>
-          <td>${p?`<input class="px-margin-input" value="${Number(state.config?.margem_alvo||25)}">`:'—'}</td>
-          <td>${p?`<span class="px-sale">${money(p.targetUnit||0)}</span>`:'—'}</td>
-          <td><span class="px-status ${cls}">${esc(status==='Excelente'?'Precificado':status)}</span></td>
+
+          <td>
+            ${
+              flex?.marginEstimated!=null
+                ? `<div class="px-margin-current">
+                     <strong>${flex.marginEstimated.toFixed(2).replace('.',',')}%</strong>
+                     <small>sobre venda</small>
+                     <small>${flex.profitOnCostEstimated?.toFixed(2).replace('.',',')||'0,00'}% sobre custo</small>
+                   </div>`
+                : '—'
+            }
+          </td>
+
+          <td>
+            ${
+              p
+                ? `<div class="px-target-box">
+                     <select data-px-target-mode="${i.id}">
+                       <option value="auto" ${target?.mode==='auto'?'selected':''}>Automático</option>
+                       <option value="margin" ${target?.mode==='margin'?'selected':''}>Margem %</option>
+                       <option value="profit" ${target?.mode==='profit'?'selected':''}>Lucro R$</option>
+                     </select>
+
+                     <input
+                       data-px-target-margin="${i.id}"
+                       type="number"
+                       min="0"
+                       step="0.1"
+                       value="${target?.margin??''}"
+                       placeholder="${Number(state.config?.margem_alvo||25)}%"
+                       title="Margem desejada para este item"
+                     >
+
+                     <input
+                       data-px-target-profit="${i.id}"
+                       type="number"
+                       min="0"
+                       step="0.01"
+                       value="${target?.profit??''}"
+                       placeholder="${money(Number(state.config?.lucro_minimo||0)).replace('R$ ','')}"
+                       title="Lucro total desejado para este item"
+                     >
+                   </div>
+                   <div class="px-help">Auto pode aceitar margem menor quando o lucro em R$ já for suficiente.</div>`
+                : '—'
+            }
+          </td>
+
+          <td>
+            ${
+              flex?.profitEstimated!=null
+                ? `<span class="px-profit">${money(flex.profitEstimated)}</span>`
+                : '—'
+            }
+          </td>
+
+          <td>${flex?`<span class="px-sale">${money(flex.suggestedUnit||0)}</span>`:'—'}</td>
+
+          <td>
+            ${
+              flex
+                ? pricingProfitBadge(flex)
+                : `<span class="px-status ${cls}">${esc(status==='Excelente'?'Precificado':status)}</span>`
+            }
+          </td>
+
           <td><button type="button" class="px-action">${p?'Editar':'Cotação'}</button></td>
         </tr>
       `;
     }).join('');
+
+    shell.querySelectorAll('[data-px-target-mode]').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const t=getPricingTarget(el.dataset.pxTargetMode);
+        t.mode=el.value;
+        renderRows();
+        updateSim();
+      });
+    });
+
+    shell.querySelectorAll('[data-px-target-margin]').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const t=getPricingTarget(el.dataset.pxTargetMargin);
+        t.margin=el.value===''?null:Number(el.value);
+        renderRows();
+        updateSim();
+      });
+    });
+
+    shell.querySelectorAll('[data-px-target-profit]').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const t=getPricingTarget(el.dataset.pxTargetProfit);
+        t.profit=el.value===''?null:Number(el.value);
+        renderRows();
+        updateSim();
+      });
+    });
 
     shell.querySelector('#pxCount').textContent=`Mostrando ${Math.min(rows.length,10)} de ${rows.length} itens`;
   };
@@ -4055,7 +4326,8 @@ function renderPricingExactModel(){
     const item=items.find(i=>String(i.id)===String(itemId));
     const p=item?pricing(item):null;
 
-    shell.querySelector('#pxSuggested').textContent=p?.targetUnit?money(p.targetUnit):'—';
+    const flex=item&&p?calcPricingByFlexibleTarget(item,p):null;
+    shell.querySelector('#pxSuggested').textContent=flex?.suggestedUnit?money(flex.suggestedUnit):'—';
 
     const box=shell.querySelector('#pxSimResult');
     if(!item || !p || !p.costUnit){
@@ -4069,7 +4341,9 @@ function renderPricingExactModel(){
     if(!bid){
       box.innerHTML=`
         <h4>Resultado da simulação</h4>
-        <div class="px-sim-row"><span>Informe um lance</span><strong>—</strong></div>
+        <div class="px-sim-row"><span>Margem atual no estimado</span><strong>${flex?.marginEstimated!=null?flex.marginEstimated.toFixed(2).replace('.',',')+'%':'—'}</strong></div>
+        <div class="px-sim-row"><span>Lucro no estimado</span><strong>${flex?.profitEstimated!=null?money(flex.profitEstimated):'—'}</strong></div>
+        <div class="px-sim-row"><span>Preço sugerido</span><strong>${flex?.suggestedUnit?money(flex.suggestedUnit):'—'}</strong></div>
       `;
       return;
     }

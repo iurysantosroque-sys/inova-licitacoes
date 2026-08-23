@@ -1,3 +1,4 @@
-INOVA V33.0
-Dashboard igual ao modelo aprovado, sem menu lateral.
-Precificação também sem menu lateral; somente menu superior.
+INOVA V34.0
+Precificação com margem flexível por item.
+Cada item pode usar Automático, Margem % ou Lucro R$.
+Mostra margem atual, lucro estimado e preço sugerido.
