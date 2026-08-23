@@ -4068,7 +4068,7 @@ function renderCostSettings(){
           <p style="color:#8fa0aa;margin-top:7px">Edite os custos usados na precificação. As alterações ficam disponíveis para os cálculos do sistema.</p>
         </div>
         <button id="backToPricing" type="button"
-          style="height:40px;border:1px solid #2a4350;border-radius:8px;background:#071720;color:#e8eef2;padding:0 14px;font-weight:750;cursor:pointer">
+          style="height:40px;border:1px solid #2a4350;border-radius:8px;background:#071720;color:#e8eef2;padding:0 14px;font-weight:750;cursor:pointer;pointer-events:auto;position:relative;z-index:5">
           ← Voltar para Precificação
         </button>
       </div>
@@ -4095,10 +4095,15 @@ function renderCostSettings(){
       </section>
     </main>`;
 
-  root.querySelector('#backToPricing')?.addEventListener('click',()=>{
-    const pricingTab=document.querySelector('#mainTabs [data-tab="precificacao"]');
-    if(pricingTab) pricingTab.click();
-    else if(typeof renderPricingExactModel==='function') renderPricingExactModel();
+  root.querySelector('#backToPricing')?.addEventListener('click',(ev)=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    // Esta tela substitui o conteúdo do #app, portanto a aba superior pode não
+    // existir mais no DOM. A volta precisa renderizar a Precificação diretamente.
+    if(typeof renderPricingExactModel==='function'){
+      renderPricingExactModel();
+      window.scrollTo({top:0,behavior:'instant'});
+    }
   });
 
   root.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
@@ -4114,12 +4119,10 @@ function renderCostSettings(){
 
     alert('Custos e impostos atualizados.');
 
-    // Volta automaticamente para a aba Precificação após salvar.
-    const pricingTab=document.querySelector('#mainTabs [data-tab="precificacao"]');
-    if(pricingTab){
-      pricingTab.click();
-    }else if(typeof renderPricingExactModel==='function'){
+    // Volta diretamente para Precificação após salvar.
+    if(typeof renderPricingExactModel==='function'){
       renderPricingExactModel();
+      window.scrollTo({top:0,behavior:'instant'});
     }
   });
 }

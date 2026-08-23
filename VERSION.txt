@@ -1,4 +1,5 @@
-INOVA V36.1
-Correção:
-- Após salvar Custos & Impostos, retorna automaticamente para Precificação.
-- Adicionado botão "Voltar para Precificação".
+INOVA V36.2
+Correção de navegação:
+- Botão Voltar para Precificação agora chama a tela de Precificação diretamente.
+- Não depende mais de procurar/clicar em uma aba que foi removida do DOM.
+- Salvar configurações também retorna diretamente para Precificação.
