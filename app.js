@@ -1317,50 +1317,452 @@ function prepareQuoteRowsByTenderOrder(tenderId){
 function renderQuoteImportPreview(){
   const el=$('#quoteImportPreview');
   if(!el)return;
+
   const tenderId=$('#quoteImportTender')?.value||'';
   const rows=prepareQuoteRowsByTenderOrder(tenderId);
-  if(!rows.length){el.innerHTML='';return;}
+
+  if(!rows.length){
+    el.innerHTML='';
+    return;
+  }
+
+  // Todos os itens oficiais desta licitação.
+  const tenderItems=state.itens
+    .filter(i=>i.licitacao_id===tenderId)
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+
+  // IDs dos itens que já possuem algum produto relacionado.
+  const relatedIds=new Set(
+    rows
+      .filter(r=>r.itemId)
+      .map(r=>String(r.itemId))
+  );
+
+  // Itens do edital que ainda estão sem produto/cotação.
+  const missingItems=tenderItems.filter(
+    item=>!relatedIds.has(String(item.id))
+  );
+
+  function supplierProductOptions(){
+    return `
+      <option value="">Selecione um produto da cotação...</option>
+      ${rows.map((r,index)=>{
+        const desc=String(r.description||'Produto');
+        const price=Number(r.price||0);
+
+        return `
+          <option value="${index}">
+            ${esc(desc)}${price>0?' • '+money(price):''}
+          </option>
+        `;
+      }).join('')}
+    `;
+  }
 
   el.innerHTML=`
+
     <div class="quote-preview-head">
       <div>
-        <strong>${rows.length} linha${rows.length===1?'':'s'} identificada${rows.length===1?'':'s'}</strong>
-        <span>${rows.filter(r=>r.itemId).length} relacionadas automaticamente • ${rows.filter(r=>!r.itemId).length} precisam de revisão</span>
-      </div>
-      <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
-    </div>
-    <div class="table-wrap quote-preview-table">
-      <table>
-        <thead><tr><th>✓</th><th>Item edital</th><th>Produto do fornecedor</th><th>Relacionar ao item do edital</th><th>Preço</th><th>Apresentação</th><th>Equivale a</th><th>Marca</th></tr></thead>
-        <tbody>
-          ${rows.map((r,index)=>{
-            const itemMatched=state.itens.find(i=>i.id===r.itemId);
-            const suggestedItem=state.itens.find(i=>i.id===r.suggestedItemId);
-            const score=Number(r.matchScore||0);
-            const weak=!itemMatched;
-            return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
-              <td><input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}></td>
-              <td class="quote-edital-number">${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}</td>
-              <td><strong>${esc(r.description)}</strong><small>${r.code?`Cód. ${esc(r.code)} • `:''}${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}</small></td>
-              <td><select data-q-field="itemId">${quoteItemOptions(tenderId,r.itemId||'')}</select>${
-                itemMatched
-                  ? `<small class="match-ok">${r.aiMatched?'IA':'Manual'} • confiança ${Math.round(score*100)}%${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
-                  : suggestedItem
-                    ? `<small class="review-note">IA sugere Item ${esc(suggestedItem.numero)} (${Math.round(score*100)}%)${r.aiReason?` • ${esc(r.aiReason)}`:''}</small>`
-                    : `<small class="review-note">${r.aiReason?esc(r.aiReason):'Aguardando IA ou revisão manual'}</small>`
-              }</td>
-              <td><input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}"></td>
-              <td><input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50"></td>
-              <td><input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}"></td>
-              <td><input data-q-field="brand" value="${esc(r.brand||'')}"></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`;
-  $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
-}
+        <strong>
+          ${rows.length} linha${rows.length===1?'':'s'} identificada${rows.length===1?'':'s'}
+        </strong>
 
+        <span>
+          ${rows.filter(r=>r.itemId).length} relacionadas
+          •
+          ${missingItems.length} itens do edital sem cotação relacionada
+        </span>
+      </div>
+
+      <button type="button" id="quoteSaveImportedBtn">
+        Salvar cotações selecionadas
+      </button>
+    </div>
+
+
+    ${
+      missingItems.length
+        ? `
+          <div class="quote-missing-box">
+
+            <div class="quote-missing-title">
+              <strong>⚠ Itens do edital sem cotação relacionada</strong>
+
+              <span>
+                A IA não encontrou uma correspondência segura.
+                Confira manualmente se o produto existe na cotação.
+              </span>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Descrição do edital</th>
+                    <th>Produto da cotação</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  ${missingItems.map(item=>`
+
+                    <tr class="quote-row-review">
+
+                      <td class="quote-edital-number">
+                        <strong>${esc(item.numero)}</strong>
+                      </td>
+
+                      <td>
+                        <strong>${esc(item.descricao)}</strong>
+
+                        <small>
+                          ${item.quantidade
+                            ? `${esc(item.quantidade)} ${esc(item.unidade||'')}`
+                            : ''
+                          }
+                        </small>
+                      </td>
+
+                      <td>
+
+                        <select
+                          data-manual-tender-item="${esc(item.id)}"
+                        >
+                          ${supplierProductOptions()}
+                        </select>
+
+                        <small class="review-note">
+                          Escolha manualmente um produto da cotação
+                        </small>
+
+                      </td>
+
+                      <td>
+                        <span class="review-note">
+                          ⚠ Revisar
+                        </span>
+                      </td>
+
+                    </tr>
+
+                  `).join('')}
+
+                </tbody>
+
+              </table>
+            </div>
+
+          </div>
+        `
+        : `
+          <div class="quote-import-status success">
+            ✓ Todos os itens encontrados possuem uma cotação relacionada.
+          </div>
+        `
+    }
+
+
+    <div class="table-wrap quote-preview-table">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>✓</th>
+            <th>Item edital</th>
+            <th>Produto do fornecedor</th>
+            <th>Relacionar ao item do edital</th>
+            <th>Preço</th>
+            <th>Apresentação</th>
+            <th>Equivale a</th>
+            <th>Marca</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          ${rows.map((r,index)=>{
+
+            const itemMatched=state.itens.find(
+              i=>i.id===r.itemId
+            );
+
+            const suggestedItem=state.itens.find(
+              i=>i.id===r.suggestedItemId
+            );
+
+            const score=Number(r.matchScore||0);
+
+            const weak=!itemMatched;
+
+            return `
+
+              <tr
+                data-quote-row="${index}"
+                class="${weak?'quote-row-review':''}"
+              >
+
+                <td>
+                  <input
+                    type="checkbox"
+                    data-q-field="selected"
+                    ${r.selected!==false?'checked':''}
+                  >
+                </td>
+
+                <td class="quote-edital-number">
+
+                  ${
+                    itemMatched
+                      ? `<strong>${esc(itemMatched.numero)}</strong>`
+                      : '<span>—</span>'
+                  }
+
+                </td>
+
+                <td>
+
+                  <strong>${esc(r.description)}</strong>
+
+                  <small>
+
+                    ${
+                      r.code
+                        ? `Cód. ${esc(r.code)} • `
+                        : ''
+                    }
+
+                    ${
+                      r.quantity
+                        ? `${esc(r.quantity)} ${esc(r.unit||'')}`
+                        : ''
+                    }
+
+                    ${
+                      r.subtotal!=null
+                        ? ` • Subtotal ${money(r.subtotal)}`
+                        : ''
+                    }
+
+                  </small>
+
+                </td>
+
+                <td>
+
+                  <select data-q-field="itemId">
+
+                    ${quoteItemOptions(
+                      tenderId,
+                      r.itemId||''
+                    )}
+
+                  </select>
+
+                  ${
+                    itemMatched
+
+                      ? `
+                        <small class="match-ok">
+
+                          ${r.aiMatched?'IA':'Manual'}
+
+                          ${
+                            r.aiMatched
+                              ? ` • confiança ${Math.round(score*100)}%`
+                              : ''
+                          }
+
+                          ${
+                            r.aiReason
+                              ? ` • ${esc(r.aiReason)}`
+                              : ''
+                          }
+
+                        </small>
+                      `
+
+                      : suggestedItem
+
+                        ? `
+                          <small class="review-note">
+
+                            IA sugere Item
+                            ${esc(suggestedItem.numero)}
+                            (${Math.round(score*100)}%)
+
+                            ${
+                              r.aiReason
+                                ? ` • ${esc(r.aiReason)}`
+                                : ''
+                            }
+
+                          </small>
+                        `
+
+                        : `
+                          <small class="review-note">
+                            ${
+                              r.aiReason
+                                ? esc(r.aiReason)
+                                : 'Produto ainda não relacionado'
+                            }
+                          </small>
+                        `
+                  }
+
+                </td>
+
+                <td>
+
+                  <input
+                    data-q-field="price"
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    value="${Number(r.price||0)}"
+                  >
+
+                </td>
+
+                <td>
+
+                  <input
+                    data-q-field="presentation"
+                    value="${esc(r.presentation||'')}"
+                    placeholder="Ex.: caixa c/ 50"
+                  >
+
+                </td>
+
+                <td>
+
+                  <input
+                    data-q-field="factor"
+                    type="number"
+                    min="0.0001"
+                    step="0.001"
+                    value="${Number(r.factor||1)}"
+                  >
+
+                </td>
+
+                <td>
+
+                  <input
+                    data-q-field="brand"
+                    value="${esc(r.brand||'')}"
+                  >
+
+                </td>
+
+              </tr>
+
+            `;
+
+          }).join('')}
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  // SALVAR
+  $('#quoteSaveImportedBtn')
+    ?.addEventListener(
+      'click',
+      saveImportedQuotes
+    );
+
+
+  // RELACIONAMENTO MANUAL DOS ITENS QUE A IA NÃO ENCONTROU
+  document
+    .querySelectorAll('[data-manual-tender-item]')
+    .forEach(select=>{
+
+      select.addEventListener('change',()=>{
+
+        const itemId=
+          select.dataset.manualTenderItem;
+
+        const rowIndex=
+          Number(select.value);
+
+        if(
+          !itemId ||
+          !Number.isInteger(rowIndex) ||
+          !state.quoteImportRows[rowIndex]
+        ){
+          return;
+        }
+
+        // Primeiro sincroniza qualquer alteração
+        // feita na tabela normal.
+        syncQuoteRowsFromDom();
+
+        const row=
+          state.quoteImportRows[rowIndex];
+
+        const item=
+          state.itens.find(
+            i=>String(i.id)===String(itemId)
+          );
+
+        if(!item)return;
+
+
+        // Evita que o mesmo produto fique
+        // relacionado a dois itens por acidente.
+        state.quoteImportRows.forEach(r=>{
+
+          if(
+            r!==row &&
+            String(r.itemId)===String(itemId)
+          ){
+            r.itemId='';
+            r.editalItemNumber=null;
+          }
+
+        });
+
+
+        row.itemId=item.id;
+
+        row.editalItemNumber=
+          Number(item.numero);
+
+        row.aiMatched=false;
+
+        row.autoMatched=false;
+
+        row.suggestedItemId='';
+
+        row.matchScore=1;
+
+        row.aiReason=
+          'Relacionamento definido manualmente';
+
+
+        prepareQuoteRowsByTenderOrder(tenderId);
+
+        renderQuoteImportPreview();
+
+
+        toast(
+          `Produto relacionado manualmente ao Item ${item.numero}.`
+        );
+
+      });
+
+    });
+}
 function syncQuoteRowsFromDom(){
   document.querySelectorAll('[data-quote-row]').forEach(tr=>{
     const i=Number(tr.dataset.quoteRow);
