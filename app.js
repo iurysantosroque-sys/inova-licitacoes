@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, pricingOnlyMissing:false, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, demo:false
 };
 
 function toast(msg,type='success'){
@@ -1190,7 +1190,7 @@ function setupManualQuoteMode(){
 
   const help=$('.quote-import-help span');
   if(help){
-    help.innerHTML='Primeiro leia a cotação. Em cada produto, use <b>Buscar item</b> para localizar pelo nome ou número o item correto do edital e faça o relacionamento manualmente. Depois revise e salve.';
+    help.innerHTML='Primeiro leia a cotação. Os <b>itens oficiais do edital ficam fixos e na ordem correta</b>. Em cada item, pesquise e selecione o produto correspondente encontrado no PDF do fornecedor. Depois revise e salve.';
   }
 
   const titleHint=document.querySelector('#view-cotacoes .panel .panel-title .hint, #view-cotacoes .panel-title .hint');
@@ -1271,9 +1271,9 @@ function renderQuoteImportPreview(){
   if(!el)return;
 
   const tenderId=$('#quoteImportTender')?.value||'';
-  const rows=prepareQuoteRowsByTenderOrder(tenderId);
+  const supplierRows=prepareQuoteRowsByTenderOrder(tenderId);
 
-  if(!rows.length){
+  if(!supplierRows.length){
     el.innerHTML='';
     return;
   }
@@ -1282,74 +1282,90 @@ function renderQuoteImportPreview(){
     .filter(i=>String(i.licitacao_id)===String(tenderId))
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
 
-  const relatedIds=new Set(
-    rows.filter(r=>r.itemId).map(r=>String(r.itemId))
-  );
+  const assignedByItem=new Map();
+  supplierRows.forEach(r=>{
+    if(r.itemId)assignedByItem.set(String(r.itemId),r);
+  });
 
-  const totalTender=tenderItems.length;
-  const relatedTender=tenderItems.filter(i=>relatedIds.has(String(i.id))).length;
-  const missingTender=Math.max(0,totalTender-relatedTender);
-  const progress=totalTender ? Math.round((relatedTender/totalTender)*100) : 0;
+  const relatedTender=tenderItems.filter(i=>assignedByItem.has(String(i.id))).length;
+  const missingTender=Math.max(0,tenderItems.length-relatedTender);
+  const progress=tenderItems.length?Math.round((relatedTender/tenderItems.length)*100):0;
 
-  const term=quoteNormalize(state.quoteImportFilter||'');
-
-  const visibleRows=rows.filter(r=>{
-    const matched=state.itens.find(i=>String(i.id)===String(r.itemId));
-    if(state.quoteOnlyUnrelated && matched)return false;
-    if(!term)return true;
+  const globalTerm=quoteNormalize(state.quoteImportFilter||'');
+  const visibleItems=tenderItems.filter(item=>{
+    const assigned=assignedByItem.get(String(item.id));
+    if(state.quoteOnlyUnrelated && assigned)return false;
+    if(!globalTerm)return true;
 
     const hay=quoteNormalize([
-      r.description,
-      r.code,
-      r.brand,
-      matched?.numero ? `ITEM ${matched.numero}` : '',
-      matched?.descricao||''
+      `ITEM ${item.numero}`,
+      item.descricao,
+      item.unidade,
+      assigned?.description,
+      assigned?.code,
+      assigned?.brand
     ].filter(Boolean).join(' '));
 
-    return hay.includes(term);
+    return hay.includes(globalTerm);
   });
 
-  // Detecta relacionamentos repetidos para avisar visualmente.
-  const itemUseCount=new Map();
-  rows.forEach(r=>{
-    if(!r.itemId)return;
-    const key=String(r.itemId);
-    itemUseCount.set(key,(itemUseCount.get(key)||0)+1);
-  });
+  function supplierOptions(item,assignedRow,search=''){
+    const term=quoteNormalize(search);
+    const assignedIndex=assignedRow ? supplierRows.indexOf(assignedRow) : -1;
+
+    let options=supplierRows
+      .map((r,index)=>{
+        const hay=quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`);
+        return {r,index,hay};
+      })
+      .filter(x=>!term || x.hay.includes(term));
+
+    // Mantém o produto já escolhido visível, mesmo quando a busca não bate.
+    if(assignedRow && !options.some(x=>x.index===assignedIndex)){
+      options.unshift({r:assignedRow,index:assignedIndex,hay:''});
+    }
+
+    return `
+      <option value="">Nenhum produto selecionado</option>
+      ${options.map(x=>{
+        const usedItem=x.r.itemId
+          ? state.itens.find(i=>String(i.id)===String(x.r.itemId))
+          : null;
+
+        const usedLabel=usedItem && String(usedItem.id)!==String(item.id)
+          ? ` • já usado no Item ${usedItem.numero}`
+          : '';
+
+        return `<option
+          value="${x.index}"
+          ${x.index===assignedIndex?'selected':''}
+        >${esc(x.r.description||'Produto')}${x.r.price?' • '+money(x.r.price):''}${x.r.brand?' • '+esc(x.r.brand):''}${esc(usedLabel)}</option>`;
+      }).join('')}
+    `;
+  }
 
   el.innerHTML=`
     <div class="quote-preview-head">
       <div>
-        <strong>${rows.length} produto${rows.length===1?'':'s'} lido${rows.length===1?'':'s'} da cotação</strong>
+        <strong>Itens do edital + produtos da cotação</strong>
         <span>
-          ${relatedTender} de ${totalTender} itens do edital relacionados
-          • ${missingTender} ainda sem cotação
+          ${relatedTender} de ${tenderItems.length} itens cotados
+          • ${missingTender} ainda sem produto
         </span>
       </div>
       <button type="button" id="quoteSaveImportedBtn">Salvar cotações selecionadas</button>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:14px 0">
-      <div class="mini-stat">
-        <span>Progresso</span>
-        <strong>${progress}%</strong>
-      </div>
-      <div class="mini-stat">
-        <span>Cotados</span>
-        <strong>${relatedTender}</strong>
-      </div>
-      <div class="mini-stat">
-        <span>Sem cotação</span>
-        <strong>${missingTender}</strong>
-      </div>
-      <div class="mini-stat">
-        <span>Produtos do fornecedor</span>
-        <strong>${rows.length}</strong>
-      </div>
+      <div class="mini-stat"><span>Progresso</span><strong>${progress}%</strong></div>
+      <div class="mini-stat"><span>Itens do edital</span><strong>${tenderItems.length}</strong></div>
+      <div class="mini-stat"><span>Itens cotados</span><strong>${relatedTender}</strong></div>
+      <div class="mini-stat"><span>Produtos no PDF</span><strong>${supplierRows.length}</strong></div>
     </div>
 
     <div class="quote-import-status success" style="margin:14px 0">
-      Pesquise pelo produto, código, marca ou número do item. Os relacionamentos são manuais e ficam ordenados pelo número oficial do edital.
+      A numeração e a descrição da esquerda são sempre as oficiais do edital.
+      Na direita, pesquise somente entre os produtos encontrados no PDF do fornecedor.
     </div>
 
     <div style="display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:center;margin:0 0 14px">
@@ -1357,7 +1373,7 @@ function renderQuoteImportPreview(){
         id="quoteGlobalSearch"
         type="search"
         value="${esc(state.quoteImportFilter||'')}"
-        placeholder="Buscar na cotação: produto, código, marca ou item..."
+        placeholder="Buscar item do edital por número ou nome..."
         autocomplete="off"
       >
 
@@ -1366,7 +1382,7 @@ function renderQuoteImportPreview(){
         id="quoteOnlyUnrelatedBtn"
         class="action-btn ${state.quoteOnlyUnrelated?'active':''}"
       >
-        ${state.quoteOnlyUnrelated?'✓ Só não relacionados':'Mostrar só não relacionados'}
+        ${state.quoteOnlyUnrelated?'✓ Só sem cotação':'Mostrar só sem cotação'}
       </button>
 
       <button type="button" id="quoteClearFiltersBtn" class="action-btn">
@@ -1375,17 +1391,17 @@ function renderQuoteImportPreview(){
     </div>
 
     <div class="hint" style="margin:0 0 10px">
-      Exibindo ${visibleRows.length} de ${rows.length} produtos.
+      Exibindo ${visibleItems.length} de ${tenderItems.length} itens do edital, sempre na ordem oficial.
     </div>
 
     <div class="table-wrap quote-preview-table">
-      <table>
+      <table style="min-width:1450px">
         <thead>
           <tr>
-            <th>✓</th>
-            <th>Item edital</th>
-            <th>Produto do fornecedor</th>
-            <th>Pesquisar e relacionar ao item do edital</th>
+            <th style="width:75px">Item</th>
+            <th style="min-width:330px">Item oficial do edital</th>
+            <th style="min-width:330px">Buscar produto no PDF do fornecedor</th>
+            <th style="min-width:320px">Produto selecionado</th>
             <th>Status</th>
             <th>Preço</th>
             <th>Apresentação</th>
@@ -1395,103 +1411,120 @@ function renderQuoteImportPreview(){
           </tr>
         </thead>
         <tbody>
-          ${visibleRows.map(r=>{
-            const index=state.quoteImportRows.indexOf(r);
-            const itemMatched=state.itens.find(i=>String(i.id)===String(r.itemId));
-            const weak=!itemMatched;
-            const duplicated=itemMatched && (itemUseCount.get(String(itemMatched.id))||0)>1;
+          ${visibleItems.map(item=>{
+            const assigned=assignedByItem.get(String(item.id));
+            const rowIndex=assigned?supplierRows.indexOf(assigned):-1;
+            const searchValue=state.quoteSupplierSearches?.[item.id]||'';
 
-            return `<tr data-quote-row="${index}" class="${weak?'quote-row-review':''}">
-              <td>
-                <input type="checkbox" data-q-field="selected" ${r.selected!==false?'checked':''}>
-              </td>
-
+            return `<tr ${assigned?`data-quote-row="${rowIndex}"`:''}>
               <td class="quote-edital-number">
-                ${itemMatched?`<strong>${esc(itemMatched.numero)}</strong>`:'<span>—</span>'}
+                <span class="badge ${assigned?'good':'neutral'}" style="font-size:.9rem;padding:7px 10px">
+                  ${esc(item.numero)}
+                </span>
               </td>
 
               <td>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <span
-                    data-product-item-badge="${index}"
-                    class="${itemMatched?'badge good':'badge neutral'}"
-                  >
-                    ${itemMatched?`Item ${esc(itemMatched.numero)}`:'Sem item'}
-                  </span>
-                  <strong>${esc(r.description)}</strong>
-                </div>
+                <strong style="display:block;margin-bottom:5px">
+                  Item ${esc(item.numero)} • ${esc(item.descricao)}
+                </strong>
                 <small>
-                  ${r.code?`Cód. ${esc(r.code)} • `:''}
-                  ${r.quantity?`${esc(r.quantity)} ${esc(r.unit||'')}`:''}
-                  ${r.subtotal!=null?` • Subtotal ${money(r.subtotal)}`:''}
+                  ${item.quantidade?`Quantidade: ${esc(item.quantidade)} ${esc(item.unidade||'')}`:''}
+                  ${item.valor_estimado?` • Estimado: ${money(item.valor_estimado)}`:''}
                 </small>
               </td>
 
               <td>
                 <input
                   type="search"
-                  data-item-search="${index}"
-                  value="${esc(r.itemSearch||'')}"
-                  placeholder="Buscar item: ex. caixa d'água 500, cadeado, item 48..."
+                  data-supplier-search="${esc(item.id)}"
+                  value="${esc(searchValue)}"
+                  placeholder="Buscar no PDF: ex. caixa d'água, cadeado, joelho..."
                   autocomplete="off"
                   style="width:100%;margin-bottom:7px"
                 >
 
-                <select data-q-field="itemId" data-item-select="${index}">
-                  ${quoteItemOptions(tenderId,r.itemId||'',r.itemSearch||'')}
+                <select
+                  data-supplier-select="${esc(item.id)}"
+                  style="width:100%"
+                >
+                  ${supplierOptions(item,assigned,searchValue)}
                 </select>
 
-                <small class="${duplicated?'review-note':itemMatched?'match-ok':'review-note'}">
-                  ${
-                    duplicated
-                      ? `⚠ Item ${esc(itemMatched.numero)} está relacionado a mais de um produto`
-                      : itemMatched
-                        ? `Relacionado manualmente ao Item ${esc(itemMatched.numero)}`
-                        : 'Pesquise acima e escolha o item correto do edital'
-                  }
+                <small class="review-note">
+                  A busca acima procura apenas nos ${supplierRows.length} produtos lidos do arquivo do fornecedor.
                 </small>
               </td>
 
               <td>
                 ${
-                  duplicated
-                    ? '<span class="badge warn">Revisar duplicidade</span>'
-                    : itemMatched
-                      ? '<span class="badge good">Cotado</span>'
-                      : '<span class="badge neutral">Sem relação</span>'
+                  assigned
+                    ? `<div style="display:flex;gap:8px;align-items:flex-start">
+                         <span class="badge good">Selecionado</span>
+                         <div>
+                           <strong>${esc(assigned.description)}</strong>
+                           <small style="display:block;margin-top:4px">
+                             ${assigned.code?`Cód. ${esc(assigned.code)} • `:''}
+                             ${assigned.quantity?`${esc(assigned.quantity)} ${esc(assigned.unit||'')}`:''}
+                             ${assigned.subtotal!=null?` • Subtotal ${money(assigned.subtotal)}`:''}
+                           </small>
+                         </div>
+                       </div>`
+                    : '<span class="review-note">Nenhum produto do fornecedor relacionado a este item.</span>'
                 }
               </td>
 
               <td>
-                <input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(r.price||0)}">
+                ${assigned
+                  ? '<span class="badge good">Cotado</span>'
+                  : '<span class="badge neutral">Sem cotação</span>'
+                }
               </td>
 
               <td>
-                <input data-q-field="presentation" value="${esc(r.presentation||'')}" placeholder="Ex.: caixa c/ 50">
+                ${assigned
+                  ? `<input data-q-field="price" type="number" step="0.0001" min="0" value="${Number(assigned.price||0)}">`
+                  : '-'
+                }
               </td>
 
               <td>
-                <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(r.factor||1)}">
+                ${assigned
+                  ? `<input data-q-field="presentation" value="${esc(assigned.presentation||'')}" placeholder="Ex.: caixa c/ 50">`
+                  : '-'
+                }
               </td>
 
               <td>
-                <input data-q-field="brand" value="${esc(r.brand||'')}">
+                ${assigned
+                  ? `<input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(assigned.factor||1)}">`
+                  : '-'
+                }
               </td>
 
               <td>
-                <button
-                  type="button"
-                  class="action-btn"
-                  data-clear-quote-relation="${index}"
-                  ${itemMatched?'':'disabled'}
-                >
-                  Limpar relação
-                </button>
+                ${assigned
+                  ? `<input data-q-field="brand" value="${esc(assigned.brand||'')}">`
+                  : '-'
+                }
+              </td>
+
+              <td>
+                ${assigned
+                  ? `<button type="button" class="action-btn" data-clear-fixed-relation="${esc(item.id)}">Retirar produto</button>`
+                  : '<span class="hint">—</span>'
+                }
               </td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>
+    </div>
+
+    <div class="panel-soft" style="margin-top:16px">
+      <strong>Produtos do PDF ainda não utilizados</strong>
+      <div style="margin-top:8px" class="hint">
+        ${supplierRows.filter(r=>!r.itemId).length} produto(s) do fornecedor ainda não foram relacionados a nenhum item do edital.
+      </div>
     </div>
   `;
 
@@ -1518,69 +1551,95 @@ function renderQuoteImportPreview(){
     syncQuoteRowsFromDom();
     state.quoteImportFilter='';
     state.quoteOnlyUnrelated=false;
+    state.quoteSupplierSearches={};
     renderQuoteImportPreview();
   });
 
-  document.querySelectorAll('[data-clear-quote-relation]').forEach(btn=>{
+  document.querySelectorAll('[data-supplier-search]').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const itemId=input.dataset.supplierSearch;
+      state.quoteSupplierSearches ||= {};
+      state.quoteSupplierSearches[itemId]=input.value||'';
+
+      const item=state.itens.find(i=>String(i.id)===String(itemId));
+      const assigned=supplierRows.find(r=>String(r.itemId)===String(itemId));
+      const select=document.querySelector(`[data-supplier-select="${itemId}"]`);
+      if(!item || !select)return;
+
+      select.innerHTML=supplierOptions(item,assigned,input.value);
+    });
+  });
+
+  document.querySelectorAll('[data-supplier-select]').forEach(select=>{
+    select.addEventListener('change',()=>{
+      syncQuoteRowsFromDom();
+
+      const itemId=select.dataset.supplierSelect;
+      const item=state.itens.find(i=>String(i.id)===String(itemId));
+      if(!item)return;
+
+      // Desvincula o produto atualmente associado a este item.
+      const current=supplierRows.find(r=>String(r.itemId)===String(itemId));
+
+      if(select.value===''){
+        if(current){
+          current.itemId='';
+          current.editalItemNumber=null;
+          current.manualMatched=false;
+        }
+        renderQuoteImportPreview();
+        return;
+      }
+
+      const selectedIndex=Number(select.value);
+      const selectedRow=supplierRows[selectedIndex];
+      if(!selectedRow)return;
+
+      // Se o produto já estiver em outro item, permite mover, mas nunca duplica silenciosamente.
+      if(selectedRow.itemId && String(selectedRow.itemId)!==String(itemId)){
+        const oldItem=state.itens.find(i=>String(i.id)===String(selectedRow.itemId));
+        const move=confirm(
+          `O produto "${selectedRow.description}" já está relacionado ao Item ${oldItem?.numero||'?'}.`+
+          `\n\nDeseja mover este produto para o Item ${item.numero}?`
+        );
+        if(!move){
+          renderQuoteImportPreview();
+          return;
+        }
+      }
+
+      // Um item oficial fica com apenas um produto do fornecedor nesta tela.
+      if(current && current!==selectedRow){
+        current.itemId='';
+        current.editalItemNumber=null;
+        current.manualMatched=false;
+      }
+
+      selectedRow.itemId=item.id;
+      selectedRow.editalItemNumber=Number(item.numero);
+      selectedRow.manualMatched=true;
+      selectedRow.selected=true;
+
+      state.quoteSupplierSearches ||= {};
+      state.quoteSupplierSearches[item.id]='';
+
+      renderQuoteImportPreview();
+      toast(`Produto relacionado ao Item ${item.numero}.`);
+    });
+  });
+
+  document.querySelectorAll('[data-clear-fixed-relation]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       syncQuoteRowsFromDom();
-      const index=Number(btn.dataset.clearQuoteRelation);
-      const row=state.quoteImportRows[index];
+      const itemId=btn.dataset.clearFixedRelation;
+      const row=supplierRows.find(r=>String(r.itemId)===String(itemId));
       if(!row)return;
 
       row.itemId='';
       row.editalItemNumber=null;
       row.manualMatched=false;
-      row.itemSearch='';
       renderQuoteImportPreview();
-      toast('Relacionamento removido. O produto voltou para revisão.');
-    });
-  });
-
-  document.querySelectorAll('[data-item-search]').forEach(input=>{
-    input.addEventListener('input',()=>{
-      const rowIndex=Number(input.dataset.itemSearch);
-      const row=state.quoteImportRows[rowIndex];
-      const select=document.querySelector(`[data-item-select="${rowIndex}"]`);
-      if(!row || !select)return;
-
-      row.itemSearch=input.value;
-      select.innerHTML=quoteItemOptions(tenderId,row.itemId||'',input.value);
-    });
-  });
-
-  document.querySelectorAll('[data-item-select]').forEach(select=>{
-    select.addEventListener('change',()=>{
-      const rowIndex=Number(select.dataset.itemSelect);
-      const row=state.quoteImportRows[rowIndex];
-      if(!row)return;
-
-      const previousId=row.itemId||'';
-      const nextId=select.value||'';
-
-      if(nextId){
-        const other=state.quoteImportRows.find((r,i)=>i!==rowIndex && String(r.itemId)===String(nextId));
-        if(other){
-          const item=state.itens.find(i=>String(i.id)===String(nextId));
-          const ok=confirm(
-            `Atenção: o Item ${item?.numero||''} já está relacionado ao produto "${other.description}".\n\n`+
-            `Deseja relacionar também este produto ao mesmo item?`
-          );
-          if(!ok){
-            select.value=previousId;
-            return;
-          }
-        }
-      }
-
-      row.itemId=nextId;
-      row.manualMatched=Boolean(row.itemId);
-
-      const item=state.itens.find(i=>String(i.id)===String(row.itemId));
-      row.editalItemNumber=item ? Number(item.numero) : null;
-
-      // Re-renderiza para atualizar ordem, progresso, status e alertas de duplicidade.
-      renderQuoteImportPreview();
+      toast('Produto retirado deste item do edital.');
     });
   });
 }
@@ -1647,6 +1706,7 @@ async function readQuoteImportFile(){
     state.quoteImportRows=rows;
     state.quoteImportFilter='';
     state.quoteOnlyUnrelated=false;
+    state.quoteSupplierSearches={};
     setQuoteImportStatus(`${rows.length} linhas identificadas. Use a busca em cada produto para selecionar o item correto do edital.`,'success');
     renderQuoteImportPreview();
   }catch(e){
@@ -2184,6 +2244,86 @@ async function removeAllQuotesFromItem(itemId){
 
 
 
+
+async function autoSyncPncpTenders(force=false){
+  if(state.demo || !configured || !supabase || !state.user)return;
+  if(window.__pncpAutoSyncRunning)return;
+  if(window.__pncpAutoSyncDone && !force)return;
+
+  const pncpTenders=state.licitacoes.filter(l=>l.pncp_control);
+  if(!pncpTenders.length)return;
+
+  window.__pncpAutoSyncRunning=true;
+
+  try{
+    let changed=false;
+
+    for(const l of pncpTenders){
+      try{
+        const {data,error}=await supabase.functions.invoke('pncp-import',{
+          body:{query:l.pncp_control}
+        });
+        if(error || data?.error || data?.mode!=='detail' || !data?.tender)continue;
+
+        const t=data.tender;
+        const tenderPayload={
+          dispute_at:t.dataEncerramentoProposta || t.dataAberturaProposta || l.raw?.dispute_at || null,
+          publication_at:t.dataPublicacaoPncp || null,
+          proposal_open_at:t.dataAberturaProposta || null,
+          proposal_end_at:t.dataEncerramentoProposta || null,
+          updated_at:new Date().toISOString()
+        };
+
+        const {error:updateError}=await supabase
+          .from('tenders')
+          .update(tenderPayload)
+          .eq('id',l.id);
+
+        if(updateError)continue;
+
+        // Sincroniza os itens também, sem apagar vínculos/cotações já existentes.
+        const incoming=Array.isArray(data.items)?data.items:[];
+        const existing=state.itens.filter(i=>String(i.licitacao_id)===String(l.id));
+        const byNumber=new Map(existing.map(i=>[Number(i.numero),i]));
+
+        for(const row of incoming){
+          const numero=Number(row.numeroItem||0);
+          if(!numero)continue;
+
+          const payload={
+            tender_id:l.id,
+            item_number:numero,
+            description:String(row.descricao||'Item PNCP'),
+            quantity:Number(row.quantidade||1),
+            unit:String(row.unidadeMedida||'UN'),
+            estimated_unit_price:row.valorUnitarioEstimado==null?null:Number(row.valorUnitarioEstimado)
+          };
+
+          const old=byNumber.get(numero);
+          if(old){
+            await supabase.from('tender_items').update(payload).eq('id',old.id);
+          }else{
+            await supabase.from('tender_items').insert(payload);
+          }
+        }
+
+        changed=true;
+      }catch(e){
+        console.warn('Sincronização automática PNCP:',e);
+      }
+    }
+
+    window.__pncpAutoSyncDone=true;
+
+    if(changed){
+      await refreshAll();
+      toast('PNCP sincronizado: prazos e itens atualizados.');
+    }
+  }finally{
+    window.__pncpAutoSyncRunning=false;
+  }
+}
+
 function ensureTenderExactStyles(){
   if(document.getElementById('tenderExactStyles'))return;
   const style=document.createElement('style');
@@ -2268,6 +2408,44 @@ function ensureTenderExactStyles(){
     .tx-stat small{display:block;color:#aab6c0;margin-bottom:2px}
     .tx-stat strong{display:block;color:#fff;font-size:1.25rem;line-height:1.1}
     .tx-stat span{display:block;color:#8e9ba6;font-size:.78rem;margin-top:4px}
+
+    .tx-new-panel{
+      display:none;
+      margin:18px 24px 4px;
+      padding:18px;
+      border:1px solid #2a3d49;
+      border-radius:10px;
+      background:#091820;
+    }
+    .tx-new-panel.open{display:block}
+    .tx-new-title{
+      display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:15px
+    }
+    .tx-new-title h3{margin:0;color:#f0b429;font-size:1.05rem}
+    .tx-new-title p{margin:5px 0 0;color:#98a7b1;font-size:.8rem}
+    .tx-pncp-form{
+      display:grid;
+      grid-template-columns:minmax(300px,1fr) 120px 120px auto;
+      gap:10px;align-items:end
+    }
+    .tx-pncp-form label{display:grid;gap:6px;color:#b6c2ca;font-size:.76rem}
+    .tx-pncp-form input,.tx-pncp-form select{
+      width:100%;height:42px;border:1px solid #31434f;border-radius:8px;
+      background:#07141c;color:#eef3f6;padding:0 11px
+    }
+    .tx-pncp-form button{
+      height:42px;border:0;border-radius:8px;background:#f0b429;color:#07131a;
+      font-weight:850;padding:0 16px;cursor:pointer
+    }
+    .tx-pncp-hint{
+      margin-top:10px;padding:10px 12px;border:1px solid #243541;border-radius:8px;
+      color:#9eacb6;font-size:.76rem
+    }
+    .tx-pncp-hint strong{color:#f0b429}
+    .tx-manual-toggle{
+      border:1px solid #31434f;background:#08151d;color:#d8e0e5;border-radius:7px;
+      padding:8px 11px;cursor:pointer
+    }
     .tx-toolbar{
       display:grid;
       grid-template-columns:minmax(250px,1.4fr) 180px 275px 1fr auto;
@@ -2473,6 +2651,46 @@ function renderTenderManagement(){
       <button type="button" class="tx-primary" id="txNewTender">＋ Novo edital</button>
     </div>
 
+    <div class="tx-new-panel" id="txNewTenderPanel">
+      <div class="tx-new-title">
+        <div>
+          <h3>Importar edital automaticamente do PNCP</h3>
+          <p>Cole o link do PNCP, número de controle, processo ou número do edital. O sistema busca os dados e os itens automaticamente.</p>
+        </div>
+        <button type="button" class="tx-manual-toggle" id="txManualTenderToggle">Cadastrar manualmente</button>
+      </div>
+
+      <form id="pncpSearchForm" class="tx-pncp-form">
+        <label>
+          Edital / processo / controle PNCP / link
+          <input id="pncpQuery" name="query" placeholder="Ex.: https://pncp.gov.br/app/editais/... ou 20/2026" required>
+        </label>
+
+        <label>
+          Ano
+          <input id="pncpYear" name="year" type="number" min="2021" max="2100" value="${new Date().getFullYear()}">
+        </label>
+
+        <label>
+          Estado
+          <select id="pncpUf" name="uf">
+            <option value="">Todos</option>
+            ${['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf=>`<option value="${uf}" ${uf==='PB'?'selected':''}>${uf}</option>`).join('')}
+          </select>
+        </label>
+
+        <button type="submit">Buscar no PNCP</button>
+      </form>
+
+      <div class="tx-pncp-hint">
+        <strong>Dica:</strong> com o link ou número de controle PNCP a abertura é direta. Pelo número do edital, use Ano e Estado para reduzir resultados.
+      </div>
+
+      <div id="pncpSearchStatus" class="pncp-status" hidden></div>
+      <div id="pncpSearchResults"></div>
+      <div id="pncpPreview" hidden></div>
+    </div>
+
     <div class="tx-stats">
       <div class="tx-stat">
         <div class="tx-stat-icon blue">▣</div>
@@ -2615,7 +2833,7 @@ function renderTenderManagement(){
 
           <td>
             <div class="tx-actions">
-              ${l.pncp_control?`<button class="tx-action" data-sync-pncp="${l.id}">Atualizar itens</button>`:''}
+              ${l.pncp_control?`<button class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
               <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
             </div>
           </td>
@@ -2636,16 +2854,42 @@ function renderTenderManagement(){
   });
 
   shell.querySelector('#txNewTender')?.addEventListener('click',()=>{
-    section.classList.toggle('show-new-tender');
-    const open=section.classList.contains('show-new-tender');
+    const panel=shell.querySelector('#txNewTenderPanel');
+    const open=!panel?.classList.contains('open');
+    panel?.classList.toggle('open',open);
+
     const btn=shell.querySelector('#txNewTender');
-    if(btn)btn.textContent=open?'× Fechar cadastro':'＋ Novo edital';
+    if(btn)btn.textContent=open?'× Fechar novo edital':'＋ Novo edital';
+
+    if(!open){
+      section.classList.remove('show-new-tender');
+    }
+
     if(open){
-      panels[0]?.scrollIntoView({behavior:'smooth',block:'start'});
+      panel?.scrollIntoView({behavior:'smooth',block:'nearest'});
+      shell.querySelector('#pncpQuery')?.focus();
     }
   });
 
+  shell.querySelector('#txManualTenderToggle')?.addEventListener('click',()=>{
+    section.classList.toggle('show-new-tender');
+    const open=section.classList.contains('show-new-tender');
+    const btn=shell.querySelector('#txManualTenderToggle');
+    if(btn)btn.textContent=open?'Ocultar cadastro manual':'Cadastrar manualmente';
+    if(open)panels[0]?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+
+  // Como este formulário é criado dinamicamente, o evento precisa ser ligado aqui.
+  shell.querySelector('#pncpSearchForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target));
+    await searchPncp(String(f.query||'').trim(),f.year,f.uf);
+  });
+
   renderRows();
+
+  // Ao abrir a tela, sincroniza automaticamente todos os editais PNCP já cadastrados.
+  setTimeout(()=>autoSyncPncpTenders(false),400);
 }
 
 function renderAll(){
@@ -2721,6 +2965,53 @@ $('#arquivoForm').addEventListener('submit',async e=>{e.preventDefault();const f
 
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
 document.addEventListener('click',async e=>{
+  const directSync=e.target.closest('[data-direct-pncp-sync]');
+  if(directSync){
+    const id=directSync.dataset.directPncpSync;
+    const l=state.licitacoes.find(x=>String(x.id)===String(id));
+    if(!l?.pncp_control)return;
+    directSync.disabled=true;
+    const oldText=directSync.textContent;
+    directSync.textContent='Sincronizando…';
+    try{
+      const {data,error}=await supabase.functions.invoke('pncp-import',{body:{query:l.pncp_control}});
+      if(error || data?.error || data?.mode!=='detail')throw new Error(error?.message||data?.error||'Falha ao consultar o PNCP');
+
+      const t=data.tender||{};
+      const {error:updateError}=await supabase.from('tenders').update({
+        dispute_at:t.dataEncerramentoProposta || t.dataAberturaProposta || null,
+        publication_at:t.dataPublicacaoPncp || null,
+        proposal_open_at:t.dataAberturaProposta || null,
+        proposal_end_at:t.dataEncerramentoProposta || null,
+        updated_at:new Date().toISOString()
+      }).eq('id',l.id);
+      if(updateError)throw updateError;
+
+      const existing=state.itens.filter(i=>String(i.licitacao_id)===String(l.id));
+      const byNumber=new Map(existing.map(i=>[Number(i.numero),i]));
+      for(const row of (data.items||[])){
+        const numero=Number(row.numeroItem||0);
+        if(!numero)continue;
+        const payload={
+          tender_id:l.id,item_number:numero,description:String(row.descricao||'Item PNCP'),
+          quantity:Number(row.quantidade||1),unit:String(row.unidadeMedida||'UN'),
+          estimated_unit_price:row.valorUnitarioEstimado==null?null:Number(row.valorUnitarioEstimado)
+        };
+        const old=byNumber.get(numero);
+        if(old)await supabase.from('tender_items').update(payload).eq('id',old.id);
+        else await supabase.from('tender_items').insert(payload);
+      }
+      await refreshAll();
+      toast('PNCP sincronizado: datas, prazo e itens atualizados.');
+    }catch(err){
+      toast(`Erro ao sincronizar PNCP: ${err.message||err}`,'error');
+    }finally{
+      directSync.disabled=false;
+      directSync.textContent=oldText;
+    }
+    return;
+  }
+
   const removeQuoteBtn=e.target.closest('[data-remove-item-quotes]');
   if(removeQuoteBtn){
     await removeAllQuotesFromItem(removeQuoteBtn.dataset.removeItemQuotes);
@@ -2777,7 +3068,7 @@ document.addEventListener('change',e=>{
 });
 
 $('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
-$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];state.quoteImportFilter='';state.quoteOnlyUnrelated=false;renderQuoteImportPreview();});
+$('#quoteImportTender')?.addEventListener('change',()=>{state.quoteImportRows=[];state.quoteImportFilter='';state.quoteOnlyUnrelated=false;state.quoteSupplierSearches={};renderQuoteImportPreview();});
 $('#pncpSyncBtn')?.addEventListener('click',syncPncpItems);
 
 document.addEventListener('input',e=>{
