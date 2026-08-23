@@ -1,28 +1,33 @@
-INOVA LICITAÇÕES — V9.1 PERSONALIZAÇÃO
+INOVA LICITAÇÕES — V10 PNCP
 
-NOVIDADE:
-A aba Equipe agora possui "Personalizar aparência".
+NOVIDADE PRINCIPAL
+Na aba Licitações existe agora "Importar do PNCP".
 
-Você poderá ajustar dentro do próprio sistema:
-- tamanho da logo do cabeçalho;
-- tamanho da logo da tela de login;
-- tamanho da logo do rodapé;
-- posição horizontal;
-- posição vertical;
-- Mostrar logo inteira / Preencher espaço;
-- mostrar ou ocultar o subtítulo da empresa;
-- restaurar o padrão.
+Você pode pesquisar por:
+- número do edital;
+- número do processo;
+- número de controle PNCP;
+- link do PNCP.
 
-As preferências ficam salvas no navegador usando localStorage.
+Fluxo:
+1. Pesquisar.
+2. Se houver mais de um resultado, escolher o órgão correto.
+3. Conferir os dados e itens.
+4. Clicar em "Importar licitação + itens".
+5. O sistema cadastra a licitação e os itens automaticamente no Supabase.
 
-PUBLICAÇÃO:
-1. Substitua index.html, styles.css e app.js pelos arquivos deste pacote.
-2. Envie a pasta assets com logo.png.
-3. NÃO apague seu app-config.js atual.
-4. Commit sugerido: Adicionar personalização de logo V9.1
-5. Aguarde a Vercel ficar Ready.
-6. Abra o site e faça Ctrl + Shift + R.
-7. Vá em Equipe > Personalizar aparência.
+IMPORTANTE
+- A função de consulta PNCP já foi publicada no Supabase.
+- NÃO altere nem apague seu app-config.js.
+- A pesquisa por número simples usa o ano informado; mantenha o ano correto.
+- O número de controle PNCP ou o link do PNCP é a forma mais precisa.
 
-DICA:
-Escolha "Mostrar logo inteira" para garantir que nenhuma parte da logo seja cortada.
+PUBLICAÇÃO
+Substitua:
+- app.js
+- index.html
+- styles.css
+- pasta assets
+
+Commit sugerido:
+Adicionar importação automática PNCP V10

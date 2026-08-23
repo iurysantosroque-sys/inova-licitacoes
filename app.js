@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, demo:false
 };
 
 function toast(msg,type='success'){
@@ -447,6 +447,254 @@ function renderBidSimulator(){
 }
 
 
+
+function pncpDate(v){
+  if(!v) return '-';
+  const d=new Date(v);
+  return Number.isNaN(d.getTime()) ? esc(v) : d.toLocaleString('pt-BR');
+}
+
+function pncpMoney(v){
+  if(v==null || v==='') return '-';
+  return money(Number(v));
+}
+
+function pncpControlParts(control){
+  const m=String(control||'').match(/(\d{14})-\d-0*(\d+)\/(\d{4})/);
+  if(!m)return null;
+  return {cnpj:m[1],sequencial:Number(m[2]),ano:Number(m[3])};
+}
+
+function setPncpStatus(message,type='loading'){
+  const el=$('#pncpSearchStatus');
+  if(!el)return;
+  el.hidden=!message;
+  el.className=`pncp-status ${type}`;
+  el.textContent=message||'';
+}
+
+function clearPncpPreview(){
+  state.pncpPreview=null;
+  const el=$('#pncpPreview');
+  if(el){el.hidden=true;el.innerHTML='';}
+}
+
+function renderPncpSearchResults(results=[]){
+  const el=$('#pncpSearchResults');
+  if(!el)return;
+
+  if(!results.length){
+    el.innerHTML='<div class="pncp-empty">Nenhum edital correspondente foi encontrado. Tente informar o ano correto, o processo ou o número de controle PNCP.</div>';
+    return;
+  }
+
+  el.innerHTML=`
+    <div class="pncp-result-head">
+      <strong>${results.length} resultado${results.length===1?'':'s'} encontrado${results.length===1?'':'s'}</strong>
+      <span>Confira o órgão antes de abrir.</span>
+    </div>
+    <div class="pncp-result-list">
+      ${results.map(r=>`
+        <article class="pncp-result-card">
+          <div class="pncp-result-main">
+            <strong>${esc(r.numeroCompra||r.processo||r.numeroControlePNCP||'Contratação')}</strong>
+            <span>${esc(r.orgao||'-')}</span>
+            <small>${esc([r.municipio,r.uf].filter(Boolean).join('/')||'-')} • ${esc(r.modalidadeNome||'-')}</small>
+          </div>
+          <div class="pncp-result-meta">
+            <span>Processo: <b>${esc(r.processo||'-')}</b></span>
+            <span>Abertura: <b>${pncpDate(r.dataAberturaProposta)}</b></span>
+            <span>Estimado: <b>${pncpMoney(r.valorTotalEstimado)}</b></span>
+          </div>
+          <button type="button" class="pncp-open-btn" data-pncp-control="${esc(r.numeroControlePNCP||'')}" data-pncp-cnpj="${esc(r.cnpj||'')}" data-pncp-year="${esc(r.anoCompra||'')}" data-pncp-seq="${esc(r.sequencialCompra||'')}">Abrir edital</button>
+        </article>
+      `).join('')}
+    </div>`;
+}
+
+function renderPncpPreview(data){
+  const el=$('#pncpPreview');
+  if(!el)return;
+
+  const t=data?.tender;
+  if(!t){
+    el.hidden=true;
+    return;
+  }
+
+  state.pncpPreview=data;
+  const items=Array.isArray(data.items)?data.items:[];
+  const orgao=t.orgaoEntidade?.razaoSocial || '-';
+  const cidade=[t.unidadeOrgao?.municipioNome,t.unidadeOrgao?.ufSigla].filter(Boolean).join('/') || '-';
+  const control=t.numeroControlePNCP||'';
+  const parts=pncpControlParts(control);
+  const portalLink=parts ? `https://pncp.gov.br/app/editais/${parts.cnpj}/${parts.ano}/${parts.sequencial}` : '';
+
+  el.hidden=false;
+  el.innerHTML=`
+    <div class="pncp-preview-title">
+      <div>
+        <span class="badge good">Encontrado no PNCP</span>
+        <h3>${esc(t.numeroCompra||control||'Licitação')}</h3>
+        <p>${esc(orgao)} • ${esc(cidade)}</p>
+      </div>
+      <div class="pncp-preview-actions">
+        ${portalLink?`<a href="${portalLink}" target="_blank" rel="noopener">Abrir no PNCP</a>`:''}
+        <button type="button" id="pncpImportBtn">Importar licitação + ${items.length} item${items.length===1?'':'s'}</button>
+      </div>
+    </div>
+
+    <div class="pncp-detail-grid">
+      <div><span>Processo</span><strong>${esc(t.processo||'-')}</strong></div>
+      <div><span>Modalidade</span><strong>${esc(t.modalidadeNome||'-')}</strong></div>
+      <div><span>Abertura</span><strong>${pncpDate(t.dataAberturaProposta)}</strong></div>
+      <div><span>Encerramento</span><strong>${pncpDate(t.dataEncerramentoProposta)}</strong></div>
+      <div><span>Valor estimado</span><strong>${pncpMoney(t.valorTotalEstimado)}</strong></div>
+      <div><span>Controle PNCP</span><strong class="pncp-control-text">${esc(control||'-')}</strong></div>
+    </div>
+
+    <div class="pncp-object">
+      <span>Objeto</span>
+      <p>${esc(t.objetoCompra||'-')}</p>
+    </div>
+
+    <div class="pncp-items-header">
+      <strong>Itens do edital</strong>
+      <span>${items.length} item${items.length===1?'':'s'} recuperado${items.length===1?'':'s'} do PNCP</span>
+    </div>
+
+    <div class="table-wrap pncp-items-table">
+      ${items.length ? table(
+        ['Item','Descrição','Quantidade','Unidade','Estimado un.','Total'],
+        items.map(i=>[
+          esc(i.numeroItem),
+          esc(i.descricao||'-'),
+          esc(i.quantidade??'-'),
+          esc(i.unidadeMedida||'-'),
+          i.valorUnitarioEstimado==null?'-':money(i.valorUnitarioEstimado),
+          i.valorTotal==null?'-':money(i.valorTotal)
+        ])
+      ) : '<div class="pncp-empty">O PNCP não retornou itens para esta contratação.</div>'}
+    </div>
+  `;
+
+  $('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
+}
+
+async function searchPncp(query,year){
+  clearPncpPreview();
+  const results=$('#pncpSearchResults');
+  if(results)results.innerHTML='';
+  setPncpStatus('Consultando o PNCP…','loading');
+
+  const {data,error}=await supabase.functions.invoke('pncp-import',{
+    body:{query,year:year?Number(year):undefined}
+  });
+
+  if(error){
+    setPncpStatus(`Não foi possível consultar o PNCP: ${error.message}`,'error');
+    return;
+  }
+  if(data?.error){
+    setPncpStatus(data.error,'error');
+    return;
+  }
+
+  if(data?.mode==='detail'){
+    setPncpStatus('Edital encontrado. Confira os dados antes de importar.','success');
+    renderPncpPreview(data);
+    return;
+  }
+
+  const rows=data?.results||[];
+  setPncpStatus(rows.length ? 'Resultados encontrados. Selecione o edital correto.' : 'Nenhum resultado encontrado.',rows.length?'success':'warn');
+  renderPncpSearchResults(rows);
+}
+
+async function openPncpResult(btn){
+  const control=btn.dataset.pncpControl;
+  setPncpStatus('Carregando dados e itens do edital…','loading');
+  clearPncpPreview();
+
+  const payload=control
+    ? {query:control}
+    : {query:'detalhe',cnpj:btn.dataset.pncpCnpj,ano:Number(btn.dataset.pncpYear),sequencial:Number(btn.dataset.pncpSeq)};
+
+  const {data,error}=await supabase.functions.invoke('pncp-import',{body:payload});
+  if(error){
+    setPncpStatus(`Erro ao abrir edital: ${error.message}`,'error');
+    return;
+  }
+  if(data?.error){
+    setPncpStatus(data.error,'error');
+    return;
+  }
+  setPncpStatus('Dados carregados. Revise e importe quando estiver pronto.','success');
+  renderPncpPreview(data);
+}
+
+async function importPncpPreview(){
+  const data=state.pncpPreview;
+  const t=data?.tender;
+  if(!t || state.demo)return toast('Entre no modo online para importar.','error');
+
+  const duplicate=state.licitacoes.find(l=>
+    String(l.numero||'').trim().toUpperCase()===String(t.numeroCompra||'').trim().toUpperCase() ||
+    (t.processo && String(l.processo||'').trim().toUpperCase()===String(t.processo).trim().toUpperCase())
+  );
+
+  if(duplicate && !confirm(`Já existe uma licitação parecida (${duplicate.numero}). Deseja importar mesmo assim?`))return;
+
+  if(!confirm(`Importar ${t.numeroCompra||'esta licitação'} e ${data.items?.length||0} itens para a INOVA?`))return;
+
+  const btn=$('#pncpImportBtn');
+  if(btn){btn.disabled=true;btn.textContent='Importando…';}
+  setPncpStatus('Salvando licitação no sistema…','loading');
+
+  try{
+    const row={
+      company_id:currentCompanyId(),
+      number:t.numeroCompra || t.numeroControlePNCP || 'PNCP',
+      process_number:t.processo || t.numeroControlePNCP || null,
+      agency:t.orgaoEntidade?.razaoSocial || null,
+      city:t.unidadeOrgao?.municipioNome || null,
+      state:t.unidadeOrgao?.ufSigla || null,
+      platform:t.linkSistemaOrigem ? `PNCP • ${t.modalidadeNome||''}` : 'PNCP',
+      object:t.objetoCompra || null,
+      dispute_at:t.dataAberturaProposta || t.dataEncerramentoProposta || null,
+      created_by:state.user.id
+    };
+
+    const {data:tender,error:tenderError}=await supabase.from('tenders').insert(row).select().single();
+    if(tenderError)throw tenderError;
+
+    const items=(data.items||[]).map(i=>({
+      tender_id:tender.id,
+      item_number:Number(i.numeroItem||1),
+      description:String(i.descricao||'Item PNCP'),
+      quantity:Number(i.quantidade||1),
+      unit:String(i.unidadeMedida||'UN'),
+      estimated_unit_price:i.valorUnitarioEstimado==null?null:Number(i.valorUnitarioEstimado)
+    }));
+
+    for(let start=0;start<items.length;start+=400){
+      const chunk=items.slice(start,start+400);
+      const {error}=await supabase.from('tender_items').insert(chunk);
+      if(error)throw error;
+      setPncpStatus(`Importando itens… ${Math.min(start+chunk.length,items.length)}/${items.length}`,'loading');
+    }
+
+    setPncpStatus(`Importação concluída: ${items.length} itens cadastrados.`,'success');
+    toast('Licitação do PNCP importada com sucesso.');
+    await refreshAll();
+  }catch(e){
+    setPncpStatus(`Erro ao importar: ${e?.message||e}`,'error');
+    toast(e?.message||'Erro ao importar PNCP','error');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=`Importar licitação + ${data.items?.length||0} itens`;}
+  }
+}
+
 async function ensureProfile(){
   if(!state.user || state.demo)return;
   const name=state.user.user_metadata?.nome || state.user.email?.split('@')[0] || 'Usuário';
@@ -704,4 +952,20 @@ $('#simItem')?.addEventListener('change', () => {
 $('#simBid')?.addEventListener('input', renderBidSimulator);
 
 initAppearanceControls();
+
+$('#pncpYear') && ($('#pncpYear').value = new Date().getFullYear());
+
+$('#pncpSearchForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const f=Object.fromEntries(new FormData(e.target));
+  await searchPncp(String(f.query||'').trim(),f.year);
+});
+
+document.addEventListener('click',async e=>{
+  const btn=e.target.closest('[data-pncp-control],[data-pncp-cnpj]');
+  if(btn && btn.classList.contains('pncp-open-btn')){
+    await openPncpResult(btn);
+  }
+});
+
 boot();
