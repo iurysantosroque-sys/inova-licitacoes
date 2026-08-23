@@ -1,0 +1,21 @@
+INOVA Licitações — V8 Identidade Visual
+
+Arquivos principais para substituir no GitHub:
+- app.js
+- index.html
+- styles.css
+
+Arquivos NOVOS para enviar ao GitHub:
+- logo-inova.png
+- icons/icon-192.png
+- icons/icon-512.png
+
+Como publicar:
+1. No GitHub, Add file > Upload files.
+2. Arraste os 3 arquivos principais + logo-inova.png + a pasta icons.
+3. Confirme a substituição dos arquivos existentes.
+4. Commit: "Aplicar identidade visual INOVA V8"
+5. Aguarde a Vercel ficar Ready / Production.
+6. Abra o site e pressione Ctrl + Shift + R.
+
+O Supabase NÃO precisa ser alterado.

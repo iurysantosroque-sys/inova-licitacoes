@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#081015" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=6.0" />
-  <script src="/app-config.js?v=5.0"></script>
+  <link rel="stylesheet" href="styles.css?v=8.0" />
+  <script src="/app-config.js?v=8.0"></script>
 </head>
   
 <body>
@@ -18,7 +18,7 @@
 
   <section id="setupScreen" class="auth-shell" hidden>
     <div class="auth-card wide">
-      <div class="brand-mark">IL</div>
+      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
       <h1>INOVA Licitações</h1>
       <p class="muted">Não foi possível carregar a configuração do Supabase.</p>
       <div class="notice">
@@ -31,7 +31,7 @@
 
   <section id="authScreen" class="auth-shell" hidden>
     <div class="auth-card">
-      <div class="brand-mark">IL</div>
+      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
       <h1>INOVA Licitações</h1>
       <p class="muted">Entre para acessar as licitações da sua empresa.</p>
       <div class="segmented">
@@ -54,7 +54,7 @@
 
   <section id="companyScreen" class="auth-shell" hidden>
     <div class="auth-card wide">
-      <div class="brand-mark">IL</div>
+      <img class="auth-logo" src="logo-inova.png" alt="INOVA" />
       <h1>Vincular à empresa</h1>
       <p class="muted">O primeiro usuário cria a empresa. Os demais entram usando o código de convite.</p>
       <div class="company-grid">
@@ -76,10 +76,10 @@
   <div id="appShell" hidden>
     <header class="topbar">
       <div class="brand-row">
-        <div class="brand-mark small">IL</div>
-        <div>
+        <img class="brand-logo" src="logo-inova.png" alt="INOVA" />
+        <div class="brand-copy">
           <h1>INOVA Licitações</h1>
-          <p id="companyName">Gestão de pregões e dispensas</p>
+          <p id="companyName">Construções, Manutenções, Serviços e Comércio LTDA</p>
         </div>
       </div>
       <div class="top-actions">
@@ -89,13 +89,13 @@
     </header>
 
     <nav class="tabs" id="mainTabs">
-      <button data-tab="dashboard" class="active">Dashboard</button>
-      <button data-tab="licitacoes">Licitações</button>
-      <button data-tab="fornecedores">Fornecedores</button>
-      <button data-tab="cotacoes">Cotações</button>
-      <button data-tab="precificacao">Precificação</button>
-      <button data-tab="arquivos">Arquivos</button>
-      <button data-tab="equipe">Equipe</button>
+      <button data-tab="dashboard" class="active"><span class="nav-icon">⌂</span>Dashboard</button>
+      <button data-tab="licitacoes"><span class="nav-icon">▣</span>Licitações</button>
+      <button data-tab="fornecedores"><span class="nav-icon">◎</span>Fornecedores</button>
+      <button data-tab="cotacoes"><span class="nav-icon">⇄</span>Cotações</button>
+      <button data-tab="precificacao"><span class="nav-icon">◉</span>Precificação</button>
+      <button data-tab="arquivos"><span class="nav-icon">□</span>Arquivos</button>
+      <button data-tab="equipe"><span class="nav-icon">♙</span>Equipe</button>
     </nav>
 
     <main>
@@ -180,185 +180,67 @@
         <div class="panel"><h2>Melhor fornecedor por item</h2><div id="comparativoLista" class="table-wrap"></div></div>
       </section>
 
-     <section id="precificacao" class="tab">
+      <section id="precificacao" class="tab">
+        <div class="panel">
+          <h2>Regras de precificação</h2>
+          <form id="configForm" class="grid-form">
+            <label>Imposto (%)<input name="imposto" type="number" step="0.01" value="6" /></label>
+            <label>Margem desejada (%)<input name="margem_alvo" type="number" step="0.01" value="25" /></label>
+            <label>Lucro mínimo total por item (R$)<input name="lucro_minimo" type="number" step="0.01" min="0" value="500" /></label>
+            <label>Margem mínima aceitável (%)<input name="margem_minima" type="number" step="0.01" value="10" /></label>
+            <label>Reserva operacional (%)<input name="reserva_operacional" type="number" step="0.01" value="0" /></label>
+            <button type="submit">Salvar regras</button>
+          </form>
+        </div>
 
-  <div class="panel">
-    <h2>Regras de precificação</h2>
+        <div class="panel pricing-guide">
+          <h2>Como usar na disputa</h2>
+          <div class="guide-grid">
+            <div><strong>Preço-alvo</strong><span>Valor necessário para alcançar sua margem desejada.</span></div>
+            <div><strong>Preço p/ lucro mínimo</strong><span>Valor necessário para atingir o lucro mínimo total configurado.</span></div>
+            <div><strong>Preço de parada</strong><span>Menor valor que você deve aceitar durante a disputa.</span></div>
+            <div><strong>Ponto de equilíbrio</strong><span>Abaixo deste valor você começa a ter prejuízo.</span></div>
+          </div>
+        </div>
 
-    <form id="configForm" class="grid-form">
+        <div id="pricingSummary" class="pricing-summary"></div>
 
-      <label>
-        Imposto (%)
-        <input
-          name="imposto"
-          type="number"
-          step="0.01"
-          value="6"
-        />
-      </label>
+        <div class="panel simulator-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Simulador de lance</h2>
+              <p class="hint">Digite um lance durante o pregão para ver imediatamente lucro, margem e até quanto você ainda pode baixar.</p>
+            </div>
+            <span class="badge neutral">Uso durante a disputa</span>
+          </div>
 
-      <label>
-        Margem desejada (%)
-        <input
-          name="margem_alvo"
-          type="number"
-          step="0.01"
-          value="25"
-        />
-      </label>
+          <div class="bid-simulator">
+            <label>
+              Item
+              <select id="simItem">
+                <option value="">Selecione o item</option>
+              </select>
+            </label>
 
-      <label>
-        Lucro mínimo total por item (R$)
-        <input
-          name="lucro_minimo"
-          type="number"
-          step="0.01"
-          min="0"
-          value="500"
-        />
-      </label>
+            <label>
+              Lance que pretendo dar (R$)
+              <input id="simBid" type="number" step="0.0001" min="0" placeholder="Ex.: 0,75" />
+            </label>
+          </div>
 
-      <label>
-        Margem mínima aceitável (%)
-        <input
-          name="margem_minima"
-          type="number"
-          step="0.01"
-          value="10"
-        />
-      </label>
+          <div id="simResult" class="sim-result">
+            <div class="sim-empty">Selecione um item e informe um lance.</div>
+          </div>
+        </div>
 
-      <label>
-        Reserva operacional (%)
-        <input
-          name="reserva_operacional"
-          type="number"
-          step="0.01"
-          value="0"
-        />
-      </label>
-
-      <button type="submit">
-        Salvar regras
-      </button>
-
-    </form>
-  </div>
-
-
-  <div class="panel pricing-guide">
-
-    <h2>Como usar na disputa</h2>
-
-    <div class="guide-grid">
-
-      <div>
-        <strong>Preço-alvo</strong>
-        <span>
-          Valor necessário para alcançar sua margem desejada.
-        </span>
-      </div>
-
-      <div>
-        <strong>Preço para lucro mínimo</strong>
-        <span>
-          Valor necessário para gerar o lucro mínimo total configurado.
-        </span>
-      </div>
-
-      <div>
-        <strong>Preço de parada</strong>
-        <span>
-          Menor valor que você deve aceitar durante a disputa.
-        </span>
-      </div>
-
-      <div>
-        <strong>Ponto de equilíbrio</strong>
-        <span>
-          Abaixo deste valor você começa a ter prejuízo.
-        </span>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div id="pricingSummary" class="pricing-summary"></div>
-
-
-  <div class="panel">
-
-    <div class="panel-title">
-
-      <div>
-        <h2>Simulador de lance</h2>
-        <p class="hint">
-          Digite um lance durante o pregão para ver imediatamente
-          lucro, margem e se ainda vale a pena continuar.
-        </p>
-      </div>
-
-      <span class="badge neutral">
-        Uso durante a disputa
-      </span>
-
-    </div>
-
-    <div class="bid-simulator">
-
-      <label>
-        Item
-        <select id="simItem">
-          <option value="">Selecione o item</option>
-        </select>
-      </label>
-
-      <label>
-        Lance que pretendo dar (R$)
-        <input
-          id="simBid"
-          type="number"
-          step="0.0001"
-          min="0"
-          placeholder="Ex.: 0,75"
-        />
-      </label>
-
-    </div>
-
-    <div id="simResult" class="sim-result">
-
-      <p class="hint">
-        Selecione um item e informe um lance.
-      </p>
-
-    </div>
-
-  </div>
-
-
-  <div class="panel">
-
-    <div class="panel-title">
-
-      <h2>Mapa de oportunidades</h2>
-
-      <span class="badge neutral">
-        Frete + imposto + margem + lucro mínimo
-      </span>
-
-    </div>
-
-    <div
-      id="precificacaoLista"
-      class="table-wrap pricing-table">
-    </div>
-
-  </div>
-
-</section>
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Mapa de oportunidades</h2>
+            <span class="badge neutral">Frete + imposto + margem + lucro mínimo</span>
+          </div>
+          <div id="precificacaoLista" class="table-wrap pricing-table"></div>
+        </div>
+      </section>
 
       <section id="arquivos" class="tab">
         <div class="panel">
@@ -385,9 +267,15 @@
       </section>
     </main>
 
-    <footer>INOVA Licitações • Versão 1</footer>
+    <footer class="app-footer">
+        <div class="footer-brand">
+          <img src="logo-inova.png" alt="INOVA" />
+          <div><strong>INOVA LICITAÇÕES</strong><span>Construções, Manutenções, Serviços e Comércio LTDA</span></div>
+        </div>
+        <div class="footer-meta"><span>Versão 8.0</span><span class="system-dot"></span><span>Sistema atualizado</span></div>
+      </footer>
   </div>
 
-  <script type="module" src="/app.js?v=6.0"></script>
+  <script type="module" src="/app.js?v=8.0"></script>
 </body>
 </html>
