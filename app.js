@@ -1095,92 +1095,289 @@ async function parseSpreadsheetFile(file){
   return all;
 }
 
+
 function groupPdfTextItems(items){
-  const byY=new Map();
+  // Agrupamento mais preciso por coordenada Y.
+  // O agrupamento antigo arredondava de 3 em 3 pontos e podia juntar
+  // linhas diferentes do PDF, fazendo produtos desaparecerem.
+  const rows=[];
+
   for(const it of items){
-    const y=Math.round((it.transform?.[5]||0)/3)*3;
-    if(!byY.has(y))byY.set(y,[]);
-    byY.get(y).push({x:it.transform?.[4]||0,text:String(it.str||'').trim()});
+    const text=String(it.str||'').trim();
+    if(!text)continue;
+
+    const y=Number(it.transform?.[5]||0);
+    const x=Number(it.transform?.[4]||0);
+
+    let row=rows.find(r=>Math.abs(r.y-y)<=1.25);
+
+    if(!row){
+      row={y,items:[]};
+      rows.push(row);
+    }
+
+    row.items.push({x,text});
   }
-  return [...byY.entries()]
-    .sort((a,b)=>b[0]-a[0])
-    .map(([,arr])=>arr.sort((a,b)=>a.x-b.x).map(x=>x.text).filter(Boolean).join(' ').replace(/\s+/g,' ').trim())
+
+  return rows
+    .sort((a,b)=>b.y-a.y)
+    .map(row=>
+      row.items
+        .sort((a,b)=>a.x-b.x)
+        .map(v=>v.text)
+        .join(' ')
+        .replace(/\s+/g,' ')
+        .trim()
+    )
     .filter(Boolean);
+}
+
+function pdfLinesByEol(items){
+  const lines=[];
+  let current=[];
+
+  for(const it of items){
+    const text=String(it.str||'').trim();
+
+    if(text)current.push(text);
+
+    if(it.hasEOL){
+      const line=current.join(' ').replace(/\s+/g,' ').trim();
+      if(line)lines.push(line);
+      current=[];
+    }
+  }
+
+  const last=current.join(' ').replace(/\s+/g,' ').trim();
+  if(last)lines.push(last);
+
+  return lines;
+}
+
+function quotePdfUnitRegex(){
+  return '(?:UN|UND|UNID|PC|PÇ|PCA|RL|ROLO|SC|SACO|CT|KG|G|MT|M|M2|M3|BD|BALDE|GL|GALAO|GALÃO|PA|PAR|PT|PCT|CX|CAIXA|FD|FARDO|LT|L|ML|JG|JOGO|KIT|DZ)';
+}
+
+function quotePdfMoneyRegex(){
+  return '(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2,4}';
+}
+
+function parseQuotePdfProduct(raw){
+  const line=String(raw||'')
+    .replace(/\u00a0/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  if(!line)return null;
+
+  if(
+    /^(CODIGO|CÓDIGO|DESCRIÇÃO|DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|CONDIÇÕES|VALIDADE|PRAZO|GARANTIA|OBSERVAÇÕES|OBSERVACOES|CNPJ|CPF|RUA|TELEFONE|E-MAIL|EMAIL)/i.test(line)
+  )return null;
+
+  if(/\bSUB-?TOTAL\b|\bTOTAL\s*:/i.test(line))return null;
+
+  const unitRx=quotePdfUnitRegex();
+  const moneyRx=quotePdfMoneyRegex();
+
+  // Formato da COMFIL e da maioria das cotações:
+  // código | descrição | unidade | quantidade | preço unitário | subtotal
+  const rx=new RegExp(
+    '^\\s*([A-Z0-9._/-]{4,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')\\s*$',
+    'i'
+  );
+
+  const m=line.match(rx);
+  if(!m)return null;
+
+  const code=String(m[1]||'').trim();
+
+  // Evita transformar outros números do cabeçalho em código de produto.
+  if(!/\d/.test(code))return null;
+
+  let description=String(m[2]||'')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  const unit=String(m[3]||'').trim().toUpperCase();
+  const quantity=parseBrazilianNumber(m[4]);
+  const unitPrice=parseBrazilianNumber(m[5]);
+  const subtotal=parseBrazilianNumber(m[6]);
+
+  if(!description || unitPrice==null || unitPrice<=0)return null;
+
+  let brand='';
+
+  // Na cotação da COMFIL a marca geralmente vem após " - ".
+  const brandMatch=description.match(
+    /\s+-\s+([A-Z0-9][A-Z0-9 .&/'()_-]{1,60})$/i
+  );
+
+  if(brandMatch){
+    brand=brandMatch[1].trim();
+    description=description.slice(0,brandMatch.index).trim();
+  }
+
+  return {
+    code,
+    description,
+    quantity,
+    unit,
+    price:unitPrice,
+    subtotal,
+    brand,
+    presentation:'',
+    factor:1,
+    selected:true
+  };
 }
 
 function rowsFromPdfLines(lines){
   const out=[];
-  const unitRx='(?:UN|UND|PC|PÇ|PCA|RL|SC|CT|KG|MT|M|M2|M3|BD|GL|PA|PT|CX|FD|LT|L)';
-  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2}';
 
-  for(const original of lines){
-    let line=String(original||'').replace(/\s+/g,' ').trim();
-    if(!line)continue;
+  for(let i=0;i<lines.length;i++){
+    const current=String(lines[i]||'')
+      .replace(/\u00a0/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
 
-    // Ignora cabeçalhos, rodapés e totais.
-    if(/^(CODIGO|CÓDIGO|DESCRIÇÃO|DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|CONDIÇÕES|VALIDADE|PRAZO|GARANTIA|OBSERVAÇÕES|OBSERVACOES)/i.test(line))continue;
-    if(/\bSUB-?TOTAL\b|\bTOTAL\s*:/i.test(line))continue;
+    if(!current)continue;
 
-    // Estrutura mais comum da cotação:
-    // CODIGO | DESCRICAO | UN | QTD | PRECO UNITARIO | SUBTOTAL
-    const rx=new RegExp(
-      '^\\s*(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')\\s*$',
-      'i'
-    );
-    const m=line.match(rx);
-    if(!m)continue;
+    let row=parseQuotePdfProduct(current);
 
-    const code=m[1];
-    let description=m[2].trim();
-    const unit=m[3].toUpperCase();
-    const quantity=parseBrazilianNumber(m[4]);
-    const unitPrice=parseBrazilianNumber(m[5]);
-    const subtotal=parseBrazilianNumber(m[6]);
-
-    if(!description || unitPrice==null || unitPrice<=0)continue;
-
-    // Separa a marca quando ela aparece após " - " no fim da descrição.
-    let brand='';
-    const brandMatch=description.match(/\s+-\s+([A-Z0-9][A-Z0-9 .&/'-]{1,40})$/i);
-    if(brandMatch){
-      brand=brandMatch[1].trim();
-      description=description.slice(0,brandMatch.index).trim();
+    if(row){
+      out.push(row);
+      continue;
     }
 
-    out.push({
-      code,
-      description,
-      quantity,
-      unit,
-      price:unitPrice,
-      subtotal,
-      brand,
-      presentation:'',
-      factor:1,
-      selected:true
-    });
+    // PDFs podem quebrar uma linha de produto em 2 ou 3 linhas.
+    if(i+1<lines.length){
+      const joined2=`${current} ${String(lines[i+1]||'').trim()}`;
+      row=parseQuotePdfProduct(joined2);
+
+      if(row){
+        out.push(row);
+        continue;
+      }
+    }
+
+    if(i+2<lines.length){
+      const joined3=[
+        current,
+        String(lines[i+1]||'').trim(),
+        String(lines[i+2]||'').trim()
+      ].join(' ');
+
+      row=parseQuotePdfProduct(joined3);
+
+      if(row)out.push(row);
+    }
   }
 
+  return dedupeQuotePdfRows(out);
+}
+
+function rowsFromPdfFlatText(text){
+  const cleaned=String(text||'')
+    .replace(/\u00a0/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  if(!cleaned)return [];
+
+  const unitRx=quotePdfUnitRegex();
+  const moneyRx=quotePdfMoneyRegex();
+
+  /*
+    Estratégia de segurança:
+    procura cada produto pelo início do código e termina exatamente
+    depois do subtotal. Isso funciona mesmo quando o PDF.js não
+    preserva corretamente as quebras de linha.
+  */
+  const rx=new RegExp(
+    '(?:^|\\s)(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')(?=\\s+(?:\\d{4,8}\\s+|Vendedor\\s*:|Sub-?Total\\s*:|Total\\s*:|$))',
+    'gi'
+  );
+
+  const rows=[];
+  let m;
+
+  while((m=rx.exec(cleaned))!==null){
+    const line=[
+      m[1],
+      m[2],
+      m[3],
+      m[4],
+      m[5],
+      m[6]
+    ].join(' ');
+
+    const row=parseQuotePdfProduct(line);
+    if(row)rows.push(row);
+  }
+
+  return dedupeQuotePdfRows(rows);
+}
+
+function dedupeQuotePdfRows(rows){
   const seen=new Set();
-  return out.filter(r=>{
-    const key=`${r.code}|${quoteNormalize(r.description)}|${r.price}`;
+
+  return rows.filter(r=>{
+    const key=[
+      quoteNormalize(r.code),
+      quoteNormalize(r.description),
+      quoteNormalize(r.brand),
+      Number(r.quantity||0),
+      Number(r.price||0).toFixed(4),
+      Number(r.subtotal||0).toFixed(2)
+    ].join('|');
+
     if(seen.has(key))return false;
     seen.add(key);
     return true;
-  }).slice(0,2000);
+  }).slice(0,5000);
 }
+
 async function parsePdfFile(file){
-  const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+  const pdfjs=await import(
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs'
+  );
+
+  pdfjs.GlobalWorkerOptions.workerSrc=
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+
   const buf=await file.arrayBuffer();
   const pdf=await pdfjs.getDocument({data:buf}).promise;
-  const lines=[];
+
+  const candidates=[];
+
   for(let p=1;p<=pdf.numPages;p++){
     const page=await pdf.getPage(p);
-    const content=await page.getTextContent();
-    lines.push(...groupPdfTextItems(content.items));
+
+    const content=await page.getTextContent({
+      normalizeWhitespace:true,
+      disableCombineTextItems:false
+    });
+
+    const preciseLines=groupPdfTextItems(content.items);
+    const eolLines=pdfLinesByEol(content.items);
+
+    // 1) tenta pelas linhas reconstruídas por coordenada
+    candidates.push(...rowsFromPdfLines(preciseLines));
+
+    // 2) tenta pelas quebras EOL nativas do PDF.js
+    candidates.push(...rowsFromPdfLines(eolLines));
+
+    // 3) tenta pelo texto inteiro da página; recupera produtos que
+    // ficaram partidos ou agrupados incorretamente.
+    const flatText=content.items
+      .map(it=>String(it.str||'').trim())
+      .filter(Boolean)
+      .join(' ');
+
+    candidates.push(...rowsFromPdfFlatText(flatText));
   }
-  return rowsFromPdfLines(lines);
+
+  return dedupeQuotePdfRows(candidates);
 }
 
 
@@ -2266,7 +2463,7 @@ async function readQuoteImportFile(){
     state.quoteImportFilter='';
     state.quoteOnlyUnrelated=false;
     state.quoteSupplierSearches={};
-    setQuoteImportStatus(`${rows.length} linhas identificadas. Use a busca em cada produto para selecionar o item correto do edital.`,'success');
+    setQuoteImportStatus(`${rows.length} produtos identificados no PDF. Confira o contador antes de relacionar aos itens do edital.`,'success');
     renderQuoteImportPreview();
   }catch(e){
     setQuoteImportStatus(`Erro ao ler cotação: ${e?.message||e}`,'error');
