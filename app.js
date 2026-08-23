@@ -475,72 +475,149 @@ function ensurePricingModernStyles(){
 
   const style=document.createElement('style');
   style.id='pricingModernStyles';
-
   style.textContent=`
     #precificacao{
-      --p-bg:#07141c;
-      --p-panel:#0a1922;
-      --p-line:#263b47;
-      --p-text:#edf3f6;
-      --p-muted:#91a1ab;
-      --p-yellow:#f2b52a;
-      --p-green:#35d379;
-      --p-red:#ff645f;
-      --p-blue:#56a8ff;
+      --pv-bg:#06131b;
+      --pv-panel:#0a1922;
+      --pv-panel2:#0d1d27;
+      --pv-line:#243a47;
+      --pv-text:#edf3f6;
+      --pv-muted:#8fa0aa;
+      --pv-yellow:#f2b52a;
+      --pv-green:#35d379;
+      --pv-blue:#55a8ff;
+      --pv-red:#ff625d;
+    }
+
+    #precificacao .panel{
+      border-color:var(--pv-line);
+      background:var(--pv-panel);
+      border-radius:12px;
     }
 
     #precificacao #pricingTenderViewer{
-      border:1px solid var(--p-line);
-      background:#091821;
+      padding:16px 18px;
+      margin-bottom:12px!important;
+      border:1px solid var(--pv-line);
       border-radius:11px;
-      padding:16px;
+      background:linear-gradient(145deg,#0b1b25,#091720);
     }
 
     #precificacao #pricingSummary{
       display:grid;
-      grid-template-columns:repeat(5,minmax(130px,1fr));
+      grid-template-columns:repeat(5,minmax(150px,1fr));
       gap:10px;
-      margin:14px 0;
+      margin:12px 0 16px;
     }
 
     #precificacao #pricingSummary .mini-stat{
-      border:1px solid var(--p-line);
-      border-radius:9px;
+      min-height:82px;
+      padding:14px 15px;
+      border:1px solid var(--pv-line);
+      border-radius:10px;
       background:#0a1922;
-      padding:13px 14px;
     }
 
     #precificacao #pricingSummary .mini-stat span{
-      color:var(--p-muted);
-      font-size:.72rem;
+      display:block;color:var(--pv-muted);font-size:.72rem
     }
 
     #precificacao #pricingSummary .mini-stat strong{
-      display:block;
-      margin-top:4px;
-      color:var(--p-text);
-      font-size:1.18rem;
+      display:block;margin-top:5px;color:var(--pv-text);font-size:1.28rem
     }
 
-    #precificacao .simulator-panel,
-    #precificacao .panel:has(#simItem){
-      border:1px solid var(--p-line);
+    #precificacao .pricing-workspace{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 330px;
+      gap:14px;
+      align-items:start;
+    }
+
+    #precificacao .pricing-main-card,
+    #precificacao .pricing-sim-card{
+      border:1px solid var(--pv-line);
       border-radius:12px;
-      background:linear-gradient(145deg,#0a1922,#091720);
+      background:#081720;
       overflow:hidden;
     }
 
-    #precificacao .panel:has(#simItem) .panel-title{
-      color:var(--p-yellow);
+    #precificacao .pricing-main-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:14px 16px;
+      border-bottom:1px solid var(--pv-line);
+    }
+
+    #precificacao .pricing-main-head strong{
+      color:var(--pv-yellow);
+    }
+
+    #precificacao .pricing-table{
+      max-height:660px;
+      overflow:auto;
+    }
+
+    #precificacao #precificacaoLista table{
+      min-width:1350px;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    #precificacao #precificacaoLista th{
+      position:sticky;top:0;z-index:3;
+      background:#07151d;
+      color:var(--pv-yellow);
+      font-size:.73rem;
+      padding:12px 11px;
+      border-bottom:1px solid var(--pv-line);
+    }
+
+    #precificacao #precificacaoLista td{
+      padding:13px 11px;
+      background:#091820;
+      border-bottom:1px solid #1e333e;
+      font-size:.78rem;
+      vertical-align:middle;
+    }
+
+    #precificacao #precificacaoLista tbody tr:hover td{
+      background:#0c202a;
+    }
+
+    #precificacao .simulator-panel{
+      position:sticky;
+      top:88px;
+      margin:0;
+      border:1px solid var(--pv-line);
+      border-radius:12px;
+      background:linear-gradient(145deg,#0b1b25,#081720);
+    }
+
+    #precificacao .simulator-panel .panel-title{
+      padding-bottom:10px;
+      border-bottom:1px solid var(--pv-line);
+    }
+
+    #precificacao .simulator-panel h2{
+      color:var(--pv-yellow);
+      font-size:1.02rem;
+    }
+
+    #precificacao .bid-simulator{
+      display:grid!important;
+      grid-template-columns:1fr!important;
+      gap:11px!important;
     }
 
     #precificacao #simItem,
     #precificacao #simBid{
+      width:100%;
       min-height:42px;
       border:1px solid #34505e;
       border-radius:8px;
-      background:#07151d;
-      color:var(--p-text);
+      background:#06141c;
+      color:var(--pv-text);
       padding:0 11px;
     }
 
@@ -550,63 +627,38 @@ function ensurePricingModernStyles(){
 
     #precificacao .bid-decision{
       display:grid;
-      grid-template-columns:170px 1fr;
-      gap:16px;
-      align-items:center;
-      min-height:68px;
+      grid-template-columns:1fr;
+      gap:7px;
+      min-height:74px;
+      padding:14px;
       border-radius:9px;
-      border:1px solid var(--p-line);
-      padding:13px 15px;
+      border:1px solid var(--pv-line);
       background:#091821;
     }
 
     #precificacao .bid-decision.good{
-      border-color:#236b43;
-      background:#09251b;
+      border-color:#226743;background:#09241b
     }
-
     #precificacao .bid-decision.warn{
-      border-color:#72591a;
-      background:#241e0d;
+      border-color:#705819;background:#251e0c
     }
-
     #precificacao .bid-decision.bad{
-      border-color:#71302e;
-      background:#211213;
+      border-color:#6f302e;background:#211213
     }
 
     #precificacao .bid-decision strong{
-      color:var(--p-yellow);
-      font-size:.84rem;
-      letter-spacing:.03em;
+      font-size:.78rem;letter-spacing:.03em;color:var(--pv-yellow)
     }
+    #precificacao .bid-decision.good strong{color:var(--pv-green)}
+    #precificacao .bid-decision.bad strong{color:var(--pv-red)}
+    #precificacao .bid-decision span{font-size:.78rem;color:#c6d0d6}
 
-    #precificacao .bid-decision.good strong{color:var(--p-green)}
-    #precificacao .bid-decision.bad strong{color:var(--p-red)}
-    #precificacao .bid-decision span{color:#c4cfd5;font-size:.8rem}
-
-    #precificacao #precificacaoLista table{
-      min-width:1450px;
-    }
-
-    #precificacao #precificacaoLista th{
-      position:sticky;
-      top:0;
-      z-index:2;
-      background:#08151d;
-      color:var(--p-yellow);
-    }
-
-    #precificacao #precificacaoLista tbody tr:hover td{
-      background:#0d2029;
-    }
-
-    @media(max-width:900px){
+    @media(max-width:1200px){
+      #precificacao .pricing-workspace{grid-template-columns:1fr}
+      #precificacao .simulator-panel{position:static}
       #precificacao #pricingSummary{grid-template-columns:repeat(2,1fr)}
-      #precificacao .bid-decision{grid-template-columns:1fr}
     }
   `;
-
   document.head.appendChild(style);
 }
 
@@ -639,7 +691,7 @@ function renderBidSimulator(){
           ${
             savedCount
               ? `Existe ${savedCount} cotação salva, mas o preço/equivalência precisa ser revisado.`
-              : 'Cadastre uma cotação para este item antes de simular um lance.'
+              : 'Este item ainda não possui uma cotação SALVA. Se o produto já aparece no PDF, relacione-o ao item e clique em “Salvar cotações selecionadas”.'
           }
         </span>
       </div>
@@ -1160,6 +1212,92 @@ function quoteNormalize(v){
     .replace(/\s+/g,' ')
     .trim();
 }
+
+
+function quoteTokenSet(v){
+  return new Set(
+    quoteNormalize(v)
+      .split(' ')
+      .filter(t=>t.length>=2 && !['DE','DA','DO','DAS','DOS','PARA','COM','SEM','POR','EM','E'].includes(t))
+  );
+}
+
+function quoteSafeMatchScore(supplierDescription,itemDescription){
+  const a=quoteNormalize(supplierDescription);
+  const b=quoteNormalize(itemDescription);
+  if(!a || !b)return 0;
+
+  // Correspondência textual direta: ex. "ARCO DE SERRA" x "ARCO DE SERRA C/LAMINA".
+  if(a===b)return 1;
+  if(a.includes(b) || b.includes(a)){
+    const shorter=Math.min(a.length,b.length);
+    const longer=Math.max(a.length,b.length);
+    if(shorter>=7)return Math.max(.92, shorter/longer);
+  }
+
+  const sa=quoteTokenSet(a);
+  const sb=quoteTokenSet(b);
+  if(!sa.size || !sb.size)return 0;
+
+  let inter=0;
+  for(const t of sb)if(sa.has(t))inter++;
+
+  const coverageOfficial=inter/sb.size;
+  const jaccard=inter/new Set([...sa,...sb]).size;
+
+  // Números/medidas divergentes reduzem bastante a confiança.
+  const numsA=(a.match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>x.replace(',','.'));
+  const numsB=(b.match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>x.replace(',','.'));
+  if(numsB.length && numsA.length){
+    const common=numsB.filter(n=>numsA.includes(n)).length;
+    if(common===0 && coverageOfficial<1)return Math.min(.55,coverageOfficial*.6);
+  }
+
+  return coverageOfficial*.78 + jaccard*.22;
+}
+
+function autoRelateSafeQuoteRows(tenderId,rows){
+  const items=state.itens
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+
+  const usedItems=new Set(
+    rows.filter(r=>r.itemId).map(r=>String(r.itemId))
+  );
+
+  let matched=0;
+
+  for(const row of rows){
+    if(row.itemId)continue;
+
+    const ranked=items
+      .filter(i=>!usedItems.has(String(i.id)))
+      .map(i=>({item:i,score:quoteSafeMatchScore(row.description,i.descricao)}))
+      .sort((a,b)=>b.score-a.score);
+
+    const best=ranked[0];
+    const second=ranked[1];
+
+    // Só associa automaticamente quando a correspondência é muito forte
+    // e claramente melhor que a segunda opção. Não usa IA.
+    if(
+      best &&
+      best.score>=.91 &&
+      (!second || best.score-second.score>=.10)
+    ){
+      row.itemId=best.item.id;
+      row.editalItemNumber=Number(best.item.numero);
+      row.manualMatched=false;
+      row.autoTextMatched=true;
+      row.matchScore=best.score;
+      usedItems.add(String(best.item.id));
+      matched++;
+    }
+  }
+
+  return matched;
+}
+
 
 const QUOTE_STOPWORDS=new Set([
   'DE','DA','DO','DAS','DOS','COM','PARA','EM','E','A','O','AS','OS',
@@ -2740,7 +2878,15 @@ async function readQuoteImportFile(){
     state.quoteImportFilter='';
     state.quoteOnlyUnrelated=false;
     state.quoteSupplierSearches={};
-    setQuoteImportStatus(`${rows.length} produtos identificados no PDF. Confira o contador antes de relacionar aos itens do edital.`,'success');
+
+    const safeMatched=autoRelateSafeQuoteRows(tenderId,state.quoteImportRows);
+
+    setQuoteImportStatus(
+      `${rows.length} produtos identificados no arquivo. `+
+      `${safeMatched} correspondência${safeMatched===1?'':'s'} textual${safeMatched===1?'':'is'} segura${safeMatched===1?'':'s'} pré-relacionada${safeMatched===1?'':'s'}. `+
+      `Revise e clique em Salvar cotações selecionadas.`,
+      'success'
+    );
     renderQuoteImportPreview();
   }catch(e){
     setQuoteImportStatus(`Erro ao ler cotação: ${e?.message||e}`,'error');
@@ -3087,8 +3233,880 @@ function pricingItemsForSelectedTender(){
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
 }
 
+
+function ensurePricingWorkspace(){
+  const section=$('#precificacao');
+  const list=$('#precificacaoLista');
+  const simulator=section?.querySelector('.simulator-panel');
+  const mapPanel=list?.closest('.panel');
+
+  if(!section || !list || !simulator || !mapPanel)return;
+
+  let workspace=$('#pricingWorkspace');
+  if(!workspace){
+    workspace=document.createElement('div');
+    workspace.id='pricingWorkspace';
+    workspace.className='pricing-workspace';
+
+    const main=document.createElement('div');
+    main.className='pricing-main-card';
+
+    const head=document.createElement('div');
+    head.className='pricing-main-head';
+    head.innerHTML=`
+      <strong>Tabela de itens</strong>
+      <span class="hint">Cotação → custo → margem → lance</span>
+    `;
+
+    main.appendChild(head);
+    mapPanel.parentNode.insertBefore(workspace,mapPanel);
+    workspace.appendChild(main);
+    main.appendChild(mapPanel);
+    workspace.appendChild(simulator);
+  }
+}
+
+
+function ensurePricingExactModelStyles(){
+  if(document.getElementById('pricingExactModelStyles'))return;
+  const style=document.createElement('style');
+  style.id='pricingExactModelStyles';
+  style.textContent=`
+    #precificacao.pricing-exact{
+      display:grid;
+      grid-template-columns:196px minmax(0,1fr);
+      min-height:calc(100vh - 62px);
+      background:#06131b;
+    }
+
+    #precificacao.pricing-exact > .panel,
+    #precificacao.pricing-exact > #pricingSummary,
+    #precificacao.pricing-exact > #pricingWorkspace,
+    #precificacao.pricing-exact > #pricingExactShell{
+      grid-column:2;
+    }
+
+    #precificacao.pricing-exact .pricing-side{
+      grid-column:1;
+      grid-row:1 / span 20;
+      position:sticky;
+      top:62px;
+      height:calc(100vh - 62px);
+      border-right:1px solid #1d313c;
+      background:#07151d;
+      padding:18px 12px;
+      z-index:4;
+    }
+
+    .pricing-side-title{
+      color:#7f909b;
+      font-size:.68rem;
+      letter-spacing:.08em;
+      margin:12px 10px 14px;
+      text-transform:uppercase;
+    }
+
+    .pricing-side-nav{
+      display:grid;
+      gap:7px;
+    }
+
+    .pricing-side-nav button{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      height:42px;
+      padding:0 12px;
+      border:0;
+      border-radius:8px;
+      background:transparent;
+      color:#aebbc4;
+      text-align:left;
+      cursor:pointer;
+      font-weight:650;
+    }
+
+    .pricing-side-nav button.active{
+      background:#1b2016;
+      color:#f3b72b;
+    }
+
+    .pricing-side-nav button:hover{
+      background:#0c202a;
+    }
+
+    .pricing-exact-shell{
+      padding:20px 16px 26px;
+    }
+
+    .px-head{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      align-items:flex-start;
+      margin-bottom:18px;
+    }
+
+    .px-title h1{
+      margin:0;
+      color:#f3f6f8;
+      font-size:1.8rem;
+      letter-spacing:-.02em;
+    }
+
+    .px-title p{
+      margin:6px 0 0;
+      color:#9aa8b2;
+      font-size:.82rem;
+    }
+
+    .px-export{
+      border:1px solid #2b4653;
+      border-radius:8px;
+      height:40px;
+      padding:0 14px;
+      background:#081720;
+      color:#e6edf1;
+      font-weight:700;
+    }
+
+    .px-context{
+      display:grid;
+      grid-template-columns:1fr 1fr 1.3fr auto;
+      align-items:center;
+      gap:0;
+      padding:16px 18px;
+      border:1px solid #213744;
+      border-radius:11px;
+      background:#091821;
+      margin-bottom:15px;
+    }
+
+    .px-context-item{
+      padding:0 18px;
+      border-right:1px solid #20343f;
+      min-width:0;
+    }
+
+    .px-context-item:first-child{padding-left:0}
+    .px-context-item:last-of-type{border-right:0}
+
+    .px-context-item span{
+      display:block;
+      color:#8f9fa9;
+      font-size:.68rem;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .px-context-item strong{
+      display:block;
+      color:#f2f5f7;
+      font-size:.86rem;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .px-context-action{
+      justify-self:end;
+      border:1px solid #204a67;
+      color:#5eb2ff;
+      background:#07151d;
+      border-radius:8px;
+      height:40px;
+      padding:0 14px;
+      font-weight:750;
+      cursor:pointer;
+    }
+
+    .px-kpis{
+      display:grid;
+      grid-template-columns:repeat(5,minmax(150px,1fr));
+      gap:10px;
+      margin-bottom:15px;
+    }
+
+    .px-kpi{
+      min-height:92px;
+      border:1px solid #213744;
+      border-radius:10px;
+      background:#091821;
+      padding:15px 16px;
+    }
+
+    .px-kpi small{
+      display:block;
+      color:#8f9fa9;
+      font-size:.68rem;
+      margin-bottom:4px;
+      text-transform:uppercase;
+    }
+
+    .px-kpi strong{
+      display:block;
+      color:#f4f7f9;
+      font-size:1.45rem;
+      line-height:1.1;
+    }
+
+    .px-kpi span{
+      display:block;
+      color:#9aa8b2;
+      font-size:.72rem;
+      margin-top:5px;
+    }
+
+    .px-main{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 320px;
+      gap:14px;
+      align-items:start;
+    }
+
+    .px-table-card,
+    .px-sim-card{
+      border:1px solid #213744;
+      border-radius:11px;
+      background:#081720;
+      overflow:hidden;
+    }
+
+    .px-tabs{
+      display:flex;
+      gap:24px;
+      padding:0 16px;
+      border-bottom:1px solid #213744;
+    }
+
+    .px-tab{
+      height:46px;
+      display:flex;
+      align-items:center;
+      border-bottom:2px solid transparent;
+      color:#8f9fa9;
+      font-size:.78rem;
+    }
+
+    .px-tab.active{
+      color:#f1b52a;
+      border-bottom-color:#f1b52a;
+    }
+
+    .px-filters{
+      display:grid;
+      grid-template-columns:minmax(260px,1.3fr) 195px 220px auto;
+      gap:9px;
+      padding:14px 16px;
+      border-bottom:1px solid #213744;
+    }
+
+    .px-filters input,
+    .px-filters select{
+      height:40px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#06141c;
+      color:#eaf0f3;
+      padding:0 11px;
+    }
+
+    .px-clear{
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#081720;
+      color:#a9b7c0;
+      padding:0 13px;
+    }
+
+    .px-table-wrap{
+      max-height:540px;
+      overflow:auto;
+    }
+
+    .px-table{
+      width:100%;
+      min-width:950px;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    .px-table th{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:#081720;
+      color:#a8b5bd;
+      font-size:.68rem;
+      text-align:left;
+      padding:12px 10px;
+      border-bottom:1px solid #213744;
+      font-weight:700;
+    }
+
+    .px-table td{
+      background:#091821;
+      color:#e7edf1;
+      font-size:.76rem;
+      padding:12px 10px;
+      border-bottom:1px solid #1d313c;
+      vertical-align:middle;
+    }
+
+    .px-table tbody tr:hover td{
+      background:#0c2029;
+    }
+
+    .px-itemnum{
+      display:inline-grid;
+      place-items:center;
+      width:36px;
+      height:36px;
+      border:1px solid #253d48;
+      border-radius:8px;
+      font-weight:850;
+      color:#edf3f6;
+      background:#0a1b24;
+    }
+
+    .px-item-title{
+      font-weight:800;
+      color:#f4f7f8;
+      margin-bottom:4px;
+    }
+
+    .px-item-meta{
+      color:#8f9fa9;
+      font-size:.67rem;
+    }
+
+    .px-price{
+      color:#e9eef1;
+      font-weight:800;
+    }
+
+    .px-sale{
+      color:#39d47a;
+      font-weight:850;
+    }
+
+    .px-margin-input{
+      width:64px;
+      height:38px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#06141c;
+      color:#eef3f6;
+      text-align:center;
+    }
+
+    .px-status{
+      display:inline-flex;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:.65rem;
+      font-weight:850;
+      white-space:nowrap;
+    }
+
+    .px-status.good{background:#0f3925;color:#52df8b}
+    .px-status.warn{background:#4f3e0e;color:#ffd059}
+    .px-status.bad{background:#4c1c1d;color:#ff7771}
+    .px-status.neutral{background:#26343d;color:#b8c2c8}
+
+    .px-action{
+      height:34px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#07151d;
+      color:#dde6eb;
+      padding:0 10px;
+      cursor:pointer;
+    }
+
+    .px-footer{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      padding:12px 16px;
+      border-top:1px solid #213744;
+      color:#8f9fa9;
+      font-size:.7rem;
+    }
+
+    .px-pages{
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+
+    .px-page{
+      width:34px;
+      height:34px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#081720;
+      color:#aab8c0;
+      display:grid;
+      place-items:center;
+    }
+
+    .px-page.active{
+      background:#f2b52a;
+      color:#06131b;
+      border-color:#f2b52a;
+      font-weight:900;
+    }
+
+    .px-sim-card{
+      position:sticky;
+      top:76px;
+      padding:16px;
+    }
+
+    .px-sim-title{
+      color:#f2b52a;
+      font-weight:850;
+      margin-bottom:10px;
+      font-size:1rem;
+    }
+
+    .px-sim-sub{
+      color:#98a6af;
+      font-size:.76rem;
+      line-height:1.45;
+      margin-bottom:14px;
+    }
+
+    .px-sim-card label{
+      display:block;
+      color:#a7b4bc;
+      font-size:.7rem;
+      margin-bottom:10px;
+    }
+
+    .px-sim-card select,
+    .px-sim-card input{
+      width:100%;
+      height:40px;
+      margin-top:5px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#06141c;
+      color:#edf2f5;
+      padding:0 10px;
+    }
+
+    .px-suggested{
+      display:inline-block;
+      margin-top:4px;
+      padding:6px 9px;
+      border:1px solid #1d5f3b;
+      border-radius:7px;
+      background:#0a251a;
+      color:#4ad982;
+      font-weight:850;
+    }
+
+    .px-sim-result{
+      margin:14px 0;
+      border:1px solid #1d5f3b;
+      border-radius:9px;
+      background:#092019;
+      padding:12px;
+    }
+
+    .px-sim-result h4{
+      margin:0 0 8px;
+      color:#4ad982;
+      font-size:.73rem;
+      text-transform:uppercase;
+    }
+
+    .px-sim-row{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      color:#b8c5cc;
+      font-size:.72rem;
+      margin:6px 0;
+    }
+
+    .px-sim-row strong{
+      color:#eef3f6;
+    }
+
+    .px-tip{
+      margin:12px 0;
+      padding:11px 12px;
+      border:1px solid #164d75;
+      border-radius:8px;
+      background:#0a2030;
+      color:#69b7f4;
+      font-size:.7rem;
+      line-height:1.45;
+    }
+
+    .px-sim-button{
+      width:100%;
+      height:42px;
+      border:0;
+      border-radius:8px;
+      background:#f2b52a;
+      color:#06131b;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    @media(max-width:1250px){
+      #precificacao.pricing-exact{grid-template-columns:1fr}
+      #precificacao.pricing-exact .pricing-side{display:none}
+      #precificacao.pricing-exact > .panel,
+      #precificacao.pricing-exact > #pricingSummary,
+      #precificacao.pricing-exact > #pricingWorkspace,
+      #precificacao.pricing-exact > #pricingExactShell{
+        grid-column:1;
+      }
+      .px-main{grid-template-columns:1fr}
+      .px-sim-card{position:static}
+      .px-kpis{grid-template-columns:repeat(2,1fr)}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function pricingStatusClass(status){
+  if(status==='Excelente')return 'good';
+  if(status==='Oportunidade')return 'warn';
+  if(status==='Ruim')return 'bad';
+  return 'neutral';
+}
+
+function renderPricingExactModel(){
+  const section=$('#precificacao');
+  if(!section)return;
+
+  ensurePricingExactModelStyles();
+  section.classList.add('pricing-exact');
+
+  let side=section.querySelector('.pricing-side');
+  if(!side){
+    side=document.createElement('aside');
+    side.className='pricing-side';
+    side.innerHTML=`
+      <div class="pricing-side-title">MÓDULO</div>
+      <div class="pricing-side-nav">
+        <button data-side-tab="dashboard">⌂ Dashboard</button>
+        <button data-side-tab="licitacoes">▣ Licitações</button>
+        <button data-side-tab="cotacoes">⇄ Cotações</button>
+        <button data-side-tab="precificacao" class="active">◉ Precificação</button>
+        <button data-side-tab="fornecedores">♙ Fornecedores</button>
+        <button data-side-tab="arquivos">▤ Relatórios</button>
+      </div>
+    `;
+    section.insertBefore(side,section.firstChild);
+
+    side.querySelectorAll('[data-side-tab]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const tab=btn.dataset.sideTab;
+        document.querySelector(`#mainTabs [data-tab="${tab}"]`)?.click();
+      });
+    });
+  }
+
+  // Hide legacy pricing panels but preserve them for form/event functionality.
+  [...section.children].forEach(child=>{
+    if(child===side || child.id==='pricingExactShell')return;
+    child.style.display='none';
+  });
+
+  let shell=$('#pricingExactShell');
+  if(!shell){
+    shell=document.createElement('div');
+    shell.id='pricingExactShell';
+    shell.className='pricing-exact-shell';
+    section.appendChild(shell);
+  }
+
+  const tenderId=state.pricingViewTenderId || state.licitacoes[0]?.id || '';
+  if(!state.pricingViewTenderId && tenderId)state.pricingViewTenderId=tenderId;
+
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  const items=state.itens
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+
+  const cotados=items.filter(i=>itemHasQuote(i.id)).length;
+  const semCotacao=items.length-cotados;
+  const priced=items.map(i=>pricing(i)).filter(Boolean);
+  const excellent=priced.filter(p=>p.status==='Excelente').length;
+  const avgMargin=priced.length
+    ? priced.reduce((s,p)=>s+Number(p.margin||0),0)/priced.length
+    : 0;
+
+  const firstQuote=state.cotacoes.find(q=>items.some(i=>String(i.id)===String(q.item_id)));
+  const supplier=firstQuote
+    ? state.fornecedores.find(f=>String(f.id)===String(firstQuote.fornecedor_id))
+    : null;
+
+  shell.innerHTML=`
+    <div class="px-head">
+      <div class="px-title">
+        <h1>Precificação</h1>
+        <p>Defina preços, calcule lucro e simule lances.</p>
+      </div>
+      <button class="px-export" type="button">⇩ Exportar planilha</button>
+    </div>
+
+    <div class="px-context">
+      <div class="px-context-item">
+        <span>Licitação</span>
+        <strong>${tender?`${esc(tender.numero)} • ${esc(tender.orgao)} / ${esc(tender.cidade||'')}`:'Selecione uma licitação'}</strong>
+      </div>
+      <div class="px-context-item">
+        <span>Fornecedor</span>
+        <strong>${esc(supplier?.nome||'—')}</strong>
+      </div>
+      <div class="px-context-item">
+        <span>Arquivo da cotação</span>
+        <strong>${firstQuote?'Cotação cadastrada no sistema':'Nenhuma cotação salva'}</strong>
+      </div>
+      <button type="button" class="px-context-action" id="pxGoQuotes">Alterar cotação</button>
+    </div>
+
+    <div class="px-kpis">
+      <div class="px-kpi">
+        <small>Itens totais</small>
+        <strong>${items.length}</strong>
+        <span>100% do edital</span>
+      </div>
+      <div class="px-kpi">
+        <small>Itens cotados</small>
+        <strong>${cotados}</strong>
+        <span>${items.length?((cotados/items.length)*100).toFixed(1):'0,0'}%</span>
+      </div>
+      <div class="px-kpi">
+        <small>Sem precificação</small>
+        <strong>${semCotacao}</strong>
+        <span>${items.length?((semCotacao/items.length)*100).toFixed(1):'0,0'}%</span>
+      </div>
+      <div class="px-kpi">
+        <small>Precificados</small>
+        <strong>${excellent}</strong>
+        <span>${items.length?((excellent/items.length)*100).toFixed(1):'0,0'}%</span>
+      </div>
+      <div class="px-kpi">
+        <small>Lucro médio</small>
+        <strong>${Number.isFinite(avgMargin)?avgMargin.toFixed(1).replace('.',','):'0,0'}%</strong>
+        <span>margem média estimada</span>
+      </div>
+    </div>
+
+    <div class="px-main">
+      <div class="px-table-card">
+        <div class="px-tabs">
+          <div class="px-tab active">Tabela de itens</div>
+          <div class="px-tab">Simulador de lance</div>
+        </div>
+
+        <div class="px-filters">
+          <input id="pxSearch" type="search" placeholder="Buscar item por número ou descrição...">
+          <select id="pxStatus">
+            <option value="all">Todos os status</option>
+            <option value="priced">Precificados</option>
+            <option value="unquoted">Sem cotação</option>
+          </select>
+          <select>
+            <option>Todos os grupos</option>
+          </select>
+          <button type="button" class="px-clear" id="pxClear">Limpar filtros</button>
+        </div>
+
+        <div class="px-table-wrap">
+          <table class="px-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Descrição do item</th>
+                <th>Fornecedor</th>
+                <th>Preço da cotação</th>
+                <th>Custo total<br><small>(com impostos)</small></th>
+                <th>Margem %</th>
+                <th>Preço de venda<br><small>sugerido</small></th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="pxRows"></tbody>
+          </table>
+        </div>
+
+        <div class="px-footer">
+          <span id="pxCount"></span>
+          <div class="px-pages">
+            <span class="px-page">«</span>
+            <span class="px-page">‹</span>
+            <span class="px-page active">1</span>
+            <span class="px-page">2</span>
+            <span class="px-page">3</span>
+            <span class="px-page">…</span>
+            <span class="px-page">›</span>
+            <span class="px-page">»</span>
+          </div>
+          <span>Itens por página: 10</span>
+        </div>
+      </div>
+
+      <div class="px-sim-card">
+        <div class="px-sim-title">⚒ Simulador de lance</div>
+        <div class="px-sim-sub">
+          Simule um lance e veja imediatamente seu lucro, margem e até quanto pode baixar.
+        </div>
+
+        <label>
+          Item
+          <select id="pxSimItem">
+            ${items.map(i=>`<option value="${i.id}">${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('')}
+          </select>
+        </label>
+
+        <label>
+          Preço de venda atual (sugerido)
+          <span id="pxSuggested" class="px-suggested">—</span>
+        </label>
+
+        <label>
+          Seu lance pretendido (R$)
+          <input id="pxSimBid" type="number" step="0.0001" min="0" placeholder="0,00">
+        </label>
+
+        <div id="pxSimResult" class="px-sim-result">
+          <h4>Resultado da simulação</h4>
+          <div class="px-sim-row"><span>Lucro bruto</span><strong>—</strong></div>
+          <div class="px-sim-row"><span>Margem sobre venda</span><strong>—</strong></div>
+          <div class="px-sim-row"><span>Margem sobre custo</span><strong>—</strong></div>
+          <div class="px-sim-row"><span>Posição sugerida</span><strong>—</strong></div>
+        </div>
+
+        <div class="px-tip">
+          O cálculo considera impostos e custos conforme sua configuração de precificação.
+        </div>
+
+        <button type="button" class="px-sim-button" id="pxSimButton">Simular lance</button>
+      </div>
+    </div>
+  `;
+
+  const renderRows=()=>{
+    const q=quoteNormalize(shell.querySelector('#pxSearch')?.value||'');
+    const st=shell.querySelector('#pxStatus')?.value||'all';
+
+    const rows=items.filter(i=>{
+      const p=pricing(i);
+      if(q && !quoteNormalize(`ITEM ${i.numero} ${i.descricao}`).includes(q))return false;
+      if(st==='priced' && !p)return false;
+      if(st==='unquoted' && itemHasQuote(i.id))return false;
+      return true;
+    });
+
+    shell.querySelector('#pxRows').innerHTML=rows.slice(0,10).map(i=>{
+      const p=pricing(i);
+      const q=bestQuote(i.id);
+      const f=q?state.fornecedores.find(x=>String(x.id)===String(q.fornecedor_id)):null;
+      const status=p?.status || 'Sem cotação';
+      const cls=pricingStatusClass(status);
+
+      return `
+        <tr>
+          <td><span class="px-itemnum">${esc(i.numero)}</span></td>
+          <td>
+            <div class="px-item-title">${esc(i.descricao)}</div>
+            <div class="px-item-meta">
+              Qtd. ${esc(i.quantidade||'-')} ${esc(i.unidade||'')}
+              ${i.valor_estimado?` • Estimado ${money(i.valor_estimado)}`:''}
+            </div>
+          </td>
+          <td>${esc(f?.nome||'—')}</td>
+          <td>${q?`<span class="px-price">${money(q.preco||q.custoProduto||q.custoEq)}</span>`:'<span class="px-status neutral">Sem cotação</span>'}</td>
+          <td>${p?money(p.costUnit):'—'}</td>
+          <td>${p?`<input class="px-margin-input" value="${Number(state.config?.margem_alvo||25)}">`:'—'}</td>
+          <td>${p?`<span class="px-sale">${money(p.targetUnit||0)}</span>`:'—'}</td>
+          <td><span class="px-status ${cls}">${esc(status==='Excelente'?'Precificado':status)}</span></td>
+          <td><button type="button" class="px-action">${p?'Editar':'Cotação'}</button></td>
+        </tr>
+      `;
+    }).join('');
+
+    shell.querySelector('#pxCount').textContent=`Mostrando ${Math.min(rows.length,10)} de ${rows.length} itens`;
+  };
+
+  const updateSim=()=>{
+    const itemId=shell.querySelector('#pxSimItem')?.value;
+    const bid=Number(shell.querySelector('#pxSimBid')?.value||0);
+    const item=items.find(i=>String(i.id)===String(itemId));
+    const p=item?pricing(item):null;
+
+    shell.querySelector('#pxSuggested').textContent=p?.targetUnit?money(p.targetUnit):'—';
+
+    const box=shell.querySelector('#pxSimResult');
+    if(!item || !p || !p.costUnit){
+      box.innerHTML=`
+        <h4>Resultado da simulação</h4>
+        <div class="px-sim-row"><span>Status</span><strong>Sem cotação salva</strong></div>
+      `;
+      return;
+    }
+
+    if(!bid){
+      box.innerHTML=`
+        <h4>Resultado da simulação</h4>
+        <div class="px-sim-row"><span>Informe um lance</span><strong>—</strong></div>
+      `;
+      return;
+    }
+
+    const qty=Math.max(Number(item.quantidade||1),1);
+    const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0))/100;
+    const profitUnit=bid*(1-overhead)-Number(p.costUnit||0);
+    const profit=profitUnit*qty;
+    const marginSale=bid?profitUnit/bid*100:0;
+    const marginCost=p.costUnit?profitUnit/p.costUnit*100:0;
+    const position=bid>=Number(p.targetUnit||0)?'Competitivo':bid>=Number(p.limitUnit||0)?'Atenção':'Abaixo do mínimo';
+
+    box.innerHTML=`
+      <h4>Resultado da simulação</h4>
+      <div class="px-sim-row"><span>Lucro bruto</span><strong>${money(profit)}</strong></div>
+      <div class="px-sim-row"><span>Margem sobre venda</span><strong>${marginSale.toFixed(2).replace('.',',')}%</strong></div>
+      <div class="px-sim-row"><span>Margem sobre custo</span><strong>${marginCost.toFixed(2).replace('.',',')}%</strong></div>
+      <div class="px-sim-row"><span>Posição sugerida</span><strong>${position}</strong></div>
+    `;
+  };
+
+  shell.querySelector('#pxSearch')?.addEventListener('input',renderRows);
+  shell.querySelector('#pxStatus')?.addEventListener('change',renderRows);
+  shell.querySelector('#pxClear')?.addEventListener('click',()=>{
+    shell.querySelector('#pxSearch').value='';
+    shell.querySelector('#pxStatus').value='all';
+    renderRows();
+  });
+  shell.querySelector('#pxGoQuotes')?.addEventListener('click',()=>{
+    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+  });
+  shell.querySelector('#pxSimItem')?.addEventListener('change',updateSim);
+  shell.querySelector('#pxSimBid')?.addEventListener('input',updateSim);
+  shell.querySelector('#pxSimButton')?.addEventListener('click',updateSim);
+
+  renderRows();
+  updateSim();
+}
+
 function renderPricingByTender(){
+  renderPricingExactModel();
+  return;
+
   ensurePricingModernStyles();
+  ensurePricingWorkspace();
   const list=$('#precificacaoLista');
   if(!list)return;
 
