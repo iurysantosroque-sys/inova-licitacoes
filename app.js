@@ -1,4 +1,4 @@
-const createClient = window.supabase?.createClient;
+import { createClient } from '@supabase/supabase-js';
 
 const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
