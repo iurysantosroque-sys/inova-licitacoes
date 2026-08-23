@@ -1,1 +1,2 @@
 INOVA Licitações V1 Online - correção de inicialização Supabase - v3.0
+Teste de integração GitHub + Vercel
