@@ -1,4 +1,6 @@
-INOVA V34.0
-Precificação com margem flexível por item.
-Cada item pode usar Automático, Margem % ou Lucro R$.
-Mostra margem atual, lucro estimado e preço sugerido.
+INOVA V34.1
+Corrige status da precificação conforme modo escolhido.
+Margem -> compara margem.
+Lucro R$ -> compara lucro.
+Automático -> aceita atingir margem OU lucro.
+Limita margem inválida para evitar preço sugerido absurdo.

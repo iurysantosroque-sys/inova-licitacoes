@@ -3607,7 +3607,20 @@ function ensurePricingExactModelStyles(){
       min-width:310px;
     }
 
-    .px-target-box select,
+    
+    .px-target-box input.is-inactive{
+      opacity:.38;
+      pointer-events:none;
+    }
+
+    .px-target-warning{
+      margin-top:4px;
+      color:#ffcc55;
+      font-size:.61rem;
+      line-height:1.3;
+    }
+
+.px-target-box select,
     .px-target-box input{
       height:36px;
       border:1px solid #2e4856;
@@ -3892,12 +3905,15 @@ function calcPricingByFlexibleTarget(item,p){
       ? globalProfit
       : Number(target.profit);
 
-  desiredMargin=Math.max(0,desiredMargin);
+  // Margem sobre venda precisa ficar abaixo de 100% menos encargos.
+  // Evita preços absurdos quando alguém digita, por exemplo, 600 no campo de margem.
+  const maxMargin=Math.max(0,(1-overhead)*100-0.5);
+  desiredMargin=Math.min(Math.max(0,desiredMargin),maxMargin);
   desiredProfit=Math.max(0,desiredProfit);
 
   const priceByMargin=
     costUnit/
-    Math.max(1-overhead-(desiredMargin/100),0.01);
+    Math.max(1-overhead-(desiredMargin/100),0.005);
 
   const priceByProfit=
     (costUnit+(desiredProfit/qty))/
@@ -3956,15 +3972,41 @@ function calcPricingByFlexibleTarget(item,p){
 
 function pricingProfitBadge(info){
   if(!info)return '';
-  if(info.profitEstimated==null)return '<span class="px-status neutral">Sem estimado</span>';
+  if(info.profitEstimated==null){
+    return '<span class="px-status neutral">Sem estimado</span>';
+  }
 
-  if(info.profitEstimated>=info.desiredProfit && info.profitEstimated>0){
-    return '<span class="px-status good">Lucro ok</span>';
+  const profit=Number(info.profitEstimated||0);
+  const margin=Number(info.marginEstimated||0);
+  const mode=info.usedMode||info.target?.mode||'auto';
+
+  if(profit<0){
+    return '<span class="px-status bad">Prejuízo</span>';
   }
-  if(info.profitEstimated>0){
-    return '<span class="px-status warn">Lucro baixo</span>';
+
+  if(mode==='margin'){
+    if(margin>=Number(info.desiredMargin||0)){
+      return '<span class="px-status good">Meta atingida</span>';
+    }
+    return '<span class="px-status warn">Abaixo da margem</span>';
   }
-  return '<span class="px-status bad">Prejuízo</span>';
+
+  if(mode==='profit'){
+    if(profit>=Number(info.desiredProfit||0)){
+      return '<span class="px-status good">Meta atingida</span>';
+    }
+    return '<span class="px-status warn">Abaixo do lucro</span>';
+  }
+
+  // AUTO: basta atingir uma das metas para ser considerado adequado.
+  const marginOk=margin>=Number(info.desiredMargin||0);
+  const profitOk=profit>=Number(info.desiredProfit||0);
+
+  if(marginOk || profitOk){
+    return '<span class="px-status good">Meta atingida</span>';
+  }
+
+  return '<span class="px-status warn">Abaixo da meta</span>';
 }
 
 function renderPricingExactModel(){
@@ -4244,8 +4286,10 @@ function renderPricingExactModel(){
 
                      <input
                        data-px-target-margin="${i.id}"
+                       class="${target?.mode==='profit'?'is-inactive':''}"
                        type="number"
                        min="0"
+                       max="90"
                        step="0.1"
                        value="${target?.margin??''}"
                        placeholder="${Number(state.config?.margem_alvo||25)}%"
@@ -4254,6 +4298,7 @@ function renderPricingExactModel(){
 
                      <input
                        data-px-target-profit="${i.id}"
+                       class="${target?.mode==='margin'?'is-inactive':''}"
                        type="number"
                        min="0"
                        step="0.01"
@@ -4262,7 +4307,15 @@ function renderPricingExactModel(){
                        title="Lucro total desejado para este item"
                      >
                    </div>
-                   <div class="px-help">Auto pode aceitar margem menor quando o lucro em R$ já for suficiente.</div>`
+                   <div class="px-help">
+                     ${
+                       target?.mode==='margin'
+                         ? 'Status compara a margem atual com a margem definida.'
+                         : target?.mode==='profit'
+                           ? 'Status compara o lucro atual com o lucro em R$ definido.'
+                           : 'Automático aprova se atingir a margem OU o lucro em R$.'
+                     }
+                   </div>`
                 : '—'
             }
           </td>
@@ -4300,21 +4353,29 @@ function renderPricingExactModel(){
     });
 
     shell.querySelectorAll('[data-px-target-margin]').forEach(el=>{
-      el.addEventListener('change',()=>{
+      const saveMargin=()=>{
         const t=getPricingTarget(el.dataset.pxTargetMargin);
-        t.margin=el.value===''?null:Number(el.value);
+        let v=el.value===''?null:Number(el.value);
+        if(v!=null && Number.isFinite(v)){
+          v=Math.max(0,Math.min(90,v));
+        }
+        t.margin=v;
         renderRows();
         updateSim();
-      });
+      };
+      el.addEventListener('change',saveMargin);
     });
 
     shell.querySelectorAll('[data-px-target-profit]').forEach(el=>{
-      el.addEventListener('change',()=>{
+      const saveProfit=()=>{
         const t=getPricingTarget(el.dataset.pxTargetProfit);
-        t.profit=el.value===''?null:Number(el.value);
+        let v=el.value===''?null:Number(el.value);
+        if(v!=null && Number.isFinite(v))v=Math.max(0,v);
+        t.profit=v;
         renderRows();
         updateSim();
-      });
+      };
+      el.addEventListener('change',saveProfit);
     });
 
     shell.querySelector('#pxCount').textContent=`Mostrando ${Math.min(rows.length,10)} de ${rows.length} itens`;
