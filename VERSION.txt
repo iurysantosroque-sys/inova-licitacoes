@@ -1,10 +1,4 @@
-INOVA V36.0
-Nova área Custos & Impostos:
-- Imposto sobre venda (%)
-- Reserva operacional (%)
-- Frete fixo (R$)
-- Gasolina (R$)
-- Outros impostos/taxas (%)
-- Configurações persistidas no navegador
-- Atalho na Precificação
-- Impostos continuam incidindo sobre venda
+INOVA V36.1
+Correção:
+- Após salvar Custos & Impostos, retorna automaticamente para Precificação.
+- Adicionado botão "Voltar para Precificação".

@@ -4062,9 +4062,15 @@ function renderCostSettings(){
   root.innerHTML=`
     ${typeof renderTopNav==='function'?renderTopNav('costs'):''}
     <main style="max-width:1450px;margin:0 auto;padding:28px 30px;color:#eef3f6">
-      <div style="margin-bottom:22px">
-        <h1 style="margin:0;font-size:30px">Custos & Impostos</h1>
-        <p style="color:#8fa0aa;margin-top:7px">Edite os custos usados na precificação. As alterações ficam disponíveis para os cálculos do sistema.</p>
+      <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px">
+        <div>
+          <h1 style="margin:0;font-size:30px">Custos & Impostos</h1>
+          <p style="color:#8fa0aa;margin-top:7px">Edite os custos usados na precificação. As alterações ficam disponíveis para os cálculos do sistema.</p>
+        </div>
+        <button id="backToPricing" type="button"
+          style="height:40px;border:1px solid #2a4350;border-radius:8px;background:#071720;color:#e8eef2;padding:0 14px;font-weight:750;cursor:pointer">
+          ← Voltar para Precificação
+        </button>
       </div>
 
       <section style="border:1px solid #203744;background:#071720;border-radius:14px;padding:22px">
@@ -4089,6 +4095,12 @@ function renderCostSettings(){
       </section>
     </main>`;
 
+  root.querySelector('#backToPricing')?.addEventListener('click',()=>{
+    const pricingTab=document.querySelector('#mainTabs [data-tab="precificacao"]');
+    if(pricingTab) pricingTab.click();
+    else if(typeof renderPricingExactModel==='function') renderPricingExactModel();
+  });
+
   root.querySelector('#saveCostSettings')?.addEventListener('click',()=>{
     const n=id=>Math.max(0,Number(root.querySelector('#'+id)?.value||0));
     state.config ||= {};
@@ -4099,7 +4111,16 @@ function renderCostSettings(){
     state.costConfig.gasolina=n('cfg-gas');
     state.costConfig.outros_impostos=n('cfg-other-tax');
     try{ localStorage.setItem('inova_cost_config',JSON.stringify(state.costConfig)); }catch(e){}
+
     alert('Custos e impostos atualizados.');
+
+    // Volta automaticamente para a aba Precificação após salvar.
+    const pricingTab=document.querySelector('#mainTabs [data-tab="precificacao"]');
+    if(pricingTab){
+      pricingTab.click();
+    }else if(typeof renderPricingExactModel==='function'){
+      renderPricingExactModel();
+    }
   });
 }
 
