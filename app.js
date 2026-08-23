@@ -1033,44 +1033,109 @@ function groupPdfTextItems(items){
 
 function rowsFromPdfLines(lines){
   const out=[];
-  const unitRx='(?:UN|UND|PC|PÇ|PCA|RL|SC|CT|KG|MT|M|M2|M3|BD|GL|PA|PT|CX|FD|LT|L)';
-  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2}';
 
-  for(const original of lines){
-    let line=String(original||'').replace(/\s+/g,' ').trim();
-    if(!line)continue;
+  // Unidades mais comuns em cotações de materiais.
+  const unitRx='(?:UN|UND|UNID|PC|PÇ|PCA|PCT|RL|ROLO|SC|SACO|CT|KG|G|MT|M|M2|M3|BD|BALDE|GL|GALAO|GALÃO|PA|PT|CX|CAIXA|FD|FARDO|LT|L|ML|JG|JOGO|KIT|PAR|PR|DZ|DUZIA|DUZIA)';
+  const brMoney='(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2,4}';
 
-    // Ignora cabeçalhos, rodapés e totais.
-    if(/^(CODIGO|CÓDIGO|DESCRIÇÃO|DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|CONDIÇÕES|VALIDADE|PRAZO|GARANTIA|OBSERVAÇÕES|OBSERVACOES)/i.test(line))continue;
-    if(/\bSUB-?TOTAL\b|\bTOTAL\s*:/i.test(line))continue;
+  function ignoreLine(line){
+    const s=quoteNormalize(line);
 
-    // Estrutura mais comum da cotação:
-    // CODIGO | DESCRICAO | UN | QTD | PRECO UNITARIO | SUBTOTAL
-    const rx=new RegExp(
-      '^\\s*(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')\\s*$',
+    if(!s)return true;
+
+    // Cabeçalhos e informações administrativas.
+    if(
+      /^(CODIGO|COD |DESCRICAO|VENDEDOR|CLIENTE|CONDICOES|VALIDADE|PRAZO|GARANTIA|OBSERVACOES|ORCAMENTO|PAGINA|TELEFONE|EMAIL|ENDERECO|CNPJ)/.test(s)
+    ){
+      return true;
+    }
+
+    // Totais da cotação.
+    if(
+      /\bSUB-?TOTAL\b/.test(s) ||
+      /^TOTAL\b/.test(s) ||
+      /^TOTAL\s*:/.test(s)
+    ){
+      return true;
+    }
+
+    return false;
+  }
+
+  function parseProductLine(line){
+    line=String(line||'')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    if(!line || ignoreLine(line))return null;
+
+    /*
+      Formato principal:
+      CODIGO DESCRICAO UN QTD PRECO SUBTOTAL
+
+      Agora o código pode ter mais variações e o preço
+      pode possuir até 4 casas decimais.
+    */
+    let rx=new RegExp(
+      '^\\s*([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+brMoney+')\\s+(?:R\\$\\s*)?('+brMoney+')\\s*$',
       'i'
     );
-    const m=line.match(rx);
-    if(!m)continue;
 
-    const code=m[1];
-    let description=m[2].trim();
-    const unit=m[3].toUpperCase();
+    let m=line.match(rx);
+
+    /*
+      Segunda tentativa:
+      alguns PDFs extraem a unidade grudada ou com espaços
+      ligeiramente diferentes.
+    */
+    if(!m){
+      rx=new RegExp(
+        '^\\s*([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+('+brMoney+')\\s+('+brMoney+')',
+        'i'
+      );
+
+      m=line.match(rx);
+    }
+
+    if(!m)return null;
+
+    const code=String(m[1]||'').trim();
+
+    let description=String(m[2]||'')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    const unit=String(m[3]||'')
+      .trim()
+      .toUpperCase();
+
     const quantity=parseBrazilianNumber(m[4]);
     const unitPrice=parseBrazilianNumber(m[5]);
     const subtotal=parseBrazilianNumber(m[6]);
 
-    if(!description || unitPrice==null || unitPrice<=0)continue;
-
-    // Separa a marca quando ela aparece após " - " no fim da descrição.
-    let brand='';
-    const brandMatch=description.match(/\s+-\s+([A-Z0-9][A-Z0-9 .&/'-]{1,40})$/i);
-    if(brandMatch){
-      brand=brandMatch[1].trim();
-      description=description.slice(0,brandMatch.index).trim();
+    if(
+      !description ||
+      unitPrice==null ||
+      unitPrice<=0
+    ){
+      return null;
     }
 
-    out.push({
+    let brand='';
+
+    // Marca depois de " - ".
+    const brandMatch=description.match(
+      /\s+-\s+([A-Z0-9][A-Z0-9 .&/'()-]{1,50})$/i
+    );
+
+    if(brandMatch){
+      brand=brandMatch[1].trim();
+      description=description
+        .slice(0,brandMatch.index)
+        .trim();
+    }
+
+    return {
       code,
       description,
       quantity,
@@ -1081,13 +1146,108 @@ function rowsFromPdfLines(lines){
       presentation:'',
       factor:1,
       selected:true
-    });
+    };
   }
 
+  /*
+    Primeiro tentamos cada linha exatamente como o PDF entregou.
+  */
+  for(let i=0;i<lines.length;i++){
+    const current=String(lines[i]||'')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    if(!current)continue;
+
+    let product=parseProductLine(current);
+
+    if(product){
+      out.push(product);
+      continue;
+    }
+
+    /*
+      IMPORTANTE:
+      Alguns PDFs quebram um produto em duas linhas.
+
+      Exemplo:
+
+      12345 TUBO PVC SOLDAVEL
+      25MM TIGRE UN 100 10,50 1.050,00
+
+      O parser antigo perdia esse produto.
+
+      Agora juntamos linhas consecutivas e tentamos novamente.
+    */
+    if(i+1<lines.length){
+      const next=String(lines[i+1]||'')
+        .replace(/\s+/g,' ')
+        .trim();
+
+      if(next && !ignoreLine(next)){
+        product=parseProductLine(
+          `${current} ${next}`
+        );
+
+        if(product){
+          out.push(product);
+          i++;
+          continue;
+        }
+      }
+    }
+
+    /*
+      Alguns PDFs quebram uma descrição longa em três linhas.
+    */
+    if(i+2<lines.length){
+      const next=String(lines[i+1]||'')
+        .replace(/\s+/g,' ')
+        .trim();
+
+      const next2=String(lines[i+2]||'')
+        .replace(/\s+/g,' ')
+        .trim();
+
+      if(
+        next &&
+        next2 &&
+        !ignoreLine(next) &&
+        !ignoreLine(next2)
+      ){
+        product=parseProductLine(
+          `${current} ${next} ${next2}`
+        );
+
+        if(product){
+          out.push(product);
+          i+=2;
+        }
+      }
+    }
+  }
+
+  /*
+    Remove somente duplicatas reais.
+
+    Código + descrição + quantidade + preço + subtotal
+    precisam ser iguais para considerar duplicado.
+  */
   const seen=new Set();
+
   return out.filter(r=>{
-    const key=`${r.code}|${quoteNormalize(r.description)}|${r.price}`;
-    if(seen.has(key))return false;
+    const key=[
+      quoteNormalize(r.code),
+      quoteNormalize(r.description),
+      Number(r.quantity||0),
+      Number(r.price||0).toFixed(4),
+      Number(r.subtotal||0).toFixed(2)
+    ].join('|');
+
+    if(seen.has(key)){
+      return false;
+    }
+
     seen.add(key);
     return true;
   }).slice(0,2000);
