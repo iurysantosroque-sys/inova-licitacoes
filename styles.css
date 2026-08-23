@@ -393,3 +393,170 @@ tr:hover td{background:rgba(211,154,60,.035)}
   .top-actions .user-pill span{display:none}
   .tabs .nav-icon{display:none}
 }
+
+
+/* =========================================================
+   INOVA LICITAÇÕES V8.1 — CLEAN / SEM SOMBRAS
+   Referência visual aprovada: opção 1
+   ========================================================= */
+
+:root{
+  --dark:#070d11;
+  --dark-2:#0a1116;
+  --dark-3:#0d151a;
+  --panel:#0d1418;
+  --panel-2:#10181d;
+  --panel-soft:#111a20;
+  --line:#30383d;
+  --line-gold:rgba(218,164,62,.48);
+  --gold:#e0a83e;
+  --gold-2:#c68c2c;
+  --gold-soft:rgba(224,168,62,.08);
+  --text:#f3f3f1;
+  --muted:#b7bdc1;
+  --shadow:none;
+}
+
+/* Fundo liso */
+html,body{background:#070d11!important}
+body{background:#070d11!important}
+
+/* Remove todas as sombras do sistema */
+.topbar,.tabs,.card,.panel,.auth-card,.toast,
+button,.segmented button.active,.bid-decision,.sim-card.highlight,
+.system-dot,input:focus,select:focus,textarea:focus{
+  box-shadow:none!important;
+  filter:none!important;
+}
+
+/* Cabeçalho limpo */
+.topbar{
+  background:#070d11!important;
+  border-bottom:1px solid rgba(224,168,62,.35)!important;
+}
+.brand-logo{
+  width:64px!important;
+  height:64px!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  border-radius:0!important;
+  filter:none!important;
+}
+.brand-copy h1{
+  color:var(--gold)!important;
+  font-family:Georgia,"Times New Roman",serif!important;
+  font-size:1.42rem!important;
+  letter-spacing:.02em!important;
+}
+.brand-copy p{
+  color:#d7d7d4!important;
+  font-size:.70rem!important;
+}
+
+/* Navegação */
+.tabs{
+  background:#080f13!important;
+  border-bottom:1px solid rgba(224,168,62,.25)!important;
+}
+.tabs button{background:transparent!important;color:#d5d9db!important}
+.tabs button:hover{background:rgba(224,168,62,.04)!important;color:var(--gold)!important}
+.tabs button.active{
+  background:rgba(224,168,62,.08)!important;
+  color:var(--gold)!important;
+  border-bottom-color:var(--gold)!important;
+}
+
+/* Cartões e painéis: sólidos, sem degradê e sem sombra */
+.card,.panel,.panel-soft,.opp,.mini-stat,.guide-grid>div,.sim-card,
+.pricing-guide,.simulator-panel{
+  background:#0d151a!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+.card,.panel{
+  border:1px solid #30383d!important;
+}
+.panel{border-color:rgba(224,168,62,.34)!important}
+.card:after{
+  background:var(--gold)!important;
+  opacity:.9;
+  height:2px!important;
+}
+.panel-title h2,.panel>h2{color:var(--gold)!important}
+
+/* Formulários */
+input,select,textarea{
+  background:#091116!important;
+  border:1px solid #394249!important;
+  color:#f4f4f1!important;
+  box-shadow:none!important;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--gold)!important;
+  outline:1px solid var(--gold)!important;
+  outline-offset:0!important;
+  box-shadow:none!important;
+}
+
+/* Botões sem gradiente/sombra */
+button{
+  background:var(--gold)!important;
+  background-image:none!important;
+  color:#11161a!important;
+  border:1px solid var(--gold)!important;
+  box-shadow:none!important;
+}
+button.secondary{
+  background:#0c151a!important;
+  color:var(--gold)!important;
+  border:1px solid rgba(224,168,62,.48)!important;
+}
+.link-btn{
+  background:transparent!important;
+  border:0!important;
+  color:var(--gold)!important;
+}
+.user-pill{
+  background:#0b1318!important;
+  border:1px solid #30383d!important;
+  box-shadow:none!important;
+}
+
+/* Tabelas */
+th{background:#0a1217!important}
+tr:hover td{background:rgba(224,168,62,.025)!important}
+
+/* Simulador sem degradês */
+.bid-decision.good{background:#0d2114!important}
+.bid-decision.warn{background:#241c0c!important}
+.bid-decision.bad{background:#25100f!important}
+.sim-card.highlight{background:#10191e!important}
+
+/* Logo nas telas de acesso */
+.auth-shell{background:#070d11!important}
+.auth-card{background:#0d151a!important}
+.auth-logo{
+  width:116px!important;
+  height:116px!important;
+  object-fit:cover!important;
+  border-radius:0!important;
+  filter:none!important;
+}
+
+/* Rodapé */
+.app-footer{
+  background:#070d11!important;
+  box-shadow:none!important;
+}
+.footer-brand img{
+  width:54px!important;
+  height:54px!important;
+  object-fit:cover!important;
+  filter:none!important;
+}
+.system-dot{box-shadow:none!important}
+
+/* Responsivo */
+@media(max-width:900px){
+  .brand-logo{width:52px!important;height:52px!important}
+}
