@@ -173,6 +173,10 @@ async function searchPublished(query:string,year:number,uf:string,deadline:numbe
         }
       }
     }
+    // Uma busca por número de edital já é precisa. Depois de consultar todas as
+    // modalidades da janela que encontrou resultados, não há motivo para varrer
+    // as demais datas do ano e manter o usuário esperando.
+    if(parsed&&results.length){partial=true;break}
     if(start.getTime()===yearStart.getTime()){reachedYearStart=true;break}
     end=new Date(start.getTime()-86_400_000)
   }
