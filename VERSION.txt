@@ -1,7 +1,8 @@
-INOVA V36.8
+INOVA V36.9.1
 
 - Formulários manuais e modo demonstração funcionais.
-- Precificação com custos, metas, persistência e exportação.
+- Precificação simplificada com slider, metas, limites e resultado em tempo real.
 - Associação por IA com validação e revisão humana.
 - Upload privado validado e PWA com cache atualizável.
 - Schema, hardening e Edge Functions atuais versionados.
+

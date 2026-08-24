@@ -1,1 +1,2 @@
-36.8 - Fluxos integrados, precificação persistente, IA revisável, PWA e backend versionado.
+36.9.1 - Precificação simplificada com simulador visual de preço, metas e decisão em tempo real.
+

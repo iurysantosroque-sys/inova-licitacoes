@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteViewTenderId:'', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
@@ -3949,6 +3949,357 @@ function ensurePricingExactModelStyles(){
       cursor:pointer;
     }
 
+    /* Modelo 36.9: a simulação é a decisão principal; a tabela é um resumo. */
+    .px-head-actions{
+      display:flex;
+      gap:9px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .px-title-line{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .px-title-line .px-action,
+    .px-head-actions button,
+    .px-context-action,
+    .px-clear{
+      min-height:44px;
+    }
+
+    .px-main{
+      grid-template-columns:minmax(0,1fr);
+      gap:15px;
+    }
+
+    .px-sim-card{
+      position:static;
+      padding:20px;
+      overflow:visible;
+      border-color:#315160;
+      background:linear-gradient(145deg,#0a1c26 0%,#081720 58%,#091c18 100%);
+    }
+
+    .px-sim-head{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      align-items:flex-start;
+      margin-bottom:16px;
+    }
+
+    .px-sim-title{
+      margin:0 0 5px;
+      font-size:1.25rem;
+    }
+
+    .px-sim-sub{
+      max-width:720px;
+      margin:0;
+      font-size:.8rem;
+    }
+
+    .px-session-note{
+      max-width:250px;
+      color:#9fb0ba;
+      font-size:.7rem;
+      line-height:1.4;
+      text-align:right;
+    }
+
+    .px-sim-controls{
+      display:grid;
+      grid-template-columns:minmax(230px,1.5fr) minmax(160px,.7fr) minmax(180px,.8fr);
+      gap:12px;
+      align-items:end;
+    }
+
+    .px-sim-controls label,
+    .px-target-editor label{
+      margin:0;
+      font-weight:700;
+    }
+
+    .px-sim-card select,
+    .px-sim-card input[type="number"]{
+      min-height:44px;
+      height:44px;
+      font-size:.86rem;
+    }
+
+    .px-target-editor{
+      min-width:0;
+    }
+
+    .px-target-auto{
+      min-height:44px;
+      display:flex;
+      align-items:center;
+      padding:0 11px;
+      border:1px solid #2e4856;
+      border-radius:7px;
+      background:#06141c;
+      color:#b9c7cf;
+      font-size:.72rem;
+      line-height:1.35;
+    }
+
+    .px-slider-area{
+      margin-top:18px;
+      padding:18px;
+      border:1px solid #284451;
+      border-radius:12px;
+      background:#06141c;
+    }
+
+    .px-slider-top{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-end;
+      margin-bottom:10px;
+    }
+
+    .px-slider-top span{
+      color:#9eacb5;
+      font-size:.72rem;
+    }
+
+    .px-slider-top strong{
+      color:#fff;
+      font-size:1.45rem;
+    }
+
+    .px-range-shell{
+      position:relative;
+      padding:9px 0 4px;
+    }
+
+    .px-price-range{
+      appearance:none;
+      -webkit-appearance:none;
+      width:100%;
+      height:48px !important;
+      margin:0 !important;
+      padding:0 !important;
+      border:0 !important;
+      background:transparent !important;
+      cursor:pointer;
+    }
+
+    .px-price-range::-webkit-slider-runnable-track{
+      height:12px;
+      border-radius:999px;
+      background:linear-gradient(90deg,
+        #b74845 0 var(--break-pos),
+        #d88f2d var(--break-pos) var(--stop-pos),
+        #3185bd var(--stop-pos) var(--target-pos),
+        #2aa766 var(--target-pos) 100%);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+    }
+
+    .px-price-range::-moz-range-track{
+      height:12px;
+      border-radius:999px;
+      background:linear-gradient(90deg,
+        #b74845 0 var(--break-pos),
+        #d88f2d var(--break-pos) var(--stop-pos),
+        #3185bd var(--stop-pos) var(--target-pos),
+        #2aa766 var(--target-pos) 100%);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+    }
+
+    .px-price-range::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:30px;
+      height:30px;
+      margin-top:-9px;
+      border:4px solid #f7c34b;
+      border-radius:50%;
+      background:#fff;
+      box-shadow:0 0 0 4px rgba(247,195,75,.18),0 4px 12px rgba(0,0,0,.45);
+    }
+
+    .px-price-range::-moz-range-thumb{
+      width:24px;
+      height:24px;
+      border:4px solid #f7c34b;
+      border-radius:50%;
+      background:#fff;
+      box-shadow:0 0 0 4px rgba(247,195,75,.18),0 4px 12px rgba(0,0,0,.45);
+    }
+
+    .px-price-range:disabled{
+      cursor:not-allowed;
+      opacity:.45;
+    }
+
+    .px-track-markers{
+      position:absolute;
+      inset:10px 0 auto;
+      height:14px;
+      pointer-events:none;
+    }
+
+    .px-track-marker{
+      position:absolute;
+      left:var(--marker-pos);
+      top:0;
+      width:2px;
+      height:14px;
+      background:#fff;
+      opacity:.78;
+      transform:translateX(-1px);
+    }
+
+    .px-marker-legend{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:8px;
+      margin-top:8px;
+    }
+
+    .px-marker-label{
+      display:flex;
+      gap:7px;
+      align-items:flex-start;
+      min-width:0;
+      padding:8px 9px;
+      border:1px solid #263e4b;
+      border-radius:8px;
+      color:#aebbc3;
+      font-size:.67rem;
+      line-height:1.3;
+    }
+
+    .px-marker-label i{
+      flex:0 0 9px;
+      width:9px;
+      height:9px;
+      margin-top:2px;
+      border-radius:50%;
+      background:var(--marker-color);
+    }
+
+    .px-marker-label b,
+    .px-marker-label small{
+      display:block;
+    }
+
+    .px-marker-label b{color:#edf3f6}
+    .px-marker-label small{margin-top:2px;color:#91a2ac}
+
+    .px-sim-result{
+      margin:16px 0 0;
+      padding:16px;
+      border-color:#294653;
+      background:#081a22;
+    }
+
+    .px-sim-result.good{border-color:#1d7045;background:#09231a}
+    .px-sim-result.warn{border-color:#806622;background:#29220e}
+    .px-sim-result.bad{border-color:#863c39;background:#291313}
+    .px-sim-result.neutral{border-color:#394d58;background:#101c22}
+
+    .px-decision{
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      padding-bottom:12px;
+      margin-bottom:12px;
+      border-bottom:1px solid rgba(255,255,255,.1);
+    }
+
+    .px-decision strong{
+      display:block;
+      color:#f4f7f8;
+      font-size:.95rem;
+      margin-bottom:4px;
+    }
+
+    .px-decision span{
+      color:#b6c3ca;
+      font-size:.72rem;
+      line-height:1.4;
+    }
+
+    .px-result-grid{
+      display:grid;
+      grid-template-columns:repeat(6,minmax(110px,1fr));
+      gap:9px;
+    }
+
+    .px-result-stat{
+      min-width:0;
+      padding:10px;
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:8px;
+      background:rgba(4,14,19,.38);
+    }
+
+    .px-result-stat span,
+    .px-result-stat small{
+      display:block;
+      color:#99aab4;
+      font-size:.65rem;
+      line-height:1.3;
+    }
+
+    .px-result-stat strong{
+      display:block;
+      margin:4px 0 2px;
+      color:#f2f6f8;
+      font-size:.86rem;
+      word-break:break-word;
+    }
+
+    .px-validation,
+    .px-no-quote{
+      padding:14px;
+      border:1px solid #70423d;
+      border-radius:9px;
+      background:#231514;
+      color:#ffc0bb;
+      font-size:.76rem;
+      line-height:1.5;
+    }
+
+    .px-no-quote .px-action{margin-top:10px}
+
+    .px-table-card{overflow:hidden}
+    .px-table-wrap{max-height:620px}
+    .px-table{min-width:850px}
+    .px-filters{grid-template-columns:minmax(220px,1fr) 190px auto}
+    .px-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .px-actions .px-action{min-height:40px}
+    .px-action.primary{border-color:#9a7420;color:#ffd363;background:#2a210d}
+    .px-price-pair{display:grid;gap:5px;min-width:130px}
+    .px-price-pair div{display:flex;justify-content:space-between;gap:8px}
+    .px-price-pair small{color:#8fa0aa}
+    .px-price-pair strong{font-size:.72rem;color:#ecf2f5}
+
+    .pricing-exact-shell :is(button,input,select):focus-visible{
+      outline:3px solid #67b7ff;
+      outline-offset:2px;
+    }
+
+    .px-live-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
     @media(max-width:1250px){
       #precificacao.pricing-exact.tab.active{grid-template-columns:minmax(0,1fr)}
       #precificacao.pricing-exact .pricing-side{display:none}
@@ -3961,6 +4312,73 @@ function ensurePricingExactModelStyles(){
       .px-main{grid-template-columns:1fr}
       .px-sim-card{position:static}
       .px-kpis{grid-template-columns:repeat(2,1fr)}
+      .px-result-grid{grid-template-columns:repeat(3,minmax(110px,1fr))}
+    }
+
+    @media(max-width:768px){
+      .pricing-exact-shell{padding:14px 10px 22px}
+      .px-head,.px-sim-head{flex-direction:column;align-items:stretch}
+      .px-head-actions{justify-content:stretch}
+      .px-head-actions button{flex:1 1 150px}
+      .px-context{grid-template-columns:1fr 1fr;gap:12px;padding:14px}
+      .px-context-item{padding:0;border:0}
+      .px-context-action{grid-column:1/-1;width:100%}
+      .px-sim-controls{grid-template-columns:1fr 1fr}
+      .px-sim-controls > :first-child{grid-column:1/-1}
+      .px-session-note{text-align:left;max-width:none}
+      .px-marker-legend{grid-template-columns:1fr 1fr}
+      .px-filters{grid-template-columns:1fr 160px auto}
+    }
+
+    @media(max-width:620px){
+      .px-title h1{font-size:1.5rem}
+      .px-kpis{grid-template-columns:1fr 1fr}
+      .px-kpi{min-height:82px;padding:12px}
+      .px-context{grid-template-columns:1fr}
+      .px-context-action{grid-column:auto}
+      .px-sim-card{padding:14px}
+      .px-sim-controls{grid-template-columns:1fr}
+      .px-sim-controls > :first-child{grid-column:auto}
+      .px-slider-area{padding:14px 10px}
+      .px-slider-top strong{font-size:1.2rem}
+      .px-result-grid{grid-template-columns:1fr 1fr}
+      .px-filters{grid-template-columns:1fr;padding:12px}
+      .px-filters input,.px-filters select,.px-clear{width:100%;min-height:44px}
+
+      .px-table-wrap{max-height:none;overflow:visible;padding:10px}
+      .px-table,.px-table tbody,.px-table tr,.px-table td{display:block;width:100%;min-width:0}
+      .px-table thead{display:none}
+      .px-table tr{
+        margin-bottom:10px;
+        border:1px solid #29434f;
+        border-radius:10px;
+        overflow:hidden;
+        background:#091821;
+      }
+      .px-table td{
+        display:grid;
+        grid-template-columns:minmax(94px,34%) minmax(0,1fr);
+        gap:10px;
+        align-items:start;
+        padding:10px;
+      }
+      .px-table td::before{
+        content:attr(data-label);
+        color:#8fa0aa;
+        font-size:.65rem;
+        font-weight:750;
+        text-transform:uppercase;
+      }
+      .px-table td:first-child{background:#0c2029}
+      .px-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
+      .px-actions .px-action{height:44px;white-space:normal}
+      .px-footer{align-items:flex-start;flex-direction:column}
+    }
+
+    @media(max-width:360px){
+      .px-kpis,.px-result-grid,.px-marker-legend{grid-template-columns:1fr}
+      .px-actions{grid-template-columns:1fr}
+      .px-table td{grid-template-columns:82px minmax(0,1fr)}
     }
   `;
   document.head.appendChild(style);
@@ -4017,81 +4435,137 @@ function persistPricingTargets(){
   }
 }
 
+function ceilPricingMoney(value,step=0.01){
+  const number=Number(value);
+  if(!Number.isFinite(number))return null;
+  return Number((Math.ceil((number-Number.EPSILON)/step)*step).toFixed(2));
+}
+
+function normalizePricingBid(value){
+  const number=Number(value);
+  if(!Number.isFinite(number))return null;
+  return Number((Math.round((number+Number.EPSILON)*100)/100).toFixed(2));
+}
+
 function calcPricingByFlexibleTarget(item,p){
   if(!item || !p)return null;
 
-  const qty=Math.max(Number(item.quantidade||0),0.0001);
-  const fixedOperationCost=Math.max(0,Number(state.costConfig?.frete_fixo||0))+Math.max(0,Number(state.costConfig?.gasolina||0));
-  const fixedOperationUnit=fixedOperationCost/qty;
-  const baseCostUnit=Math.max(Number(p.costUnit||0),0);
-  const costUnit=baseCostUnit+fixedOperationUnit;
-  const extraTax=Number(state.costConfig?.outros_impostos||0);
-  const overhead=(Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0)+extraTax)/100;
-  const target=getPricingTarget(item.id);
+  const errors=[];
+  const readNonNegative=(value,label)=>{
+    const number=Number(value??0);
+    if(!Number.isFinite(number)){
+      errors.push(`${label} precisa ser um número válido.`);
+      return 0;
+    }
+    if(number<0){
+      errors.push(`${label} não pode ser negativo.`);
+      return 0;
+    }
+    return number;
+  };
 
-  const estimated=Number(item.valor_estimado||0);
+  const qty=Number(item.quantidade);
+  if(!Number.isFinite(qty) || qty<=0)errors.push('A quantidade do item precisa ser maior que zero.');
+
+  const baseCostUnit=readNonNegative(p.costUnit,'Custo unitário');
+  const fixedFreight=readNonNegative(state.costConfig?.frete_fixo,'Frete fixo');
+  const fuelCost=readNonNegative(state.costConfig?.gasolina,'Custo de combustível');
+  const fixedOperationCost=fixedFreight+fuelCost;
+  const safeQty=Number.isFinite(qty) && qty>0?qty:1;
+  const fixedOperationUnit=fixedOperationCost/safeQty;
+  const costUnit=baseCostUnit+fixedOperationUnit;
+
+  const taxPercent=readNonNegative(state.config?.imposto,'Impostos');
+  const reservePercent=readNonNegative(state.config?.reserva_operacional,'Reserva operacional');
+  const extraTax=readNonNegative(state.costConfig?.outros_impostos,'Outros impostos');
+  const overheadPercent=taxPercent+reservePercent+extraTax;
+  if(overheadPercent>=100)errors.push('A soma dos impostos e encargos precisa ser menor que 100%.');
+  const overhead=overheadPercent/100;
+
+  const target=getPricingTarget(item.id);
+  const mode=['auto','margin','profit'].includes(target.mode)?target.mode:'auto';
+  const estimated=readNonNegative(item.valor_estimado,'Preço estimado');
+  const globalMargin=readNonNegative(state.config?.margem_alvo??25,'Margem desejada');
+  const globalProfit=readNonNegative(state.config?.lucro_minimo??500,'Lucro mínimo');
+  const globalMinimumMargin=readNonNegative(state.config?.margem_minima??10,'Margem mínima');
+
+  const desiredMargin=target.margin==null || target.margin===''
+    ? globalMargin
+    : readNonNegative(target.margin,'Meta de margem do item');
+  const desiredProfit=target.profit==null || target.profit===''
+    ? globalProfit
+    : readNonNegative(target.profit,'Meta de lucro do item');
+
+  if(overheadPercent<100 && desiredMargin>=100-overheadPercent){
+    errors.push('A margem desejada é incompatível com os encargos configurados.');
+  }
+  if(overheadPercent<100 && globalMinimumMargin>=100-overheadPercent){
+    errors.push('A margem mínima é incompatível com os encargos configurados.');
+  }
+
+  const validationErrors=[...new Set(errors)];
+  if(validationErrors.length){
+    return {
+      valid:false,
+      validationErrors,
+      target,
+      mode,
+      desiredMargin,
+      desiredProfit,
+      estimated,
+      baseCostUnit,
+      fixedOperationCost,
+      fixedOperationUnit,
+      costUnit,
+      overhead
+    };
+  }
+
   const revenueEstimated=estimated*qty;
   const totalCost=costUnit*qty;
 
-  // O imposto configurado é sobre a VENDA, não sobre a compra.
-  // Por isso ele não deve ser somado ao preço da cotação.
-  const taxRate=(Number(state.config?.imposto||0)+extraTax)/100;
-  const reserveRate=Number(state.config?.reserva_operacional||0)/100;
+  // Impostos e reserva incidem sobre a venda; não compõem o custo de compra.
+  const taxRate=(taxPercent+extraTax)/100;
+  const reserveRate=reservePercent/100;
   const taxUnitEstimated=estimated*taxRate;
   const reserveUnitEstimated=estimated*reserveRate;
   const netRevenueUnitEstimated=estimated*(1-taxRate-reserveRate);
 
-  const profitEstimated=estimated
+  const profitEstimated=estimated>0
     ? revenueEstimated*(1-overhead)-totalCost
     : null;
-
-  const marginEstimated=estimated
+  const marginEstimated=estimated>0
     ? (profitEstimated/revenueEstimated)*100
     : null;
-
-  const profitOnCostEstimated=estimated && totalCost
+  const profitOnCostEstimated=estimated>0 && totalCost>0
     ? (profitEstimated/totalCost)*100
     : null;
 
-  const breakEvenUnit=
-    costUnit/Math.max(1-overhead,0.005);
+  const breakEvenRaw=costUnit/(1-overhead);
+  const priceByMarginRaw=costUnit/(1-overhead-(desiredMargin/100));
+  const priceByProfitRaw=(costUnit+(desiredProfit/qty))/(1-overhead);
+  const priceByMinimumMarginRaw=costUnit/(1-overhead-(globalMinimumMargin/100));
+  const priceByMinimumProfitRaw=(costUnit+(globalProfit/qty))/(1-overhead);
 
-  const globalMargin=Math.max(0,Number(state.config?.margem_alvo||25));
-  const globalProfit=Math.max(0,Number(state.config?.lucro_minimo||500));
-  const globalMinimumMargin=Math.max(0,Number(state.config?.margem_minima||10));
-
-  let desiredMargin=
-    target.margin==null || target.margin===''
-      ? globalMargin
-      : Number(target.margin);
-
-  let desiredProfit=
-    target.profit==null || target.profit===''
-      ? globalProfit
-      : Number(target.profit);
-
-  const maxMargin=Math.max(0,(1-overhead)*100-0.5);
-  desiredMargin=Math.min(Math.max(0,desiredMargin),maxMargin);
-  desiredProfit=Math.max(0,desiredProfit);
-
-  const priceByMargin=
-    costUnit/
-    Math.max(1-overhead-(desiredMargin/100),0.005);
-
-  const priceByProfit=
-    (costUnit+(desiredProfit/qty))/
-    Math.max(1-overhead,0.005);
-
-  const mode=target.mode||'auto';
-
-  const minimumMargin=Math.max(0,Number(state.config?.margem_minima||0));
-  const minimumProfit=Math.max(0,Number(state.config?.lucro_minimo||0));
-  const priceByMinimumMargin=costUnit/Math.max(1-overhead-(minimumMargin/100),0.005);
-  const priceByMinimumProfit=(costUnit+(minimumProfit/qty))/Math.max(1-overhead,0.005);
-
-  let minimumUnit=Math.max(breakEvenUnit,priceByMinimumMargin,priceByMinimumProfit);
-  if(mode==='margin')minimumUnit=priceByMargin;
-  if(mode==='profit')minimumUnit=priceByProfit;
+  // Limites monetários sobem para o próximo centavo: o valor mostrado sempre
+  // é aceito pelo próprio campo e nunca fica abaixo da regra por arredondamento.
+  const breakEvenUnit=ceilPricingMoney(breakEvenRaw);
+  const priceByMargin=ceilPricingMoney(priceByMarginRaw);
+  const priceByProfit=ceilPricingMoney(priceByProfitRaw);
+  const priceByMinimumMargin=ceilPricingMoney(priceByMinimumMarginRaw);
+  const priceByMinimumProfit=ceilPricingMoney(priceByMinimumProfitRaw);
+  const minimumUnit=ceilPricingMoney(Math.max(
+    breakEvenRaw,
+    priceByMinimumMarginRaw,
+    priceByMinimumProfitRaw
+  ));
+  const priceTargetUnit=ceilPricingMoney(
+    mode==='margin'
+      ? priceByMarginRaw
+      : mode==='profit'
+        ? priceByProfitRaw
+        : Math.max(priceByMarginRaw,priceByProfitRaw)
+  );
 
   let autoStatus='Sem estimado';
   let autoClass='neutral';
@@ -4158,6 +4632,8 @@ function calcPricingByFlexibleTarget(item,p){
   }
 
   return {
+    valid:true,
+    validationErrors:[],
     target,
     mode,
     desiredMargin,
@@ -4169,6 +4645,8 @@ function calcPricingByFlexibleTarget(item,p){
     costUnit,
     totalCost,
     revenueEstimated,
+    overhead,
+    overheadPercent,
     taxRate,
     reserveRate,
     taxUnitEstimated,
@@ -4183,6 +4661,7 @@ function calcPricingByFlexibleTarget(item,p){
     priceByMinimumMargin,
     priceByMinimumProfit,
     minimumUnit,
+    priceTargetUnit,
     status,
     statusClass,
     statusReason,
@@ -4344,6 +4823,487 @@ function costField(id,label,value,help){
 }
 
 function renderPricingExactModel(){
+  const section=$('#precificacao');
+  if(!section)return;
+
+  ensurePricingExactModelStyles();
+  loadPricingTargets();
+  state.pricingSimulations ||= {};
+  section.classList.add('pricing-exact');
+
+  let side=section.querySelector('.pricing-side');
+  if(!side){
+    side=document.createElement('aside');
+    side.className='pricing-side';
+    side.innerHTML=`
+      <div class="pricing-side-title">MÓDULO</div>
+      <div class="pricing-side-nav">
+        <button data-side-tab="dashboard">⌂ Dashboard</button>
+        <button data-side-tab="licitacoes">▣ Licitações</button>
+        <button data-side-tab="cotacoes">⇄ Cotações</button>
+        <button data-side-tab="precificacao" class="active">◉ Precificação</button>
+        <button data-side-tab="fornecedores">♙ Fornecedores</button>
+        <button data-side-tab="arquivos">▤ Relatórios</button>
+      </div>
+    `;
+    section.insertBefore(side,section.firstChild);
+    side.querySelectorAll('[data-side-tab]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        document.querySelector(`#mainTabs [data-tab="${btn.dataset.sideTab}"]`)?.click();
+      });
+    });
+  }
+
+  [...section.children].forEach(child=>{
+    if(child===side || child.id==='pricingExactShell')return;
+    child.style.display='none';
+  });
+
+  let shell=$('#pricingExactShell');
+  if(!shell){
+    shell=document.createElement('div');
+    shell.id='pricingExactShell';
+    shell.className='pricing-exact-shell';
+    section.appendChild(shell);
+  }
+
+  const tenderId=state.pricingViewTenderId || state.licitacoes[0]?.id || '';
+  if(!state.pricingViewTenderId && tenderId)state.pricingViewTenderId=tenderId;
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  const items=state.itens
+    .filter(i=>String(i.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+
+  if(!items.some(i=>String(i.id)===String(state.pricingSimulationItemId))){
+    state.pricingSimulationItemId=items[0]?.id||'';
+  }
+
+  const computed=items.map(item=>{
+    const p=pricing(item);
+    return {item,p,flex:p?calcPricingByFlexibleTarget(item,p):null};
+  });
+  const quotedCount=items.filter(i=>itemHasQuote(i.id)).length;
+  const validPricing=computed.filter(row=>row.flex?.valid);
+  const margins=validPricing
+    .map(row=>row.flex.marginEstimated)
+    .filter(Number.isFinite);
+  const avgMargin=margins.length?margins.reduce((sum,value)=>sum+value,0)/margins.length:0;
+  const totalOverhead=Number(state.config?.imposto||0)+Number(state.config?.reserva_operacional||0)+Number(state.costConfig?.outros_impostos||0);
+
+  shell.innerHTML=`
+    <div class="px-head">
+      <div class="px-title">
+        <div class="px-title-line"><h1>Precificação</h1></div>
+        <p>Entenda o limite de cada item e teste preços antes de decidir seu lance.</p>
+      </div>
+      <div class="px-head-actions">
+        <button type="button" id="openCostSettings" class="px-action">⚙ Custos e impostos</button>
+        <button class="px-export" id="pxExport" type="button">⇩ Exportar CSV</button>
+      </div>
+    </div>
+
+    <div class="px-context">
+      <div class="px-context-item">
+        <span>Licitação</span>
+        <select id="pxTenderSelect" aria-label="Licitação para precificar" style="width:100%;min-width:0;height:44px;border:1px solid #31434f;border-radius:7px;background:#07141c;color:#fff;padding:0 10px">
+          ${state.licitacoes.length?state.licitacoes.map(l=>`<option value="${esc(l.id)}" ${String(l.id)===String(tenderId)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}
+        </select>
+      </div>
+      <div class="px-context-item">
+        <span>Cobertura de cotações</span>
+        <strong>${quotedCount} de ${items.length} itens</strong>
+      </div>
+      <div class="px-context-item">
+        <span>Encargos configurados</span>
+        <strong>${Number.isFinite(totalOverhead)?totalOverhead.toFixed(2).replace('.',','):'—'}% sobre a venda</strong>
+      </div>
+      <button type="button" class="px-context-action" id="pxGoQuotes">Alterar cotações</button>
+    </div>
+
+    <div class="px-kpis">
+      <div class="px-kpi"><small>Itens totais</small><strong>${items.length}</strong><span>nesta licitação</span></div>
+      <div class="px-kpi"><small>Com cotação</small><strong>${quotedCount}</strong><span>${items.length?((quotedCount/items.length)*100).toFixed(1).replace('.',','):'0,0'}% dos itens</span></div>
+      <div class="px-kpi"><small>Sem cotação</small><strong>${items.length-quotedCount}</strong><span>precisam de custo real</span></div>
+      <div class="px-kpi"><small>Calculados</small><strong>${validPricing.length}</strong><span>com dados válidos</span></div>
+      <div class="px-kpi"><small>Margem média</small><strong>${Number.isFinite(avgMargin)?avgMargin.toFixed(1).replace('.',','):'0,0'}%</strong><span>no estimado do edital</span></div>
+    </div>
+
+    <div class="px-main">
+      <section class="px-sim-card" aria-labelledby="pxSimTitle">
+        <div class="px-sim-head">
+          <div>
+            <h2 id="pxSimTitle" class="px-sim-title">Simule seu preço</h2>
+            <p class="px-sim-sub">Arraste a bolinha ou digite um valor. Lucro, margens e recomendação mudam na mesma hora.</p>
+          </div>
+          <div id="pxSessionNote" class="px-session-note">É apenas uma simulação. O valor não altera a cotação nem os dados salvos e fica somente nesta sessão.</div>
+        </div>
+
+        <div class="px-sim-controls">
+          <label>
+            Item para simular
+            <select id="pxSimItem" aria-label="Item para simular preço">
+              ${items.length?items.map(i=>`<option value="${esc(i.id)}" ${String(i.id)===String(state.pricingSimulationItemId)?'selected':''}>Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join(''):'<option value="">Nenhum item nesta licitação</option>'}
+            </select>
+          </label>
+          <label>
+            Como definir a meta
+            <select id="pxSimTargetMode" aria-label="Modo da meta de preço">
+              <option value="auto">Automática</option>
+              <option value="margin">Por margem</option>
+              <option value="profit">Por lucro</option>
+            </select>
+          </label>
+          <div id="pxTargetEditor" class="px-target-editor"></div>
+        </div>
+
+        <div id="pxSliderArea" class="px-slider-area">
+          <div class="px-slider-top">
+            <span>Preço unitário simulado</span>
+            <strong id="pxSimPriceDisplay">—</strong>
+          </div>
+          <label>
+            Digite o preço (R$)
+            <input id="pxSimBid" type="number" min="0" step="0.01" inputmode="decimal" aria-describedby="pxSessionNote" aria-label="Preço unitário simulado em reais">
+          </label>
+          <div class="px-range-shell">
+            <input id="pxSimRange" class="px-price-range" type="range" min="0" max="100" step="0.01" value="0" aria-label="Arraste para simular o preço do item" aria-valuetext="R$ 0,00">
+            <div id="pxTrackMarkers" class="px-track-markers" aria-hidden="true"></div>
+          </div>
+          <div id="pxMarkerLegend" class="px-marker-legend"></div>
+        </div>
+
+        <div id="pxSimResult" class="px-sim-result neutral">
+          <div class="px-decision"><div><strong>Selecione um item</strong><span>Os resultados aparecerão aqui.</span></div></div>
+        </div>
+      </section>
+
+      <section class="px-table-card" aria-labelledby="pxItemsTitle">
+        <div class="pricing-main-head" style="padding:16px 16px 0">
+          <div><strong id="pxItemsTitle">Resumo dos itens</strong><div class="px-item-meta" style="margin-top:4px">Compare custos, limites e o resultado no valor estimado.</div></div>
+        </div>
+        <div class="px-filters">
+          <input id="pxSearch" type="search" placeholder="Buscar item por número ou descrição..." aria-label="Buscar item">
+          <select id="pxStatus" aria-label="Filtrar situação da precificação">
+            <option value="all">Todos os itens</option>
+            <option value="priced">Calculados</option>
+            <option value="unquoted">Sem cotação</option>
+          </select>
+          <button type="button" class="px-clear" id="pxClear">Limpar filtros</button>
+        </div>
+        <div class="px-table-wrap">
+          <table class="px-table">
+            <thead><tr>
+              <th>Item e quantidade</th>
+              <th>Custo real</th>
+              <th>Estimado</th>
+              <th>Preço mínimo / meta</th>
+              <th>Resultado no estimado</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr></thead>
+            <tbody id="pxRows"></tbody>
+          </table>
+        </div>
+        <div class="px-footer"><span id="pxCount"></span><span>Todos os itens filtrados são exibidos.</span></div>
+      </section>
+    </div>
+  `;
+
+  const openQuoteForItem=itemId=>{
+    state.quoteViewTenderId=tenderId;
+    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+    setTimeout(()=>{
+      const itemSelect=$('#cotacaoItem');
+      if(itemSelect && itemId)itemSelect.value=itemId;
+      $('#cotacaoFornecedor')?.focus();
+    },0);
+  };
+
+  const renderRows=()=>{
+    const search=quoteNormalize(shell.querySelector('#pxSearch')?.value||'');
+    const filter=shell.querySelector('#pxStatus')?.value||'all';
+    const rows=items.filter(item=>{
+      const p=pricing(item);
+      const flex=p?calcPricingByFlexibleTarget(item,p):null;
+      if(search && !quoteNormalize(`ITEM ${item.numero} ${item.descricao}`).includes(search))return false;
+      if(filter==='priced' && !flex?.valid)return false;
+      if(filter==='unquoted' && itemHasQuote(item.id))return false;
+      return true;
+    });
+
+    shell.querySelector('#pxRows').innerHTML=rows.map(item=>{
+      const p=pricing(item);
+      const flex=p?calcPricingByFlexibleTarget(item,p):null;
+      const quote=bestQuote(item.id);
+      const supplier=quote?state.fornecedores.find(x=>String(x.id)===String(quote.fornecedor_id)):null;
+      const invalid=flex && !flex.valid;
+
+      const costCell=flex?.valid
+        ? `<span class="px-price">${money(flex.costUnit)}</span><div class="px-item-meta">${esc(supplier?.nome||p?.supplierName||'Melhor cotação')}</div>`
+        : quote?'<span class="px-status bad">Dados inválidos</span>':'<span class="px-status neutral">Sem cotação</span>';
+      const limitCell=flex?.valid
+        ? `<div class="px-price-pair"><div><small>Parada</small><strong>${money(flex.minimumUnit)}</strong></div><div><small>Meta</small><strong>${money(flex.priceTargetUnit)}</strong></div></div>`
+        : '—';
+      const resultCell=flex?.valid && flex.profitEstimated!=null
+        ? `<span class="${flex.profitEstimated>=0?'px-profit':''}" style="${flex.profitEstimated<0?'color:#ff7771;font-weight:850':''}">${money(flex.profitEstimated)}</span><div class="px-item-meta">${flex.marginEstimated.toFixed(2).replace('.',',')}% sobre a venda</div>`
+        : '<span class="px-item-meta">Sem valor estimado calculável</span>';
+      const statusCell=invalid
+        ? `<span class="px-status bad">Revisar dados</span><div class="px-item-meta" style="margin-top:5px">${esc(flex.validationErrors[0])}</div>`
+        : flex?`${pricingProfitBadge(flex)}<div class="px-item-meta" style="margin-top:5px">${esc(flex.statusReason)}</div>`:'<span class="px-status neutral">Sem cotação</span>';
+
+      return `<tr>
+        <td data-label="Item">
+          <div style="display:flex;gap:9px;align-items:flex-start"><span class="px-itemnum">${esc(item.numero)}</span><div><div class="px-item-title">${esc(item.descricao)}</div><div class="px-item-meta">Qtd. ${esc(item.quantidade||'—')} ${esc(item.unidade||'')}</div></div></div>
+        </td>
+        <td data-label="Custo real">${costCell}</td>
+        <td data-label="Estimado">${Number(item.valor_estimado)>0?money(item.valor_estimado):'—'}</td>
+        <td data-label="Mínimo / meta">${limitCell}</td>
+        <td data-label="Resultado">${resultCell}</td>
+        <td data-label="Status">${statusCell}</td>
+        <td data-label="Ações"><div class="px-actions"><button type="button" class="px-action primary" data-px-sim-item="${esc(item.id)}">Simular preço</button><button type="button" class="px-action" data-px-quote-item="${esc(item.id)}">${p?'Editar cotação':'Adicionar cotação'}</button></div></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" data-label="Resultado"><span class="px-item-meta">Nenhum item corresponde aos filtros.</span></td></tr>';
+
+    shell.querySelectorAll('[data-px-sim-item]').forEach(btn=>btn.addEventListener('click',()=>{
+      selectSimulatorItem(btn.dataset.pxSimItem,true);
+    }));
+    shell.querySelectorAll('[data-px-quote-item]').forEach(btn=>btn.addEventListener('click',()=>openQuoteForItem(btn.dataset.pxQuoteItem)));
+    shell.querySelector('#pxCount').textContent=`Mostrando ${rows.length} de ${items.length} itens`;
+  };
+
+  const markerDataFor=(flex,max)=>[
+    {label:'Equilíbrio',value:flex.breakEvenUnit,color:'#b74845'},
+    {label:'Preço de parada',value:flex.minimumUnit,color:'#d88f2d'},
+    {label:'Preço-meta',value:flex.priceTargetUnit,color:'#3185bd'},
+    ...(flex.estimated>0?[{label:'Estimado',value:flex.estimated,color:'#2aa766'}]:[])
+  ].map(marker=>({...marker,pos:Math.min(100,Math.max(0,(marker.value/max)*100))}));
+
+  const showSimulationMessage=(title,message,kind='neutral',ctaItemId='')=>{
+    const result=shell.querySelector('#pxSimResult');
+    result.className=`px-sim-result ${kind}`;
+    result.innerHTML=`<div class="px-decision"><div><strong>${esc(title)}</strong><span>${esc(message)}</span><span class="px-live-only" role="status" aria-live="polite" aria-atomic="true">${esc(title)}. ${esc(message)}</span>${ctaItemId?'<br><button type="button" class="px-action primary" id="pxSimQuoteCta">Adicionar cotação</button>':''}</div></div>`;
+    if(ctaItemId)result.querySelector('#pxSimQuoteCta')?.addEventListener('click',()=>openQuoteForItem(ctaItemId));
+  };
+
+  const updateSimulationResult=()=>{
+    const item=items.find(i=>String(i.id)===String(shell.querySelector('#pxSimItem')?.value));
+    const p=item?pricing(item):null;
+    const flex=item&&p?calcPricingByFlexibleTarget(item,p):null;
+    const slider=shell.querySelector('#pxSimRange');
+    const input=shell.querySelector('#pxSimBid');
+    const sliderArea=shell.querySelector('#pxSliderArea');
+
+    if(!item){
+      sliderArea.hidden=true;
+      showSimulationMessage('Nenhum item disponível','Cadastre itens na licitação para iniciar a simulação.');
+      return;
+    }
+    if(!p){
+      sliderArea.hidden=true;
+      slider.disabled=true;
+      showSimulationMessage('Cotação necessária','Adicione uma cotação válida para calcular custos, limites e margens deste item.','neutral',item.id);
+      return;
+    }
+    if(!flex?.valid){
+      sliderArea.hidden=true;
+      slider.disabled=true;
+      showSimulationMessage('Revise os dados',flex?.validationErrors?.join(' ')||'Não foi possível calcular este item.','bad');
+      return;
+    }
+
+    sliderArea.hidden=false;
+    slider.disabled=false;
+    const raw=input.value;
+    if(raw===''){
+      shell.querySelector('#pxSimPriceDisplay').textContent='—';
+      showSimulationMessage('Informe um preço','Digite um valor ou mova a bolinha para simular.');
+      return;
+    }
+    const parsedBid=Number(raw);
+    const bid=normalizePricingBid(parsedBid);
+    if(bid==null || bid<0){
+      shell.querySelector('#pxSimPriceDisplay').textContent='Valor inválido';
+      showSimulationMessage('Preço inválido','Use um número maior ou igual a zero.','bad');
+      return;
+    }
+
+    if(bid>Number(slider.max))slider.max=String(ceilPricingMoney(Math.max(bid*1.2,bid+1)));
+    slider.value=String(Math.min(bid,Number(slider.max)));
+    slider.setAttribute('aria-valuetext',money(bid));
+    state.pricingSimulations[String(item.id)]=bid;
+    shell.querySelector('#pxSimPriceDisplay').textContent=money(bid);
+
+    const max=Math.max(Number(slider.max),0.01);
+    const markers=markerDataFor(flex,max);
+    const pos=value=>`${Math.min(100,Math.max(0,(Number(value||0)/max)*100)).toFixed(2)}%`;
+    slider.style.setProperty('--break-pos',pos(flex.breakEvenUnit));
+    slider.style.setProperty('--stop-pos',pos(Math.max(flex.breakEvenUnit,flex.minimumUnit)));
+    slider.style.setProperty('--target-pos',pos(Math.max(flex.breakEvenUnit,flex.minimumUnit,flex.priceTargetUnit)));
+    shell.querySelector('#pxTrackMarkers').innerHTML=markers.map(marker=>`<span class="px-track-marker" style="--marker-pos:${marker.pos.toFixed(2)}%"></span>`).join('');
+    shell.querySelector('#pxMarkerLegend').innerHTML=markers.map(marker=>`<span class="px-marker-label" style="--marker-color:${marker.color}"><i></i><span><b>${esc(marker.label)}</b><small>${money(marker.value)}</small></span></span>`).join('');
+
+    const qty=Number(item.quantidade);
+    const profitUnit=bid*(1-flex.overhead)-flex.costUnit;
+    const profit=profitUnit*qty;
+    const total=bid*qty;
+    const marginSale=bid>0?(profitUnit/bid)*100:null;
+    const marginCost=flex.costUnit>0?(profitUnit/flex.costUnit)*100:null;
+    const slack=bid-flex.minimumUnit;
+
+    let status='Meta atingida';
+    let recommendation='O preço atende ao limite mínimo e à meta definida para o item.';
+    let kind='good';
+    if(bid<flex.breakEvenUnit){
+      status='Prejuízo';
+      recommendation='Não recomendado: o preço não cobre custos e encargos.';
+      kind='bad';
+    }else if(bid<flex.minimumUnit){
+      status='Abaixo do preço de parada';
+      recommendation='O preço cobre o custo, mas não atende aos limites mínimos configurados.';
+      kind='bad';
+    }else if(bid<flex.priceTargetUnit){
+      status='Viável com cautela';
+      recommendation='O preço está acima da parada, porém ainda abaixo da sua meta.';
+      kind='warn';
+    }
+
+    const result=shell.querySelector('#pxSimResult');
+    result.className=`px-sim-result ${kind}`;
+    result.innerHTML=`
+      <div class="px-decision"><div><strong>${esc(status)}</strong><span>${esc(recommendation)}</span><span class="px-live-only" role="status" aria-live="polite" aria-atomic="true">${esc(status)}. Preço simulado ${money(bid)}. ${esc(recommendation)}</span></div><span>${money(bid)} por unidade</span></div>
+      <div class="px-result-grid">
+        <div class="px-result-stat"><span>Preço unitário</span><strong>${money(bid)}</strong><small>valor simulado</small></div>
+        <div class="px-result-stat"><span>Preço total</span><strong>${money(total)}</strong><small>${qty} ${esc(item.unidade||'un.')}</small></div>
+        <div class="px-result-stat"><span>Lucro após custos e encargos</span><strong style="color:${profit<0?'#ff8580':'#55dd8d'}">${money(profit)}</strong><small>resultado total</small></div>
+        <div class="px-result-stat"><span>Margem sobre venda</span><strong>${marginSale==null?'—':marginSale.toFixed(2).replace('.',',')+'%'}</strong><small>${bid===0?'indisponível com preço zero':'sobre a receita'}</small></div>
+        <div class="px-result-stat"><span>Margem sobre custo</span><strong>${marginCost==null?'—':marginCost.toFixed(2).replace('.',',')+'%'}</strong><small>retorno sobre o custo</small></div>
+        <div class="px-result-stat"><span>Folga até a parada</span><strong style="color:${slack<0?'#ff8580':'#55dd8d'}">${money(slack)}</strong><small>${slack<0?'abaixo do limite':'quanto ainda pode baixar'}</small></div>
+      </div>`;
+  };
+
+  const refreshSimulatorBounds=()=>{
+    const item=items.find(i=>String(i.id)===String(shell.querySelector('#pxSimItem')?.value));
+    const p=item?pricing(item):null;
+    const flex=item&&p?calcPricingByFlexibleTarget(item,p):null;
+    const slider=shell.querySelector('#pxSimRange');
+    const input=shell.querySelector('#pxSimBid');
+    if(!item || !flex?.valid){
+      updateSimulationResult();
+      return;
+    }
+    const current=input.value===''?0:Number(input.value);
+    slider.max=String(ceilPricingMoney(Math.max(1,flex.estimated||0,flex.priceTargetUnit||0,flex.minimumUnit||0,flex.breakEvenUnit||0,current||0)*1.25));
+    updateSimulationResult();
+  };
+
+  const renderTargetEditor=()=>{
+    const item=items.find(i=>String(i.id)===String(shell.querySelector('#pxSimItem')?.value));
+    const target=item?getPricingTarget(item.id):null;
+    const mode=target?.mode||'auto';
+    const modeSelect=shell.querySelector('#pxSimTargetMode');
+    if(modeSelect)modeSelect.value=mode;
+    const editor=shell.querySelector('#pxTargetEditor');
+    if(!editor)return;
+    if(!item || mode==='auto'){
+      editor.innerHTML='<div class="px-target-auto">A meta automática usa o maior valor entre a margem desejada e o lucro mínimo.</div>';
+      return;
+    }
+    const isMargin=mode==='margin';
+    const value=isMargin?target.margin:target.profit;
+    editor.innerHTML=`<label>${isMargin?'Margem desejada (%)':'Lucro desejado no item (R$)'}<input id="pxSimTargetValue" type="number" min="0" step="${isMargin?'0.1':'0.01'}" inputmode="decimal" value="${value??''}" placeholder="${isMargin?Number(state.config?.margem_alvo??25):Number(state.config?.lucro_minimo??500)}" aria-label="${isMargin?'Margem desejada para o item':'Lucro desejado para o item'}"></label>`;
+    const valueInput=editor.querySelector('#pxSimTargetValue');
+    valueInput?.addEventListener('input',()=>{
+      const raw=valueInput.value;
+      target[isMargin?'margin':'profit']=raw===''?null:Number(raw);
+      if(raw==='' || (Number.isFinite(Number(raw)) && Number(raw)>=0))persistPricingTargets();
+      renderRows();
+      refreshSimulatorBounds();
+    });
+  };
+
+  const selectSimulatorItem=(itemId,focusSlider=false)=>{
+    const item=items.find(i=>String(i.id)===String(itemId));
+    if(!item)return;
+    const select=shell.querySelector('#pxSimItem');
+    select.value=String(item.id);
+    state.pricingSimulationItemId=item.id;
+    renderTargetEditor();
+
+    const p=pricing(item);
+    const flex=p?calcPricingByFlexibleTarget(item,p):null;
+    const hasSaved=Object.prototype.hasOwnProperty.call(state.pricingSimulations,String(item.id));
+    const initial=hasSaved
+      ? Number(state.pricingSimulations[String(item.id)])
+      : flex?.valid
+        ? (flex.estimated>0?flex.estimated:(flex.priceTargetUnit??flex.minimumUnit??0))
+        : 0;
+    shell.querySelector('#pxSimBid').value=Number.isFinite(initial)?String(Math.max(0,initial)):'';
+    refreshSimulatorBounds();
+    if(focusSlider){
+      shell.querySelector('.px-sim-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+      setTimeout(()=>shell.querySelector('#pxSimRange')?.focus(),250);
+    }
+  };
+
+  shell.querySelector('#openCostSettings')?.addEventListener('click',()=>renderCostSettings());
+  shell.querySelector('#pxTenderSelect')?.addEventListener('change',event=>{
+    state.pricingViewTenderId=event.target.value||'';
+    state.pricingSimulationItemId='';
+    renderPricingExactModel();
+  });
+  shell.querySelector('#pxGoQuotes')?.addEventListener('click',()=>openQuoteForItem(''));
+  shell.querySelector('#pxSearch')?.addEventListener('input',renderRows);
+  shell.querySelector('#pxStatus')?.addEventListener('change',renderRows);
+  shell.querySelector('#pxClear')?.addEventListener('click',()=>{
+    shell.querySelector('#pxSearch').value='';
+    shell.querySelector('#pxStatus').value='all';
+    renderRows();
+  });
+  shell.querySelector('#pxSimItem')?.addEventListener('change',event=>selectSimulatorItem(event.target.value));
+  shell.querySelector('#pxSimTargetMode')?.addEventListener('change',event=>{
+    const item=items.find(i=>String(i.id)===String(shell.querySelector('#pxSimItem')?.value));
+    if(!item)return;
+    getPricingTarget(item.id).mode=event.target.value;
+    persistPricingTargets();
+    renderTargetEditor();
+    renderRows();
+    refreshSimulatorBounds();
+  });
+  shell.querySelector('#pxSimBid')?.addEventListener('input',updateSimulationResult);
+  shell.querySelector('#pxSimBid')?.addEventListener('change',event=>{
+    const normalized=normalizePricingBid(event.target.value);
+    if(normalized!=null && normalized>=0)event.target.value=normalized.toFixed(2);
+    updateSimulationResult();
+  });
+  shell.querySelector('#pxSimRange')?.addEventListener('input',event=>{
+    const value=Number(event.target.value);
+    shell.querySelector('#pxSimBid').value=String(value);
+    updateSimulationResult();
+  });
+  shell.querySelector('#pxExport')?.addEventListener('click',()=>{
+    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Custo real unitário','Estimado unitário','Preço de parada','Preço-meta','Lucro no estimado','Margem no estimado','Status'];
+    const csvRows=items.map(item=>{
+      const p=pricing(item);
+      const flex=p?calcPricingByFlexibleTarget(item,p):null;
+      const quote=bestQuote(item.id);
+      const supplier=quote?state.fornecedores.find(x=>String(x.id)===String(quote.fornecedor_id)):null;
+      return [item.numero,item.descricao,item.quantidade,item.unidade,supplier?.nome||p?.supplierName||'',flex?.valid?flex.costUnit:'',item.valor_estimado||'',flex?.valid?flex.minimumUnit:'',flex?.valid?flex.priceTargetUnit:'',flex?.valid?flex.profitEstimated??'':'',flex?.valid?flex.marginEstimated??'':'',flex?.valid?flex.status:(flex?'Dados inválidos':'Sem cotação')];
+    });
+    const csv=[header,...csvRows].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\n');
+    const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+    const anchor=document.createElement('a');
+    anchor.href=url;
+    anchor.download=`precificacao-${String(tender?.numero||'edital').replace(/[^a-z0-9_-]+/gi,'_')}.csv`;
+    anchor.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+
+  renderRows();
+  if(items.length)selectSimulatorItem(state.pricingSimulationItemId||items[0].id);
+  else updateSimulationResult();
+}
+
+function renderPricingExactModelLegacy(){
   const section=$('#precificacao');
   if(!section)return;
 
@@ -6803,3 +7763,4 @@ document.addEventListener('click',async e=>{
 
 setupManualQuoteMode();
 boot();
+

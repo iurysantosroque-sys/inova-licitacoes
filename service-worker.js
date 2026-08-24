@@ -1,6 +1,6 @@
-const CACHE='inova-licitacoes-v36.8';
+const CACHE='inova-licitacoes-v36.9.1';
 const CORE=[
-  './','./index.html','./styles.css?v=36.8','./app.js?v=36.8','./manifest.json',
+  './','./index.html','./styles.css?v=36.9.1','./app.js?v=36.9.1','./manifest.json',
   './assets/logo.png','./icons/icon-192.png','./icons/icon-512.png'
 ];
 
@@ -48,3 +48,4 @@ self.addEventListener('fetch',event=>{
     })
   );
 });
+

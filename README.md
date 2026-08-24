@@ -70,10 +70,11 @@ Depois de aplicar qualquer mudança de banco, execute os Security e Performance 
 4. Leia o arquivo; use a IA online se desejar.
 5. Revise descrições, embalagem, equivalência, preço e correspondências abaixo de 85%.
 6. Salve. Reimportar a mesma combinação substitui os itens correspondentes sem acumular duplicatas.
-7. Revise os custos e metas na aba **Precificação** e exporte o CSV quando necessário.
+7. Na aba **Precificação**, selecione um item e arraste a bolinha de preço para acompanhar lucro, margens, preço de parada e recomendação em tempo real. A simulação não altera os dados salvos; metas, filtros e exportação CSV continuam disponíveis.
 
 ## Publicação
 
 O projeto usa caminhos relativos e funciona no GitHub Pages sob `/inova-licitacoes/`. A publicação deve servir `index.html`, `app.js`, `styles.css`, `app-config.js`, manifest, service worker e assets no mesmo diretório-base.
 
 URL atual: <https://iurysantosroque-sys.github.io/inova-licitacoes/>
+
