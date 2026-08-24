@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.112.3'
 const MAX_PDF_BYTES=25*1024*1024
 const MAX_REQUEST_BYTES=512*1024
 const PARSER_VERSION='36.11.2'
-const TEXT_BATCH_SIZE=50
+const TEXT_BATCH_SIZE=200
 const PAGES_ORIGIN='https://iurysantosroque-sys.github.io'
 const corsHeaders=(req:Request)=>{
   const origin=req.headers.get('origin')||''
@@ -456,7 +456,7 @@ Deno.serve(async(req)=>{
           const maxOutputTokens=reportedLimit?Math.max(1024,Math.min(Math.floor(reportedLimit),8192)):8192
           try{
             const probe=await requestTextBatch(model,variant,maxOutputTokens,batches[0],textDeadline)
-            const remaining=await mapWithConcurrency(batches.slice(1),2,batch=>requestTextBatch(model,variant,maxOutputTokens,batch,textDeadline))
+            const remaining=await mapWithConcurrency(batches.slice(1),1,batch=>requestTextBatch(model,variant,maxOutputTokens,batch,textDeadline))
             const matches=[probe,...remaining].flat()
             const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
             if(matchByRow.size!==extractedRows.length)throw new InvalidAiBlock()
