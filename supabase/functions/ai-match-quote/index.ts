@@ -444,7 +444,7 @@ Deno.serve(async(req)=>{
       if(variant==='json_schema')generationConfig.responseJsonSchema=textMatchJsonSchema
       else if(variant==='legacy_schema')generationConfig.responseSchema=textMatchLegacySchema
       const requestBody=JSON.stringify({systemInstruction:{parts:[{text:textMatchSystemInstruction}]},contents,generationConfig})
-      for(let attempt=1;attempt<=3;attempt++){
+      for(let attempt=1;attempt<=2;attempt++){
         const remaining=Math.min(115_000,deadline-Date.now())
         if(remaining<1000)throw new AiFailure('AI_TIMEOUT',504)
         const started=Date.now()
@@ -468,8 +468,8 @@ Deno.serve(async(req)=>{
             providerCode=providerBody?.error?.status||providerBody?.error?.code||null
           }catch{/* Corpo do provedor nunca é propagado nem registrado. */}
           console.error(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,attempt,status:response.status,providerCode:safeProviderCode(providerCode),requestId:text(requestId,120)||null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
-          if(response.status===429&&attempt<3){
-            const backoffMs=attempt===1?5_000:12_000
+          if(response.status===429&&attempt<2){
+            const backoffMs=5_000
             if(deadline-Date.now()<=backoffMs+10_000)throw new BlockHttpFailure(429)
             await new Promise(resolve=>setTimeout(resolve,backoffMs))
             continue
@@ -538,6 +538,7 @@ Deno.serve(async(req)=>{
             if(error instanceof BlockHttpFailure){
               if(error.status===400&&variantIndex<variants.length-1&&hasVariantBudget)continue
               if(error.status===429){
+                if(index<models.length-1&&textDeadline-Date.now()>25_000)continue textModelLoop
                 const matches=automaticFallbackMatches(extractedRows,officialItems)
                 const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
                 parsed={lines:extractedRows.map(row=>{
@@ -548,7 +549,7 @@ Deno.serve(async(req)=>{
                 break textModelLoop
               }
               if(error.status===404&&index<staticModelCount)staticNotFoundCount++
-              if(error.status===404&&!discoveryAttempted&&index===staticModelCount-1&&staticNotFoundCount===staticModelCount){
+              if(error.status===404&&!discoveryAttempted&&index===staticModelCount-1){
                 discoveryAttempted=true
                 const discovered=await discoverGenerateContentModels(geminiKey)
                 for(const entry of discovered){
