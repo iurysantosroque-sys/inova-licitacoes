@@ -205,12 +205,7 @@ Deno.serve(async(req)=>{
     if(direct)result=await detail(direct.cnpj,direct.ano,direct.sequencial,deadline,metrics)
     else if(body?.cnpj&&body?.ano&&body?.sequencial){
       result=await detail(String(body.cnpj).replace(/\D/g,''),Number(body.ano),Number(body.sequencial),deadline,metrics)
-    }else{
-      const nowYear=new Date().getUTCFullYear()
-      const year=Math.max(2021,Math.min(nowYear+1,Number(body?.year)||nowYear))
-      const uf=String(body?.uf||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,2)
-      result=await searchPublished(query,year,uf,deadline,metrics)
-    }
+    }else return json({error:'Cole o link completo do edital no PNCP para carregar os dados e os itens.'})
     console.info(JSON.stringify({event:'pncp_complete',requestId,mode:result?.mode,durationMs:Date.now()-started,fetches:metrics.fetches,failures:metrics.failures,resultCount:result?.results?.length||0,itemCount:result?.items?.length||0,partial:Boolean(result?.has_more)}))
     return json(result)
   }catch(error){

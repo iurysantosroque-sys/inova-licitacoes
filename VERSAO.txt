@@ -1,2 +1,2 @@
-36.11.3 - Busca do PNCP com limite de tempo, concorrência controlada e sincronização manual por edital.
+36.11.4 - Importação de licitações direta e segura pelo link oficial do PNCP.
 
