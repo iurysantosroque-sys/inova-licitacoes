@@ -8,15 +8,15 @@ const cors={
 }
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors})
 const API='https://pncp.gov.br/api'
-const TOTAL_BUDGET_MS=18_000
-const FETCH_TIMEOUT_MS=4_500
+const TOTAL_BUDGET_MS=9_000
+const FETCH_TIMEOUT_MS=7_000
 const SEARCH_CONCURRENCY=4
 const PAGE_SIZE=100
 const MODALITIES=[6,8,9,4,5,7,12,1,2,3,10,11,13]
 
 class BudgetExceeded extends Error{constructor(){super('BUDGET');this.name='BudgetExceeded'}}
 class PncpHttpError extends Error{
-  constructor(public status:number){super(`PNCP_HTTP_${status}`);this.name='PncpHttpError'}
+  constructor(public status:number,public hint=''){super(`PNCP_HTTP_${status}`);this.name='PncpHttpError'}
 }
 type Metrics={fetches:number,failures:number}
 
@@ -64,11 +64,31 @@ async function getJson(url:string,deadline:number,metrics:Metrics){
   const controller=new AbortController()
   const timer=setTimeout(()=>controller.abort(),Math.min(FETCH_TIMEOUT_MS,Math.max(250,remaining-250)))
   try{
-    const response=await fetch(url,{headers:{Accept:'application/json','User-Agent':'INOVA-Licitacoes/36.11.3'},signal:controller.signal})
-    if(!response.ok){metrics.failures++;throw new PncpHttpError(response.status)}
-    if(response.status===204)return null
-    const raw=await response.text()
-    return raw?JSON.parse(raw):null
+    // O PNCP alterna entre os hosts principal e www. Tratamos o Location de
+    // forma explícita porque o runtime pode devolver o 301 sem segui-lo.
+    let current=url
+    for(let redirects=0;redirects<=3;redirects++){
+      const response=await fetch(current,{headers:{Accept:'application/json'},redirect:'manual',signal:controller.signal})
+      if(response.status>=300&&response.status<400){
+        const location=response.headers.get('location')
+        if(!location){
+          const hint=(await response.text()).slice(0,240).replace(/\s+/g,' ').trim()
+          metrics.failures++;throw new PncpHttpError(response.status,hint)
+        }
+        const next=new URL(location,current)
+        if(next.protocol!=='https:'||!/(^|\.)pncp\.gov\.br$/i.test(next.hostname)){
+          metrics.failures++;throw new PncpHttpError(response.status,next.toString())
+        }
+        current=next.toString()
+        continue
+      }
+      if(!response.ok){metrics.failures++;throw new PncpHttpError(response.status)}
+      if(response.status===204)return null
+      const raw=await response.text()
+      return raw?JSON.parse(raw):null
+    }
+    metrics.failures++
+    throw new PncpHttpError(508)
   }catch(error){
     if(!(error instanceof PncpHttpError))metrics.failures++
     throw error
@@ -76,23 +96,17 @@ async function getJson(url:string,deadline:number,metrics:Metrics){
 }
 
 async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
-  const detailBases=[
-    `${API}/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`,
-    `${API}/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
-  ]
+  const detailUrl=`${API}/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   let tender:any=null,lastError:unknown=null
-  for(const candidate of detailBases){
-    try{tender=await getJson(candidate,deadline,metrics);if(tender)break}catch(error){lastError=error}
+  for(let attempt=0;attempt<1;attempt++){
+    try{tender=await getJson(detailUrl,deadline,metrics);if(tender)break}catch(error){lastError=error}
   }
   if(!tender)throw lastError||new PncpHttpError(404)
 
   const realCnpj=String(tender?.orgaoEntidade?.cnpj||cnpj).replace(/\D/g,'')
   const realAno=Number(tender?.anoCompra||ano)
   const realSequencial=Number(tender?.sequencialCompra||sequencial)
-  const itemBases=[
-    `${API}/pncp/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,
-    `${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`
-  ]
+  const itemBases=[`${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`]
   const items:any[]=[]
   const seen=new Set<string>()
   let partial=false,itemSourceWorked=false
