@@ -510,6 +510,15 @@ Deno.serve(async(req)=>{
       const batches=Array.from({length:Math.ceil(extractedRows.length/TEXT_BATCH_SIZE)},(_,batchIndex)=>
         extractedRows.slice(batchIndex*TEXT_BATCH_SIZE,(batchIndex+1)*TEXT_BATCH_SIZE))
       const textDeadline=Date.now()+115_000
+      const applyAutomaticFallback=()=>{
+        const matches=automaticFallbackMatches(extractedRows,officialItems)
+        const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
+        parsed={lines:extractedRows.map(row=>{
+          const automatic:any=matchByRow.get(row.row_index)
+          return {...row,package_base_quantity:automatic.package_base_quantity,match:automatic.match}
+        })}
+        model=model?`${model}:automatic-fallback`:'automatic-fallback'
+      }
       textModelLoop: for(let index=0;index<models.length;index++){
         model=models[index]
         if(attemptedModels.has(model))continue
@@ -533,19 +542,14 @@ Deno.serve(async(req)=>{
             const hasVariantBudget=Date.now()<textDeadline-1000
             if(error instanceof InvalidAiBlock){
               if(variantIndex<variants.length-1&&hasVariantBudget)continue
-              throw new AiFailure('AI_INVALID_RESPONSE',502)
+              applyAutomaticFallback()
+              break textModelLoop
             }
             if(error instanceof BlockHttpFailure){
               if(error.status===400&&variantIndex<variants.length-1&&hasVariantBudget)continue
               if(error.status===429){
                 if(index<models.length-1&&textDeadline-Date.now()>25_000)continue textModelLoop
-                const matches=automaticFallbackMatches(extractedRows,officialItems)
-                const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
-                parsed={lines:extractedRows.map(row=>{
-                  const automatic:any=matchByRow.get(row.row_index)
-                  return {...row,package_base_quantity:automatic.package_base_quantity,match:automatic.match}
-                })}
-                model=`${model}:automatic-fallback`
+                applyAutomaticFallback()
                 break textModelLoop
               }
               if(error.status===404&&index<staticModelCount)staticNotFoundCount++
@@ -560,8 +564,12 @@ Deno.serve(async(req)=>{
                 if(index<models.length-1)continue textModelLoop
               }
               if((error.status===404||error.status===503)&&index<models.length-1)continue textModelLoop
-              const code=classifyProviderError(error.status)
-              throw new AiFailure(code,code==='AI_RATE_LIMIT'?429:code==='AI_INVALID_REQUEST'?400:502)
+              applyAutomaticFallback()
+              break textModelLoop
+            }
+            if(error instanceof AiFailure&&['AI_RATE_LIMIT','AI_UNAVAILABLE','AI_TIMEOUT','AI_INVALID_RESPONSE'].includes(error.code)){
+              applyAutomaticFallback()
+              break textModelLoop
             }
             throw error
           }
