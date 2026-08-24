@@ -46,6 +46,20 @@ function compraMatches(row:any,target:{numero:number,ano:number}){
 function rowsFromPayload(payload:any){
   return Array.isArray(payload)?payload:Array.isArray(payload?.data)?payload.data:Array.isArray(payload?.content)?payload.content:Array.isArray(payload?.itens)?payload.itens:[]
 }
+function decodeHtmlAttribute(value:string){
+  return value.replace(/&quot;/g,'"').replace(/&#039;|&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+}
+function brMoney(value:unknown){
+  const clean=String(value??'').replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.')
+  const parsed=Number(clean)
+  return Number.isFinite(parsed)?parsed:null
+}
+function licitanetQuantity(value:unknown){
+  let clean=String(value??'').trim()
+  if(/^\d{1,3}(?:\.\d{3})+\.\d{2}$/.test(clean))clean=clean.slice(0,-3).replace(/\./g,'')+clean.slice(-3)
+  const parsed=Number(clean.replace(',','.'))
+  return Number.isFinite(parsed)?parsed:1
+}
 function friendlyError(error:unknown){
   if(error instanceof BudgetExceeded)return 'A consulta atingiu o limite de tempo. Use o link ou número de controle PNCP para abrir diretamente.'
   if(error instanceof PncpHttpError){
@@ -68,7 +82,10 @@ async function getJson(url:string,deadline:number,metrics:Metrics){
     // forma explícita porque o runtime pode devolver o 301 sem segui-lo.
     let current=url
     for(let redirects=0;redirects<=3;redirects++){
-      const response=await fetch(current,{headers:{Accept:'application/json'},redirect:'manual',signal:controller.signal})
+      // O manual do PNCP especifica `accept: */*` para este recurso. O WAF do
+      // portal pode reter chamadas do endpoint legado quando o cliente exige
+      // `application/json`, embora a resposta bem-sucedida continue sendo JSON.
+      const response=await fetch(current,{headers:{Accept:'*/*'},redirect:'manual',signal:controller.signal})
       if(response.status>=300&&response.status<400){
         const location=response.headers.get('location')
         if(!location){
@@ -95,6 +112,38 @@ async function getJson(url:string,deadline:number,metrics:Metrics){
   }finally{clearTimeout(timer)}
 }
 
+async function getLicitanetItems(url:string,deadline:number,metrics:Metrics){
+  const remaining=deadline-Date.now()
+  if(remaining<800)throw new BudgetExceeded()
+  metrics.fetches++
+  const controller=new AbortController()
+  const timer=setTimeout(()=>controller.abort(),Math.min(4_500,Math.max(250,remaining-250)))
+  try{
+    const response=await fetch(url,{signal:controller.signal,headers:{
+      'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8',
+      'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36',
+      'Sec-Fetch-Dest':'document','Sec-Fetch-Mode':'navigate','Sec-Fetch-Site':'none','Upgrade-Insecure-Requests':'1'
+    }})
+    if(!response.ok)throw new PncpHttpError(response.status)
+    const html=await response.text()
+    const encoded=html.match(/data-page="([^"]+)"/)?.[1]
+    if(!encoded)return []
+    const page=JSON.parse(decodeHtmlAttribute(encoded))
+    const rows=page?.props?.disputeRoom?.items
+    if(!Array.isArray(rows))return []
+    return rows.map((row:any,index:number)=>({
+      numeroItem:Number(row?.batch||index+1),
+      descricao:String(row?.name||''),
+      quantidade:licitanetQuantity(row?.quantity),
+      unidadeMedida:String(row?.unit||'UN'),
+      valorUnitarioEstimado:brMoney(row?.estimatedValue),
+      valorTotal:brMoney(row?.totalEstimatedValue)
+    }))
+  }catch(error){metrics.failures++;throw error}
+  finally{clearTimeout(timer)}
+}
+
 async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
   const detailUrl=`${API}/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   let tender:any=null,lastError:unknown=null
@@ -106,19 +155,41 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   const realCnpj=String(tender?.orgaoEntidade?.cnpj||cnpj).replace(/\D/g,'')
   const realAno=Number(tender?.anoCompra||ano)
   const realSequencial=Number(tender?.sequencialCompra||sequencial)
-  const itemBases=[`${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`]
   const items:any[]=[]
   const seen=new Set<string>()
   let partial=false,itemSourceWorked=false
 
-  for(const base of itemBases){
+  // Quando o WAF do PNCP retém o endpoint legado, aproveitamos a fonte
+  // pública indicada pelo próprio PNCP. A sessão pública da Licitanet expõe
+  // todos os itens em dados estruturados, sem exigir login.
+  const origin=String(tender?.linkSistemaOrigem||'')
+  if(/^https:\/\/(?:www\.)?licitanet\.com\.br\/sessao\/\d+/i.test(origin)){
+    try{
+      const rows=await getLicitanetItems(origin,deadline,metrics)
+      for(const row of rows){
+        const key=String(row.numeroItem)
+        if(!seen.has(key)){seen.add(key);items.push(row)}
+      }
+      if(rows.length)itemSourceWorked=true
+    }catch{/* tenta a fonte oficial do PNCP abaixo */}
+  }
+  const itemSources=[
+    // O endpoint de itens ainda é servido pela API PNCP v1 e rejeita os
+    // parâmetros de paginação usados pela API de consultas.
+    {url:`${API}/pncp/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:false},
+    // Mantém compatibilidade caso o PNCP conclua a migração deste recurso.
+    {url:`${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:true}
+  ]
+  for(const source of itemSourceWorked?[]:itemSources){
     let sourceFailed=false
     for(let page=1;page<=10;page++){
       if(Date.now()>deadline-900){partial=true;break}
       try{
-        const url=new URL(base)
-        url.searchParams.set('pagina',String(page))
-        url.searchParams.set('tamanhoPagina','500')
+        const url=new URL(source.url)
+        if(source.paginated){
+          url.searchParams.set('pagina',String(page))
+          url.searchParams.set('tamanhoPagina','500')
+        }
         const payload=await getJson(url.toString(),deadline,metrics)
         const rows=rowsFromPayload(payload)
         itemSourceWorked=true
@@ -127,6 +198,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
           if(seen.has(key))continue
           seen.add(key);items.push(row)
         }
+        if(!source.paginated)break
         const totalPages=Number(payload?.totalPaginas??payload?.totalPages??page)
         if(!rows.length||page>=totalPages||rows.length<500)break
         if(page===10)partial=true
@@ -137,7 +209,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   if(!itemSourceWorked)partial=true
   return {
     mode:'detail',tender,items,has_more:partial,
-    message:partial?'Dados principais carregados, mas o PNCP não entregou todos os itens dentro do tempo. Tente atualizar novamente.':''
+    message:partial?'Dados principais carregados, mas o PNCP não disponibilizou a lista completa de itens nesta tentativa. Tente atualizar novamente.':''
   }
 }
 
