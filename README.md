@@ -52,6 +52,7 @@ A Publishable Key é pública por definição e só é segura quando tabelas, fu
 - `supabase/migrations/`: alterações incrementais revisáveis. A migração de hardening incluída no repositório **não é aplicada automaticamente**.
 - `supabase/functions/pncp-import`: proxy PNCP autenticado, com orçamento total de tempo e limites de paginação.
 - `supabase/functions/ai-match-quote`: recebe somente `quote_id`, valida acesso pelo JWT/RLS, baixa o PDF privado e usa o Gemini multimodal para extrair e relacionar os itens.
+- Em falha temporária da IA, **Reprocessar PDF armazenado** reutiliza o mesmo `quote_id` e arquivo privado, sem criar outro upload.
 
 Secrets necessários para `ai-match-quote`:
 

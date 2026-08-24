@@ -1850,9 +1850,34 @@ function setQuoteImportProgress(step=''){
   });
 }
 
-function setQuoteRetryVisible(visible){
+function setQuoteRetryVisible(visible,label='Tentar novamente'){
   const btn=$('#quoteRetryBtn');
-  if(btn)btn.hidden=!visible;
+  if(btn){btn.hidden=!visible;btn.textContent=label;}
+}
+
+const QUOTE_AI_ERROR_MESSAGES={
+  AI_INVALID_REQUEST:'A IA recusou o formato da solicitação. Atualize a página e tente novamente.',
+  AI_UNAUTHORIZED:'A integração com a IA não está autenticada. A configuração do serviço precisa ser revisada.',
+  AI_FORBIDDEN:'A integração não tem permissão para usar o modelo de IA configurado.',
+  AI_MODEL_NOT_FOUND:'O modelo de IA configurado não está disponível. Tente novamente para usar o modelo alternativo.',
+  AI_RATE_LIMIT:'A IA atingiu o limite de uso. Aguarde um pouco e tente novamente.',
+  AI_UNAVAILABLE:'O serviço de IA está temporariamente indisponível. Tente novamente em instantes.',
+  AI_TIMEOUT:'A leitura do PDF demorou além do limite. Tente novamente.',
+  AI_INVALID_RESPONSE:'A resposta da IA não pôde ser validada. Tente novamente.'
+};
+
+async function quoteAiInvokeFailure(error,data){
+  let payload=data&&typeof data==='object'?data:null;
+  const context=error?.context;
+  if(context&&typeof context.json==='function'){
+    try{payload=await context.json();}catch{/* Resposta sem JSON: usa mensagem segura local. */}
+  }
+  const proposed=String(payload?.code||'');
+  const code=Object.hasOwn(QUOTE_AI_ERROR_MESSAGES,proposed)?proposed:'AI_UNAVAILABLE';
+  const message=QUOTE_AI_ERROR_MESSAGES[code];
+  const failure=new Error(message);
+  failure.code=code;
+  return failure;
 }
 
 function mapAiQuoteLines(data,tenderId){
@@ -1947,31 +1972,53 @@ async function findOrCreateAiQuote(tenderId,supplierId,file){
     .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0];
   const base={source_filename:file.name,source_type:'pdf-ai',status:'uploading',ai_error:null};
   if(existing){
+    const previousStoragePath=existing.storage_path||'';
     const {data,error}=await supabase.from('quotes').update(base).eq('id',existing.id).select().single();
     if(error)throw error;
     Object.assign(existing,data);
-    return existing;
+    return {quote:existing,created:false,previousStoragePath};
   }
   const {data,error}=await supabase.from('quotes').insert({
     company_id:currentCompanyId(),tender_id:tenderId,supplier_id:supplierId,created_by:state.user.id,...base
   }).select().single();
   if(error)throw error;
   state.quotes.unshift(data);
-  return data;
+  return {quote:data,created:true,previousStoragePath:''};
+}
+
+function offerStoredAiQuoteRetry(tenderId,supplierId){
+  if(state.demo||!tenderId||!supplierId)return false;
+  const quote=state.quotes
+    .filter(q=>String(q.tender_id)===String(tenderId)&&String(q.supplier_id)===String(supplierId)&&q.source_type==='pdf-ai'&&q.status==='error'&&q.storage_path)
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0];
+  if(!quote)return false;
+  state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:'',quoteId:quote.id,storagePath:quote.storage_path,sourceFilename:quote.source_filename||'PDF armazenado',mode:'ai'};
+  state.quoteImportLastError=true;
+  setQuoteRetryVisible(true,'Reprocessar PDF armazenado');
+  setQuoteImportStatus(`O PDF “${quote.source_filename||'armazenado'}” já foi enviado. Você pode reprocessá-lo sem fazer outro upload.`,'warn');
+  return true;
 }
 
 async function startAutomaticQuoteImport(force=false){
   const tenderId=$('#quoteImportTender')?.value||'';
   const supplierId=$('#quoteImportSupplier')?.value||'';
   const file=$('#quoteImportFile')?.files?.[0];
-  if(!tenderId||!supplierId||!file)return;
-  if(state.quoteImportBusy&&!force)return;
+  if(!tenderId||!supplierId)return;
+  if(state.quoteImportBusy)return;
+  const context=state.quoteImportContext;
+  const retryContext=force&&!state.demo&&context?.quoteId&&context?.storagePath&&
+    String(context.tenderId)===String(tenderId)&&String(context.supplierId)===String(supplierId)?context:null;
+  if(!file&&!retryContext){
+    if(context&&(String(context.tenderId)!==String(tenderId)||String(context.supplierId)!==String(supplierId)))clearQuoteImportPreview();
+    offerStoredAiQuoteRetry(tenderId,supplierId);
+    return;
+  }
 
-  const ext=file.name.toLowerCase().split('.').pop()||'';
-  if(file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo excede o limite de 25 MB.','error');
-  if(state.demo){
+  const ext=file?.name.toLowerCase().split('.').pop()||'';
+  if(file&&file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo excede o limite de 25 MB.','error');
+  if(!retryContext&&state.demo){
     if(!['pdf','csv'].includes(ext))return toast('Na demonstração, use PDF textual ou CSV.','error');
-  }else if(ext!=='pdf'||(file.type&&!['application/pdf','application/octet-stream'].includes(String(file.type).toLowerCase()))){
+  }else if(!retryContext&&(ext!=='pdf'||(file.type&&!['application/pdf','application/octet-stream'].includes(String(file.type).toLowerCase())))){
     return toast('No modo online, selecione um arquivo PDF válido.','error');
   }
 
@@ -1980,7 +2027,7 @@ async function startAutomaticQuoteImport(force=false){
   state.quoteImportBusy=true;
   state.quoteImportLastError=false;
   state.quoteImportRows=[];
-  state.quoteImportContext=null;
+  if(!retryContext)state.quoteImportContext=null;
   setQuoteRetryVisible(false);
   renderQuoteImportPreview();
   const supplierInput=$('#quoteImportSupplier');
@@ -1988,12 +2035,11 @@ async function startAutomaticQuoteImport(force=false){
   if(supplierInput)supplierInput.disabled=true;
   if(fileInput)fileInput.disabled=true;
 
-  let quoteId='';
+  let quoteId=retryContext?.quoteId||'';
   try{
-    setQuoteImportProgress('upload');
-    setQuoteImportStatus(state.demo?'Lendo o arquivo na demonstração…':'Enviando o PDF para o arquivo privado…','loading');
-
     if(state.demo){
+      setQuoteImportProgress('upload');
+      setQuoteImportStatus('Lendo o arquivo na demonstração…','loading');
       let rows=ext==='csv'?await parseSpreadsheetFile(file):await parsePdfFile(file);
       if(runToken!==state.quoteImportRunToken)return;
       if(!rows.length)throw new Error('Nenhuma linha com produto e preço foi encontrada');
@@ -2012,35 +2058,59 @@ async function startAutomaticQuoteImport(force=false){
       setQuoteImportProgress('saving');
       await persistAutomaticQuoteRows('',tenderId,supplierId,runToken);
     }else{
-      const signature=new TextDecoder().decode(await file.slice(0,5).arrayBuffer());
-      if(signature!=='%PDF-')throw new Error('Assinatura PDF inválida');
-      const quote=await findOrCreateAiQuote(tenderId,supplierId,file);
-      quoteId=quote.id;
-      if(runToken!==state.quoteImportRunToken)return;
-      const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-      const path=`${currentCompanyId()}/${quote.id}/${Date.now()}-${safeName}`;
-      const {error:uploadError}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType:'application/pdf'});
-      if(uploadError)throw uploadError;
-      const {error:updateError}=await supabase.from('quotes').update({storage_path:path,status:'processing',source_filename:file.name,source_type:'pdf-ai',ai_error:null}).eq('id',quote.id);
-      if(updateError)throw updateError;
+      if(retryContext){
+        setQuoteImportProgress('reading');
+        setQuoteImportStatus('Reprocessando o PDF que já está armazenado…','loading');
+      }else{
+        setQuoteImportProgress('upload');
+        setQuoteImportStatus('Enviando o PDF para o arquivo privado…','loading');
+        const signature=new TextDecoder().decode(await file.slice(0,5).arrayBuffer());
+        if(signature!=='%PDF-')throw new Error('O arquivo selecionado não possui uma assinatura PDF válida.');
+        const createdResult=await findOrCreateAiQuote(tenderId,supplierId,file);
+        const quote=createdResult.quote;
+        quoteId=quote.id;
+        if(runToken!==state.quoteImportRunToken)return;
+        const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+        const path=`${currentCompanyId()}/${quote.id}/${Date.now()}-${safeName}`;
+        const {error:uploadError}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType:'application/pdf'});
+        if(uploadError){
+          if(createdResult.created)await supabase.from('quotes').delete().eq('id',quote.id);
+          throw new Error('Não foi possível enviar o PDF ao arquivo privado. Tente novamente.');
+        }
+        if(runToken!==state.quoteImportRunToken){
+          await supabase.storage.from('quote-files').remove([path]);
+          if(createdResult.created)await supabase.from('quotes').delete().eq('id',quote.id);
+          return;
+        }
+        const {error:updateError}=await supabase.from('quotes').update({storage_path:path,status:'processing',source_filename:file.name,source_type:'pdf-ai',ai_error:null}).eq('id',quote.id);
+        if(updateError){
+          await supabase.storage.from('quote-files').remove([path]);
+          if(createdResult.created)await supabase.from('quotes').delete().eq('id',quote.id);
+          throw new Error('O PDF foi enviado, mas não pôde ser vinculado à cotação. Tente novamente.');
+        }
+        state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),quoteId:quote.id,storagePath:path,sourceFilename:file.name,mode:'ai'};
+        if(createdResult.previousStoragePath&&createdResult.previousStoragePath!==path){
+          const {error:oldFileError}=await supabase.storage.from('quote-files').remove([createdResult.previousStoragePath]);
+          if(oldFileError)console.warn('Não foi possível remover o PDF anterior já substituído.');
+        }
+      }
       if(runToken!==state.quoteImportRunToken)return;
 
       setQuoteImportProgress('reading');
-      setQuoteImportStatus('PDF enviado. A IA está lendo o documento…','loading');
-      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:{quote_id:quote.id}});
+      if(!retryContext)setQuoteImportStatus('PDF enviado. A IA está lendo o documento…','loading');
+      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:{quote_id:quoteId}});
       if(runToken!==state.quoteImportRunToken)return;
-      if(error||data?.error)throw new Error('Falha na leitura por IA');
+      if(error||data?.error)throw await quoteAiInvokeFailure(error,data);
       setQuoteImportProgress('matching');
       setQuoteImportStatus('Leitura concluída. Validando as relações com os itens oficiais…','loading');
       state.quoteImportRows=mapAiQuoteLines(data,tenderId);
-      state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),quoteId:quote.id,mode:'ai'};
       renderQuoteImportPreview();
       setQuoteImportProgress('saving');
       setQuoteImportStatus('Salvando somente as correspondências seguras…','loading');
-      await persistAutomaticQuoteRows(quote.id,tenderId,supplierId,runToken);
+      await persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken);
       if(runToken!==state.quoteImportRunToken)return;
       const hasReview=state.quoteImportRows.some(r=>!r.savedAutomatically&&r.needsReview);
-      await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',quote.id);
+      await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',quoteId);
       await refreshAll();
     }
 
@@ -2052,12 +2122,12 @@ async function startAutomaticQuoteImport(force=false){
     toast('A leitura automática da cotação foi concluída.');
   }catch(error){
     if(runToken!==state.quoteImportRunToken)return;
-    console.warn('Importação automática de cotação:',error);
+    console.warn('Importação automática de cotação:',error?.code||'IMPORT_ERROR');
     state.quoteImportLastError=true;
-    setQuoteImportProgress('');
-    setQuoteRetryVisible(true);
-    setQuoteImportStatus('Não foi possível concluir a leitura automática. Confira o PDF e tente novamente.','error');
-    if(!state.demo&&quoteId&&supabase)await supabase.from('quotes').update({status:'error',ai_error:'Falha na leitura automática'}).eq('id',quoteId);
+    setQuoteImportProgress(state.quoteImportContext?.storagePath?'reading':'');
+    setQuoteRetryVisible(true,state.quoteImportContext?.storagePath?'Reprocessar PDF armazenado':'Tentar novamente');
+    setQuoteImportStatus(error?.message||'Não foi possível concluir a leitura automática. Tente novamente.','error');
+    if(!state.demo&&quoteId&&supabase&&error?.code)await supabase.from('quotes').update({status:'error',ai_error:error.code}).eq('id',quoteId);
   }finally{
     if(runToken===state.quoteImportRunToken){
       state.quoteImportBusy=false;
@@ -2082,6 +2152,7 @@ function clearQuoteImportPreview(message=''){
   state.quoteImportFilter='';
   state.quoteOnlyUnrelated=false;
   state.quoteSupplierSearches={};
+  setQuoteRetryVisible(false);
   renderQuoteImportPreview();
   if(message&&hadPreview)setQuoteImportStatus(message,'warn');
   else if(!hadPreview)setQuoteImportStatus('','loading');
@@ -3324,6 +3395,9 @@ async function readQuoteImportFile(){
 }
 
 async function matchImportedQuotesWithAi(){
+  // Compatibilidade interna: neutraliza o contrato antigo e reutiliza apenas quote_id.
+  return startAutomaticQuoteImport(true);
+  /* istanbul ignore next -- código legado inalcançável mantido temporariamente */
   syncQuoteRowsFromDom();
   const tenderId=$('#quoteImportTender')?.value;
   const rows=state.quoteImportRows||[];
@@ -8228,6 +8302,7 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente para revisar os itens corretos.');
   state.quoteWorkspaceMode='import';
   renderQuotesWorkspace();
+  startAutomaticQuoteImport();
 });
 $('#quoteImportTender')?.addEventListener('change',()=>clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente.'));
 $('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());

@@ -1,2 +1,2 @@
-36.11.0 - Importação automática de PDF com IA, associação conservadora e salvamento apenas de itens seguros.
+36.11.1 - Gemini com schema JSON atual, erros específicos e reprocessamento sem novo upload.
 
