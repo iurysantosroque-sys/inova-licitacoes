@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.112.3'
 const MAX_PDF_BYTES=25*1024*1024
 const MAX_REQUEST_BYTES=512*1024
 const PARSER_VERSION='36.11.2'
-const TEXT_BATCH_SIZE=28
+const TEXT_BATCH_SIZE=50
 const PAGES_ORIGIN='https://iurysantosroque-sys.github.io'
 const corsHeaders=(req:Request)=>{
   const origin=req.headers.get('origin')||''
@@ -165,6 +165,24 @@ function sanitizeExtractedRows(value:unknown):ExtractedRow[]{
     })
   }
   return rows
+}
+
+async function mapWithConcurrency<T,R>(items:T[],limit:number,worker:(item:T,index:number)=>Promise<R>):Promise<R[]>{
+  const results=new Array<R>(items.length)
+  let cursor=0
+  let failed=false
+  let failure:unknown
+  const runners=Array.from({length:Math.min(limit,items.length)},async()=>{
+    while(!failed){
+      const index=cursor++
+      if(index>=items.length)return
+      try{results[index]=await worker(items[index],index)}
+      catch(error){failed=true;failure=error}
+    }
+  })
+  await Promise.all(runners)
+  if(failed)throw failure
+  return results
 }
 
 const responseJsonSchema={
@@ -362,55 +380,66 @@ Deno.serve(async(req)=>{
       if(variant==='json_schema')generationConfig.responseJsonSchema=textMatchJsonSchema
       else if(variant==='legacy_schema')generationConfig.responseSchema=textMatchLegacySchema
       const requestBody=JSON.stringify({systemInstruction:{parts:[{text:textMatchSystemInstruction}]},contents,generationConfig})
-      const started=Date.now()
-      const controller=new AbortController()
-      const timer=setTimeout(()=>controller.abort(),remaining)
-      let response:Response
-      try{
-        response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,{
-          method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:requestBody
-        })
-      }catch(error){
-        const timeout=error instanceof Error&&error.name==='AbortError'
-        console.error(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,status:timeout?504:0,providerCode:timeout?'TIMEOUT':'FETCH_ERROR',requestId:null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
-        throw new AiFailure(timeout?'AI_TIMEOUT':'AI_UNAVAILABLE',timeout?504:502)
-      }finally{clearTimeout(timer)}
-      const requestId=response.headers.get('x-request-id')||response.headers.get('x-goog-request-id')||null
-      if(!response.ok){
-        let providerCode:unknown=null
+      for(let attempt=1;attempt<=3;attempt++){
+        const remaining=Math.min(115_000,deadline-Date.now())
+        if(remaining<1000)throw new AiFailure('AI_TIMEOUT',504)
+        const started=Date.now()
+        const controller=new AbortController()
+        const timer=setTimeout(()=>controller.abort(),remaining)
+        let response:Response
         try{
-          const providerBody=await response.clone().json()
-          providerCode=providerBody?.error?.status||providerBody?.error?.code||null
-        }catch{/* Corpo do provedor nunca é propagado nem registrado. */}
-        console.error(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,status:response.status,providerCode:safeProviderCode(providerCode),requestId:text(requestId,120)||null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
-        throw new BlockHttpFailure(response.status)
+          response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,{
+            method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:requestBody
+          })
+        }catch(error){
+          const timeout=error instanceof Error&&error.name==='AbortError'
+          console.error(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,attempt,status:timeout?504:0,providerCode:timeout?'TIMEOUT':'FETCH_ERROR',requestId:null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
+          throw new AiFailure(timeout?'AI_TIMEOUT':'AI_UNAVAILABLE',timeout?504:502)
+        }finally{clearTimeout(timer)}
+        const requestId=response.headers.get('x-request-id')||response.headers.get('x-goog-request-id')||null
+        if(!response.ok){
+          let providerCode:unknown=null
+          try{
+            const providerBody=await response.clone().json()
+            providerCode=providerBody?.error?.status||providerBody?.error?.code||null
+          }catch{/* Corpo do provedor nunca é propagado nem registrado. */}
+          console.error(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,attempt,status:response.status,providerCode:safeProviderCode(providerCode),requestId:text(requestId,120)||null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
+          if(response.status===429&&attempt<3){
+            const backoffMs=attempt===1?5_000:12_000
+            if(deadline-Date.now()<=backoffMs+10_000)throw new BlockHttpFailure(429)
+            await new Promise(resolve=>setTimeout(resolve,backoffMs))
+            continue
+          }
+          throw new BlockHttpFailure(response.status)
+        }
+        console.info(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,attempt,status:response.status,providerCode:null,requestId:text(requestId,120)||null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
+        let generated:any
+        try{generated=await response.json()}catch{throw new InvalidAiBlock()}
+        if(generated?.candidates?.[0]?.finishReason==='MAX_TOKENS')throw new InvalidAiBlock()
+        const raw=generated?.candidates?.[0]?.content?.parts?.map((part:any)=>part.text||'').join('')||''
+        if(!raw)throw new InvalidAiBlock()
+        let block:any
+        try{block=JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''))}
+        catch{throw new InvalidAiBlock()}
+        if(!Array.isArray(block?.r)||block.r.length!==batch.length)throw new InvalidAiBlock()
+        const expected=new Set(batch.map(row=>row.row_index))
+        const seen=new Set<number>()
+        const matches=block.r.map((entry:any)=>{
+          const rowIndex=Number(entry?.i)
+          const factor=Number(entry?.f)
+          const confidence=Number(entry?.x)
+          const factorConfidence=Number(entry?.y)
+          if(!Number.isSafeInteger(rowIndex)||!expected.has(rowIndex)||seen.has(rowIndex)||typeof entry?.m!=='boolean')throw new InvalidAiBlock()
+          if(!Number.isFinite(factor)||factor<0||!Number.isFinite(confidence)||!Number.isFinite(factorConfidence))throw new InvalidAiBlock()
+          seen.add(rowIndex)
+          const requestedId=text(entry?.t,80)
+          const matched=entry.m===true&&allowedItemIds.has(requestedId)
+          return {row_index:rowIndex,package_base_quantity:factor,match:{matched,tender_item_id:matched?requestedId:'',confidence:matched?clamp(confidence):0,factor_confidence:clamp(factorConfidence),reason:'',incompatibilities:[]}}
+        })
+        if(seen.size!==expected.size)throw new InvalidAiBlock()
+        return matches
       }
-      console.info(JSON.stringify({quoteId,model:modelName,variant,pageRange:`batch-${batchLabel}`,status:response.status,providerCode:null,requestId:text(requestId,120)||null,durationMs:Date.now()-started,pdfBytes:bytes.length,itemCount:officialItems.length}))
-      let generated:any
-      try{generated=await response.json()}catch{throw new InvalidAiBlock()}
-      if(generated?.candidates?.[0]?.finishReason==='MAX_TOKENS')throw new InvalidAiBlock()
-      const raw=generated?.candidates?.[0]?.content?.parts?.map((part:any)=>part.text||'').join('')||''
-      if(!raw)throw new InvalidAiBlock()
-      let block:any
-      try{block=JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''))}
-      catch{throw new InvalidAiBlock()}
-      if(!Array.isArray(block?.r)||block.r.length!==batch.length)throw new InvalidAiBlock()
-      const expected=new Set(batch.map(row=>row.row_index))
-      const seen=new Set<number>()
-      const matches=block.r.map((entry:any)=>{
-        const rowIndex=Number(entry?.i)
-        const factor=Number(entry?.f)
-        const confidence=Number(entry?.x)
-        const factorConfidence=Number(entry?.y)
-        if(!Number.isSafeInteger(rowIndex)||!expected.has(rowIndex)||seen.has(rowIndex)||typeof entry?.m!=='boolean')throw new InvalidAiBlock()
-        if(!Number.isFinite(factor)||factor<0||!Number.isFinite(confidence)||!Number.isFinite(factorConfidence))throw new InvalidAiBlock()
-        seen.add(rowIndex)
-        const requestedId=text(entry?.t,80)
-        const matched=entry.m===true&&allowedItemIds.has(requestedId)
-        return {row_index:rowIndex,package_base_quantity:factor,match:{matched,tender_item_id:matched?requestedId:'',confidence:matched?clamp(confidence):0,factor_confidence:clamp(factorConfidence),reason:'',incompatibilities:[]}}
-      })
-      if(seen.size!==expected.size)throw new InvalidAiBlock()
-      return matches
+      throw new BlockHttpFailure(429)
     }
 
     if(extractedRows.length){
@@ -427,7 +456,7 @@ Deno.serve(async(req)=>{
           const maxOutputTokens=reportedLimit?Math.max(1024,Math.min(Math.floor(reportedLimit),8192)):8192
           try{
             const probe=await requestTextBatch(model,variant,maxOutputTokens,batches[0],textDeadline)
-            const remaining=await Promise.all(batches.slice(1).map(batch=>requestTextBatch(model,variant,maxOutputTokens,batch,textDeadline)))
+            const remaining=await mapWithConcurrency(batches.slice(1),2,batch=>requestTextBatch(model,variant,maxOutputTokens,batch,textDeadline))
             const matches=[probe,...remaining].flat()
             const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
             if(matchByRow.size!==extractedRows.length)throw new InvalidAiBlock()
