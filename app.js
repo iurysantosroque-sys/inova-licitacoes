@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteViewTenderId:'', quoteWorkspaceMode:'list', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
@@ -1822,17 +1822,11 @@ async function parsePdfFile(file){
 
 
 function setupManualQuoteMode(){
-  const aiBtn=$('#quoteAiMatchBtn');
-  if(aiBtn)aiBtn.hidden=state.demo;
-
   const help=$('.quote-import-help span');
   if(help){
-    help.innerHTML='Primeiro leia a cotação. Use a <b>associação inteligente</b> no modo online ou relacione manualmente. Os itens oficiais do edital ficam fixos e a decisão final é sempre sua.';
-  }
-
-  const titleHint=document.querySelector('#view-cotacoes .panel .panel-title .hint, #view-cotacoes .panel-title .hint');
-  if(titleHint && /IA|inteligente/i.test(titleHint.textContent||'')){
-    titleHint.textContent='Importe a cotação, pesquise os itens do edital e revise antes de salvar.';
+    help.innerHTML=state.demo
+      ?'A demonstração faz uma simulação textual local. A leitura multimodal por IA, o arquivamento privado e o salvamento online exigem login.'
+      :'Envie um <b>PDF de até 25 MB</b>. A IA salva automaticamente somente relações de alta confiança; as demais ficam separadas para revisão.';
   }
 }
 
@@ -1844,6 +1838,235 @@ function setQuoteImportStatus(message,type='loading'){
   el.textContent=message||'';
 }
 
+const QUOTE_IMPORT_STEPS=['upload','reading','matching','saving'];
+function setQuoteImportProgress(step=''){
+  const el=$('#quoteImportProgress');
+  if(!el)return;
+  el.hidden=!step;
+  const activeIndex=step==='done'?QUOTE_IMPORT_STEPS.length:QUOTE_IMPORT_STEPS.indexOf(step);
+  el.querySelectorAll('[data-quote-step]').forEach((node,index)=>{
+    node.classList.toggle('done',activeIndex===QUOTE_IMPORT_STEPS.length||index<activeIndex);
+    node.classList.toggle('active',index===activeIndex);
+  });
+}
+
+function setQuoteRetryVisible(visible){
+  const btn=$('#quoteRetryBtn');
+  if(btn)btn.hidden=!visible;
+}
+
+function mapAiQuoteLines(data,tenderId){
+  const allowed=new Set(state.itens.filter(i=>String(i.licitacao_id)===String(tenderId)).map(i=>String(i.id)));
+  return (Array.isArray(data?.lines)?data.lines:[]).slice(0,1000).map((line,index)=>{
+    const match=line?.match||{};
+    const itemId=allowed.has(String(match.tender_item_id||''))?String(match.tender_item_id):'';
+    const confidence=Math.max(0,Math.min(1,Number(match.confidence)||0));
+    const factorConfidence=Math.max(0,Math.min(1,Number(match.factor_confidence)||0));
+    const incompatibilities=Array.isArray(match.incompatibilities)?match.incompatibilities.map(String).slice(0,12):[];
+    const factor=Number(line.package_base_quantity||1);
+    const price=Number(line.unit_price||line.price||0);
+    const safeToSave=Boolean(
+      line.safe_to_save===true&&itemId&&price>0&&factor>0&&confidence>=.90&&factorConfidence>=.85&&!incompatibilities.length
+    );
+    return {
+      originalOrder:index,code:String(line.code||''),description:String(line.description||'Item não identificado'),
+      quantity:Number(line.quantity)||null,unit:String(line.unit||''),price,subtotal:Number.isFinite(Number(line.subtotal))?Number(line.subtotal):null,
+      brand:String(line.brand||''),presentation:String(line.presentation||''),factor,page:Number(line.page)||null,
+      itemId,editalItemNumber:itemId?Number(state.itens.find(i=>String(i.id)===itemId)?.numero||0):null,
+      aiMatched:Boolean(itemId),aiMatchConfidence:confidence,factorConfidence,aiReason:String(match.reason||''),
+      incompatibilities,safeToSave,needsReview:!safeToSave,selected:false,savedAutomatically:false
+    };
+  });
+}
+
+function quoteImportSummaryText(tenderId){
+  const rows=state.quoteImportRows||[];
+  const automatic=rows.filter(r=>r.savedAutomatically).length;
+  const approved=rows.filter(r=>r.savedAfterReview).length;
+  const review=rows.filter(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&r.needsReview).length;
+  const unidentified=rows.filter(r=>!r.itemId).length;
+  const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
+  const missing=tenderItems.filter(i=>!quotesForItem(i.id).length).length;
+  return `${automatic} salvos automaticamente, ${approved} correções aprovadas, ${review} para revisão, ${unidentified} não identificados e ${missing} itens do edital sem cotação.`;
+}
+
+async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
+  const rows=state.quoteImportRows||[];
+  const counts=new Map();
+  rows.forEach(r=>{if(r.itemId)counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1);});
+  const safeRows=rows.filter(r=>
+    r.safeToSave===true&&!r.needsReview&&r.itemId&&counts.get(String(r.itemId))===1&&Number(r.price)>0&&Number(r.factor)>0
+  );
+  if(runToken!==state.quoteImportRunToken)return 0;
+
+  if(state.demo){
+    for(const r of safeRows){
+      const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
+      const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence,needs_review:false};
+      if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
+      r.savedAutomatically=true;r.selected=false;
+    }
+    renderAll();
+    return safeRows.length;
+  }
+
+  if(!safeRows.length)return 0;
+  const itemIds=safeRows.map(r=>String(r.itemId));
+  const {data:oldRows,error:oldError}=await supabase.from('quote_items').select('id,tender_item_id').eq('quote_id',quoteId).in('tender_item_id',itemIds);
+  if(oldError)throw oldError;
+  if(runToken!==state.quoteImportRunToken)return 0;
+
+  const payload=safeRows.map(r=>({
+    quote_id:quoteId,tender_item_id:r.itemId,supplier_description:r.description,
+    brand:r.brand||null,package_description:r.presentation||null,package_base_quantity:Number(r.factor),
+    unit_price:Number(r.price),freight_per_package:0,ai_match_confidence:Number(r.aiMatchConfidence),needs_review:false
+  }));
+  const insertedIds=[];
+  try{
+    for(let start=0;start<payload.length;start+=300){
+      const {data:inserted,error}=await supabase.from('quote_items').insert(payload.slice(start,start+300)).select('id');
+      if(error)throw error;
+      insertedIds.push(...(inserted||[]).map(x=>x.id));
+    }
+    const obsoleteIds=(oldRows||[]).map(x=>x.id);
+    if(obsoleteIds.length){
+      const {error:deleteError}=await supabase.from('quote_items').delete().in('id',obsoleteIds);
+      if(deleteError)throw deleteError;
+    }
+  }catch(error){
+    if(insertedIds.length)await supabase.from('quote_items').delete().in('id',insertedIds);
+    throw error;
+  }
+  safeRows.forEach(r=>{r.savedAutomatically=true;r.selected=false;});
+  return safeRows.length;
+}
+
+async function findOrCreateAiQuote(tenderId,supplierId,file){
+  const existing=state.quotes
+    .filter(q=>String(q.tender_id)===String(tenderId)&&String(q.supplier_id)===String(supplierId)&&q.source_type==='pdf-ai')
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0];
+  const base={source_filename:file.name,source_type:'pdf-ai',status:'uploading',ai_error:null};
+  if(existing){
+    const {data,error}=await supabase.from('quotes').update(base).eq('id',existing.id).select().single();
+    if(error)throw error;
+    Object.assign(existing,data);
+    return existing;
+  }
+  const {data,error}=await supabase.from('quotes').insert({
+    company_id:currentCompanyId(),tender_id:tenderId,supplier_id:supplierId,created_by:state.user.id,...base
+  }).select().single();
+  if(error)throw error;
+  state.quotes.unshift(data);
+  return data;
+}
+
+async function startAutomaticQuoteImport(force=false){
+  const tenderId=$('#quoteImportTender')?.value||'';
+  const supplierId=$('#quoteImportSupplier')?.value||'';
+  const file=$('#quoteImportFile')?.files?.[0];
+  if(!tenderId||!supplierId||!file)return;
+  if(state.quoteImportBusy&&!force)return;
+
+  const ext=file.name.toLowerCase().split('.').pop()||'';
+  if(file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo excede o limite de 25 MB.','error');
+  if(state.demo){
+    if(!['pdf','csv'].includes(ext))return toast('Na demonstração, use PDF textual ou CSV.','error');
+  }else if(ext!=='pdf'||(file.type&&!['application/pdf','application/octet-stream'].includes(String(file.type).toLowerCase()))){
+    return toast('No modo online, selecione um arquivo PDF válido.','error');
+  }
+
+  const runToken=crypto.randomUUID();
+  state.quoteImportRunToken=runToken;
+  state.quoteImportBusy=true;
+  state.quoteImportLastError=false;
+  state.quoteImportRows=[];
+  state.quoteImportContext=null;
+  setQuoteRetryVisible(false);
+  renderQuoteImportPreview();
+  const supplierInput=$('#quoteImportSupplier');
+  const fileInput=$('#quoteImportFile');
+  if(supplierInput)supplierInput.disabled=true;
+  if(fileInput)fileInput.disabled=true;
+
+  let quoteId='';
+  try{
+    setQuoteImportProgress('upload');
+    setQuoteImportStatus(state.demo?'Lendo o arquivo na demonstração…':'Enviando o PDF para o arquivo privado…','loading');
+
+    if(state.demo){
+      let rows=ext==='csv'?await parseSpreadsheetFile(file):await parsePdfFile(file);
+      if(runToken!==state.quoteImportRunToken)return;
+      if(!rows.length)throw new Error('Nenhuma linha com produto e preço foi encontrada');
+      rows.forEach((r,index)=>{r.originalOrder=index;r.itemId='';r.selected=false;});
+      autoRelateSafeQuoteRows(tenderId,rows);
+      rows.forEach(r=>{
+        r.aiMatchConfidence=Number(r.matchScore||0);
+        r.factorConfidence=r.autoTextMatched ? .90 : 0;
+        r.safeToSave=Boolean(r.itemId&&r.autoTextMatched&&r.aiMatchConfidence>=.90&&Number(r.price)>0&&Number(r.factor||1)>0);
+        r.needsReview=!r.safeToSave;r.factor=Number(r.factor||1);r.savedAutomatically=false;
+      });
+      state.quoteImportRows=rows;
+      state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),mode:'demo'};
+      setQuoteImportProgress('matching');
+      renderQuoteImportPreview();
+      setQuoteImportProgress('saving');
+      await persistAutomaticQuoteRows('',tenderId,supplierId,runToken);
+    }else{
+      const signature=new TextDecoder().decode(await file.slice(0,5).arrayBuffer());
+      if(signature!=='%PDF-')throw new Error('Assinatura PDF inválida');
+      const quote=await findOrCreateAiQuote(tenderId,supplierId,file);
+      quoteId=quote.id;
+      if(runToken!==state.quoteImportRunToken)return;
+      const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      const path=`${currentCompanyId()}/${quote.id}/${Date.now()}-${safeName}`;
+      const {error:uploadError}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType:'application/pdf'});
+      if(uploadError)throw uploadError;
+      const {error:updateError}=await supabase.from('quotes').update({storage_path:path,status:'processing',source_filename:file.name,source_type:'pdf-ai',ai_error:null}).eq('id',quote.id);
+      if(updateError)throw updateError;
+      if(runToken!==state.quoteImportRunToken)return;
+
+      setQuoteImportProgress('reading');
+      setQuoteImportStatus('PDF enviado. A IA está lendo o documento…','loading');
+      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:{quote_id:quote.id}});
+      if(runToken!==state.quoteImportRunToken)return;
+      if(error||data?.error)throw new Error('Falha na leitura por IA');
+      setQuoteImportProgress('matching');
+      setQuoteImportStatus('Leitura concluída. Validando as relações com os itens oficiais…','loading');
+      state.quoteImportRows=mapAiQuoteLines(data,tenderId);
+      state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),quoteId:quote.id,mode:'ai'};
+      renderQuoteImportPreview();
+      setQuoteImportProgress('saving');
+      setQuoteImportStatus('Salvando somente as correspondências seguras…','loading');
+      await persistAutomaticQuoteRows(quote.id,tenderId,supplierId,runToken);
+      if(runToken!==state.quoteImportRunToken)return;
+      const hasReview=state.quoteImportRows.some(r=>!r.savedAutomatically&&r.needsReview);
+      await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',quote.id);
+      await refreshAll();
+    }
+
+    if(runToken!==state.quoteImportRunToken)return;
+    setQuoteImportProgress('done');
+    const summary=quoteImportSummaryText(tenderId);
+    setQuoteImportStatus(summary,'success');
+    renderQuoteImportPreview();
+    toast('A leitura automática da cotação foi concluída.');
+  }catch(error){
+    if(runToken!==state.quoteImportRunToken)return;
+    console.warn('Importação automática de cotação:',error);
+    state.quoteImportLastError=true;
+    setQuoteImportProgress('');
+    setQuoteRetryVisible(true);
+    setQuoteImportStatus('Não foi possível concluir a leitura automática. Confira o PDF e tente novamente.','error');
+    if(!state.demo&&quoteId&&supabase)await supabase.from('quotes').update({status:'error',ai_error:'Falha na leitura automática'}).eq('id',quoteId);
+  }finally{
+    if(runToken===state.quoteImportRunToken){
+      state.quoteImportBusy=false;
+      if(supplierInput)supplierInput.disabled=false;
+      if(fileInput)fileInput.disabled=false;
+    }
+  }
+}
+
 function quoteImportFileKey(file){
   if(!file)return '';
   return `${file.name}:${file.size}:${file.lastModified||0}`;
@@ -1851,6 +2074,9 @@ function quoteImportFileKey(file){
 
 function clearQuoteImportPreview(message=''){
   const hadPreview=Boolean(state.quoteImportRows.length||state.quoteImportContext);
+  state.quoteImportRunToken=crypto.randomUUID();
+  state.quoteImportBusy=false;
+  state.quoteImportLastError=false;
   state.quoteImportRows=[];
   state.quoteImportContext=null;
   state.quoteImportFilter='';
@@ -1978,6 +2204,14 @@ function ensureQuoteWorkspaceStyles(){
     #cotacoes .quote-import-warning{margin:0 18px 12px;padding:10px 12px;border:1px solid #805d18;border-radius:8px;background:#251e0c;color:#ffda70;font-size:.76rem}
     #cotacoes .quote-origin-line{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
     #cotacoes .quote-origin-line .badge{font-size:.62rem}
+    #cotacoes .quote-import-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0;padding:0;list-style:none;counter-reset:quote-step}
+    #cotacoes .quote-import-progress li{position:relative;padding:12px 10px 12px 34px;border:1px solid var(--qw-line);border-radius:9px;background:#081821;color:var(--qw-muted);font-size:.72rem;font-weight:750}
+    #cotacoes .quote-import-progress li:before{counter-increment:quote-step;content:counter(quote-step);position:absolute;left:10px;top:10px;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#203540;color:#c9d5db;font-size:.64rem}
+    #cotacoes .quote-import-progress li.active{border-color:#b58518;background:#241d0a;color:#ffe08a}
+    #cotacoes .quote-import-progress li.active:before{background:var(--qw-accent);color:#151000}
+    #cotacoes .quote-import-progress li.done{border-color:#237046;background:#09251c;color:#78e8a7}
+    #cotacoes .quote-import-progress li.done:before{content:'✓';background:#31b76b;color:#05130b}
+    #cotacoes #quoteRetryBtn{margin:0 0 12px}
     @media(max-width:760px){
       #cotacoes .quote-workspace-header{align-items:stretch;flex-direction:column;padding:16px}
       #cotacoes .quote-tender-field{min-width:0;width:100%}
@@ -2008,6 +2242,7 @@ function ensureQuoteWorkspaceStyles(){
       #cotacoes .quote-primary-actions button{width:100%}
       #cotacoes .quote-filter-buttons{grid-template-columns:1fr}
       #cotacoes .quote-direct-table td{grid-template-columns:88px minmax(0,1fr)}
+      #cotacoes .quote-import-progress{grid-template-columns:1fr}
     }
   `;
   document.head.appendChild(style);
@@ -2506,8 +2741,8 @@ function renderQuoteImportPreview(){
   });
   const duplicateGroups=[...assignedGroups.entries()].filter(([,rows])=>rows.length>1);
   const duplicateItemIds=new Set(duplicateGroups.map(([itemId])=>itemId));
-  const validSaveRows=supplierRows.filter(r=>r.selected!==false&&r.itemId&&Number(r.price)>0);
-  const reviewCount=validSaveRows.filter(r=>r.needsReview).length;
+  const validSaveRows=supplierRows.filter(r=>r.selected===true&&!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&Number(r.price)>0&&Number(r.factor||0)>0);
+  const reviewCount=supplierRows.filter(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&r.needsReview).length;
 
   const relatedTender=tenderItems.filter(i=>assignedByItem.has(String(i.id))).length;
   const missingTender=Math.max(0,tenderItems.length-relatedTender);
@@ -2543,6 +2778,7 @@ function renderQuoteImportPreview(){
         index,
         hay:quoteNormalize(`${r.description||''} ${r.code||''} ${r.brand||''}`)
       }))
+      .filter(x=>x.r===assignedRow||(!x.r.savedAutomatically&&!x.r.savedAfterReview))
       .filter(x=>!term||x.hay.includes(term));
 
     if(assignedRow&&!options.some(x=>x.index===assignedIndex)){
@@ -2578,13 +2814,12 @@ function renderQuoteImportPreview(){
   el.innerHTML=`
     <div class="quote-preview-head">
       <div>
-        <strong>Conferência da cotação</strong>
-        <span>Edital à esquerda • produtos encontrados no arquivo à direita</span>
+        <strong>Revisar sugestões da IA</strong>
+        <span>Os itens seguros já foram salvos. Aprove explicitamente somente as correções que você conferir.</span>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-        ${!state.demo?'<button type="button" id="quoteAiMatchBtn" class="secondary">Associar com IA</button>':''}
-        <button type="button" id="quoteSaveImportedBtn" ${!validSaveRows.length||duplicateGroups.length?'disabled':''}>Salvar ${validSaveRows.length} cotaç${validSaveRows.length===1?'ão':'ões'}</button>
+        ${validSaveRows.length?`<button type="button" id="quoteSaveImportedBtn" ${duplicateGroups.length?'disabled':''}>Salvar ${validSaveRows.length} correç${validSaveRows.length===1?'ão aprovada':'ões aprovadas'}</button>`:''}
       </div>
     </div>
 
@@ -2594,7 +2829,7 @@ function renderQuoteImportPreview(){
         ${duplicateGroups.map(([itemId])=>{const item=state.itens.find(i=>String(i.id)===itemId);return `Item ${esc(item?.numero||'?')}`;}).join(' • ')}
       </div>
     `:''}
-    ${reviewCount?`<div class="quote-import-warning"><strong>${reviewCount} associaç${reviewCount===1?'ão precisa':'ões precisam'} de revisão.</strong> Confira a confiança e, se necessário, faça o vínculo manual.</div>`:''}
+    ${reviewCount?`<div class="quote-import-warning"><strong>${reviewCount} sugest${reviewCount===1?'ão precisa':'ões precisam'} de revisão.</strong> Corrija o vínculo ou os valores e marque “Aprovar correção” antes de salvar.</div>`:''}
 
     <div class="qv-stats">
       <div class="qv-stat">
@@ -2622,8 +2857,8 @@ function renderQuoteImportPreview(){
     <div class="qv-info">
       <span>✓</span>
       <span>
-        A numeração e a descrição do edital não mudam.
-        Use a busca do lado direito para localizar o produto correspondente no PDF do fornecedor.
+        A precificação considera apenas os itens salvos automaticamente ou as correções aprovadas por você.
+        Sugestões incertas nunca entram silenciosamente nos cálculos.
       </span>
     </div>
 
@@ -2663,6 +2898,7 @@ function renderQuoteImportPreview(){
         const assigned=assignedByItem.get(String(item.id));
         const rowIndex=assigned?supplierRows.indexOf(assigned):-1;
         const searchValue=state.quoteSupplierSearches?.[item.id]||'';
+        const saved=Boolean(assigned?.savedAutomatically||assigned?.savedAfterReview);
 
         return `
           <div
@@ -2705,9 +2941,10 @@ function renderQuoteImportPreview(){
                   value="${esc(searchValue)}"
                   placeholder="Pesquisar produto no arquivo..."
                   autocomplete="off"
+                  ${saved?'disabled':''}
                 >
 
-                <select data-supplier-select="${esc(item.id)}">
+                <select data-supplier-select="${esc(item.id)}" ${saved?'disabled':''}>
                   ${supplierOptions(item,assigned,searchValue)}
                 </select>
 
@@ -2716,7 +2953,11 @@ function renderQuoteImportPreview(){
                     assigned
                       ?duplicateItemIds.has(String(item.id))
                         ?'<span class="badge bad">Duplicado</span>'
-                        :assigned.needsReview
+                        :assigned.savedAutomatically
+                          ?'<span class="badge good">Salvo automaticamente</span>'
+                          :assigned.savedAfterReview
+                            ?'<span class="badge good">Correção salva</span>'
+                            :assigned.needsReview
                           ?'<span class="badge warn">Revisão necessária</span>'
                           :'<span class="badge good">Vinculado — pronto para salvar</span>'
                       :'<span class="badge neutral">Ainda não vinculado</span>'
@@ -2741,7 +2982,9 @@ function renderQuoteImportPreview(){
                         <div class="quote-origin-line">
                           <span class="badge neutral">Origem: ${assigned.aiMatched?'IA':assigned.autoTextMatched?'Correspondência textual':'Vínculo manual'}</span>
                           ${assigned.aiMatched&&Number.isFinite(Number(assigned.aiMatchConfidence))?`<span class="badge ${Number(assigned.aiMatchConfidence)>=.85?'good':'warn'}">Confiança ${Math.round(Number(assigned.aiMatchConfidence)*100)}%</span>`:''}
+                          ${assigned.aiMatched&&Number.isFinite(Number(assigned.factorConfidence))?`<span class="badge ${Number(assigned.factorConfidence)>=.85?'good':'warn'}">Fator ${Math.round(Number(assigned.factorConfidence)*100)}%</span>`:''}
                           ${assigned.needsReview?'<span class="badge warn">Revisão necessária</span>':''}
+                          ${assigned.incompatibilities?.length?`<span class="badge bad">${esc(assigned.incompatibilities.join(' • '))}</span>`:''}
                         </div>
                       </div>
 
@@ -2751,6 +2994,10 @@ function renderQuoteImportPreview(){
                     </div>
 
                     <div class="qv-fields">
+                      ${!assigned.savedAutomatically&&!assigned.savedAfterReview?`<label class="qv-field" style="align-content:center">
+                        <span>Aprovação obrigatória</span>
+                        <span style="display:flex;align-items:center;gap:8px"><input data-q-field="selected" type="checkbox" ${assigned.selected===true?'checked':''}> Aprovar correção</span>
+                      </label>`:''}
                       <div class="qv-field">
                         <label>Preço</label>
                         <input
@@ -2759,6 +3006,7 @@ function renderQuoteImportPreview(){
                           step="0.0001"
                           min="0"
                           value="${Number(assigned.price||0)}"
+                          ${saved?'disabled':''}
                         >
                       </div>
 
@@ -2768,6 +3016,7 @@ function renderQuoteImportPreview(){
                           data-q-field="presentation"
                           value="${esc(assigned.presentation||'')}"
                           placeholder="Ex.: caixa c/ 50"
+                          ${saved?'disabled':''}
                         >
                       </div>
 
@@ -2779,6 +3028,7 @@ function renderQuoteImportPreview(){
                           min="0.0001"
                           step="0.001"
                           value="${Number(assigned.factor||1)}"
+                          ${saved?'disabled':''}
                         >
                       </div>
 
@@ -2787,16 +3037,17 @@ function renderQuoteImportPreview(){
                         <input
                           data-q-field="brand"
                           value="${esc(assigned.brand||'')}"
+                          ${saved?'disabled':''}
                         >
                       </div>
 
-                      <button
-                        type="button"
-                        class="qv-remove"
-                        data-clear-fixed-relation="${esc(item.id)}"
-                      >
-                        Desvincular
-                      </button>
+                      ${saved?'':`<button
+                          type="button"
+                          class="qv-remove"
+                          data-clear-fixed-relation="${esc(item.id)}"
+                        >
+                          Desvincular
+                        </button>`}
                     </div>
                   `
                   :`
@@ -2826,7 +3077,6 @@ function renderQuoteImportPreview(){
   `;
 
   $('#quoteSaveImportedBtn')?.addEventListener('click',saveImportedQuotes);
-  $('#quoteAiMatchBtn')?.addEventListener('click',matchImportedQuotesWithAi);
 
   $('#quoteGlobalSearch')?.addEventListener('input',e=>{
     syncQuoteRowsFromDom();
@@ -2945,7 +3195,9 @@ function renderQuoteImportPreview(){
       selectedRow.manualMatched=true;
       selectedRow.aiMatched=false;
       selectedRow.aiMatchConfidence=1;
-      selectedRow.needsReview=false;
+      selectedRow.factorConfidence=1;
+      selectedRow.safeToSave=false;
+      selectedRow.needsReview=true;
       selectedRow.selected=true;
 
       state.quoteSupplierSearches ||= {};
@@ -3142,7 +3394,7 @@ async function saveImportedQuotes(){
     return toast('Leia o arquivo novamente para atualizar a revisão.','error');
   }
   const rows=(state.quoteImportRows||[])
-    .filter(r=>r.selected!==false&&r.itemId&&Number(r.price)>0)
+    .filter(r=>r.selected===true&&!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&Number(r.price)>0&&Number(r.factor||0)>0)
     .sort((a,b)=>{
       const ai=state.itens.find(i=>i.id===a.itemId);
       const bi=state.itens.find(i=>i.id===b.itemId);
@@ -3178,13 +3430,7 @@ async function saveImportedQuotes(){
     return toast('Há itens vinculados a mais de um produto. Desvincule as duplicidades.','error');
   }
 
-  const reviewRows=rows.filter(r=>r.needsReview);
-  if(reviewRows.length&&!confirm(
-    `${reviewRows.length} associaç${reviewRows.length===1?'ão está':'ões estão'} marcada${reviewRows.length===1?'':'s'} como "Revisão necessária". `+
-    'Confirma que você conferiu esses vínculos e deseja continuar?'
-  ))return;
-
-  if(!confirm(`Salvar ${rows.length} cotação${rows.length===1?'':'ões'} para este fornecedor? Uma nova importação substituirá os itens correspondentes desta mesma cotação.`))return;
+  if(!confirm(`Salvar ${rows.length} correç${rows.length===1?'ão':'ões'} que você aprovou? Os itens correspondentes serão atualizados nesta cotação.`))return;
 
   const btn=$('#quoteSaveImportedBtn');
   if(btn){btn.disabled=true;btn.textContent='Salvando…';}
@@ -3196,17 +3442,16 @@ async function saveImportedQuotes(){
     if(state.demo){
       for(const r of rows){
         const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
-        const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor||1),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),needs_review:Boolean(r.needsReview)};
+        const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor||1),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),needs_review:false};
         if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
+        r.savedAfterReview=true;r.needsReview=false;r.selected=false;
       }
-      state.quoteImportRows=[];
-      state.quoteImportContext=null;
       renderAll();
-      setQuoteImportStatus(`${rows.length} cotações salvas apenas nesta demonstração.`,'success');
+      setQuoteImportStatus(quoteImportSummaryText(tenderId),'success');
       return;
     }
 
-    const q=await findOrCreateQuote(tenderId,supplierId);
+    const q=context.quoteId?{id:context.quoteId}:await findOrCreateQuote(tenderId,supplierId);
     if(!q)throw new Error('Não foi possível criar a cotação.');
 
     const selectedItemIds=[...new Set(rows.map(r=>String(r.itemId)))];
@@ -3223,7 +3468,7 @@ async function saveImportedQuotes(){
       unit_price:Number(r.price),
       freight_per_package:0,
       ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),
-      needs_review:Boolean(r.needsReview)
+      needs_review:false
     }));
 
     for(let start=0;start<payload.length;start+=300){
@@ -3240,12 +3485,13 @@ async function saveImportedQuotes(){
     }
     persistenceComplete=true;
 
-    setQuoteImportStatus(`${payload.length} cotações salvas. A precificação foi atualizada.`,'success');
-    toast('Cotação importada com sucesso.');
-    state.quoteImportRows=[];
-    state.quoteImportContext=null;
-    renderQuoteImportPreview();
+    rows.forEach(r=>{r.savedAfterReview=true;r.needsReview=false;r.selected=false;});
+    const hasReview=state.quoteImportRows.some(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.needsReview);
+    if(context.quoteId)await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',context.quoteId);
     await refreshAll();
+    setQuoteImportStatus(quoteImportSummaryText(tenderId),'success');
+    renderQuoteImportPreview();
+    toast('Correções aprovadas salvas.');
   }catch(e){
     let recovery='';
     if(!state.demo&&!persistenceComplete&&insertedIds.length&&supabase){
@@ -3257,7 +3503,7 @@ async function saveImportedQuotes(){
     setQuoteImportStatus(`Erro ao salvar: ${e?.message||e}.${recovery}`,'error');
   }finally{
     if(btn){
-      const count=(state.quoteImportRows||[]).filter(r=>r.selected!==false&&r.itemId&&Number(r.price)>0).length;
+      const count=(state.quoteImportRows||[]).filter(r=>r.selected===true&&!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&Number(r.price)>0&&Number(r.factor||0)>0).length;
       btn.disabled=!count;
       btn.textContent=`Salvar ${count} cotaç${count===1?'ão':'ões'}`;
     }
@@ -3387,20 +3633,10 @@ function renderQuoteUnitPreview(){
 }
 
 function setQuoteWorkspaceMode(mode='list',focus=true){
-  state.quoteWorkspaceMode=['manual','import'].includes(mode)?mode:'list';
-  const manual=$('#quoteManualPanel');
+  state.quoteWorkspaceMode='import';
   const imported=$('#quoteImportPanel');
-  if(manual)manual.hidden=state.quoteWorkspaceMode!=='manual';
-  if(imported)imported.hidden=state.quoteWorkspaceMode!=='import';
-  document.querySelectorAll('[data-quote-mode]').forEach(btn=>{
-    const active=btn.dataset.quoteMode===state.quoteWorkspaceMode;
-    btn.classList.toggle('active',active);
-    btn.setAttribute('aria-pressed',String(active));
-  });
-  if(focus){
-    if(state.quoteWorkspaceMode==='manual')$('#cotacaoItem')?.focus();
-    if(state.quoteWorkspaceMode==='import')$('#quoteImportSupplier')?.focus();
-  }
+  if(imported)imported.hidden=false;
+  if(focus)$('#quoteImportSupplier')?.focus();
 }
 
 function renderQuoteTenderComparison(){
@@ -3456,7 +3692,7 @@ function renderQuoteTenderComparison(){
               <td data-label="Fornecedor">${best?esc(supplier?.nome||'-'):'-'}</td>
               <td data-label="Estimado">${Number(item.valor_estimado||0)>0?money(item.valor_estimado):'-'}</td>
               <td data-label="Situação">${status}</td>
-              <td data-label="Ações"><div class="quote-table-actions"><button type="button" class="action-btn" data-quote-add-item="${esc(item.id)}">Adicionar</button>${saved.length?`<button type="button" class="action-btn danger-btn" data-remove-item-quotes="${esc(item.id)}">Remover</button>`:''}</div></td>
+              <td data-label="Ações"><div class="quote-table-actions">${saved.length?`<button type="button" class="action-btn danger-btn" data-remove-item-quotes="${esc(item.id)}">Remover</button>`:'-'}</div></td>
             </tr>
           `;
         }).join('')}
@@ -3488,15 +3724,6 @@ function renderQuotesWorkspace(){
   const importLabel=$('#quoteImportTenderLabel');
   if(importLabel)importLabel.innerHTML=tender?`Arquivo para <strong>${esc(tender.numero)} • ${esc(tender.orgao)}</strong>`:'Selecione um edital acima antes de importar.';
 
-  const currentItem=$('#cotacaoItem')?.value||'';
-  const itemSelect=$('#cotacaoItem');
-  if(itemSelect){
-    itemSelect.innerHTML='<option value="">Selecione um item deste edital</option>'+tenderItems
-      .sort((a,b)=>Number(a.numero)-Number(b.numero))
-      .map(i=>`<option value="${i.id}">Item ${esc(i.numero)} • ${esc(i.descricao)}</option>`).join('');
-    if(tenderItems.some(i=>String(i.id)===String(currentItem)))itemSelect.value=currentItem;
-  }
-
   const summary=$('#quoteWorkspaceSummary');
   if(summary)summary.innerHTML=`
     <div class="quote-summary-card"><span>Itens do edital</span><strong>${tenderItems.length}</strong></div>
@@ -3507,7 +3734,6 @@ function renderQuotesWorkspace(){
   if(search&&search.value!==state.quoteWorkspaceSearch)search.value=state.quoteWorkspaceSearch||'';
   setQuoteWorkspaceMode(state.quoteWorkspaceMode,false);
   renderQuoteTenderComparison();
-  renderQuoteUnitPreview();
 }
 
 
@@ -5296,7 +5522,7 @@ function renderPricingExactModel(){
         <td data-label="Mínimo / meta">${limitCell}</td>
         <td data-label="Resultado">${resultCell}</td>
         <td data-label="Status">${statusCell}</td>
-        <td data-label="Ações"><div class="px-actions"><button type="button" class="px-action primary" data-px-sim-item="${esc(item.id)}">Simular preço</button><button type="button" class="px-action" data-px-quote-item="${esc(item.id)}">${p?'Editar cotação':'Adicionar cotação'}</button></div></td>
+        <td data-label="Ações"><div class="px-actions"><button type="button" class="px-action primary" data-px-sim-item="${esc(item.id)}">Simular preço</button><button type="button" class="px-action" data-px-quote-item="${esc(item.id)}">${p?'Ver cotações':'Importar PDF'}</button></div></td>
       </tr>`;
     }).join('') || '<tr><td colspan="7" data-label="Resultado"><span class="px-item-meta">Nenhum item corresponde aos filtros.</span></td></tr>';
 
@@ -5317,7 +5543,7 @@ function renderPricingExactModel(){
   const showSimulationMessage=(title,message,kind='neutral',ctaItemId='')=>{
     const result=shell.querySelector('#pxSimResult');
     result.className=`px-sim-result ${kind}`;
-    result.innerHTML=`<div class="px-decision"><div><strong>${esc(title)}</strong><span>${esc(message)}</span><span class="px-live-only" role="status" aria-live="polite" aria-atomic="true">${esc(title)}. ${esc(message)}</span>${ctaItemId?'<br><button type="button" class="px-action primary" id="pxSimQuoteCta">Adicionar cotação</button>':''}</div></div>`;
+    result.innerHTML=`<div class="px-decision"><div><strong>${esc(title)}</strong><span>${esc(message)}</span><span class="px-live-only" role="status" aria-live="polite" aria-atomic="true">${esc(title)}. ${esc(message)}</span>${ctaItemId?'<br><button type="button" class="px-action primary" id="pxSimQuoteCta">Importar PDF da cotação</button>':''}</div></div>`;
     if(ctaItemId)result.querySelector('#pxSimQuoteCta')?.addEventListener('click',()=>openQuoteForItem(ctaItemId));
   };
 
@@ -5911,7 +6137,7 @@ function renderPricingExactModelLegacy(){
             ${flex?`<div class="px-item-meta" style="margin-top:5px;max-width:170px">${esc(flex.statusReason)}</div>`:''}
           </td>
 
-          <td><button type="button" class="px-action" data-px-quote-item="${esc(i.id)}">${p?'Editar cotação':'Adicionar cotação'}</button></td>
+          <td><button type="button" class="px-action" data-px-quote-item="${esc(i.id)}">${p?'Ver cotações':'Importar PDF'}</button></td>
         </tr>
       `;
     }).join('');
@@ -7777,8 +8003,14 @@ function renderAll(){
   $('#itemLicitacao').innerHTML=licOpts; $('#arquivoLicitacao').innerHTML=licOpts;
   if($('#pncpSyncTender'))$('#pncpSyncTender').innerHTML='<option value="">Selecione a licitação PNCP</option>'+state.licitacoes.filter(l=>l.pncp_control||l.source_url).map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   const fornOpts='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join('');
-  $('#cotacaoFornecedor').innerHTML=fornOpts; $('#arquivoFornecedor').innerHTML=fornOpts;
-  if($('#quoteImportSupplier'))$('#quoteImportSupplier').innerHTML=fornOpts;
+  if($('#cotacaoFornecedor'))$('#cotacaoFornecedor').innerHTML=fornOpts;
+  $('#arquivoFornecedor').innerHTML=fornOpts;
+  const importSupplier=$('#quoteImportSupplier');
+  if(importSupplier){
+    const selectedSupplier=state.quoteImportContext?.supplierId||importSupplier.value||'';
+    importSupplier.innerHTML=fornOpts;
+    if([...importSupplier.options].some(option=>String(option.value)===String(selectedSupplier)))importSupplier.value=selectedSupplier;
+  }
   renderQuotesWorkspace();
   renderPricingByTender();
   $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado','Próximo passo'],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge neutral">${esc(d.status||'arquivado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),'<span class="hint">Leia e revise na aba Cotações</span>'];}));
@@ -7815,7 +8047,7 @@ async function logout(){if(state.demo){location.reload();return;}await supabase.
 $('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});renderAll();return;}const {error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Item adicionado.');await refreshAll();});
 $('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
-$('#cotacaoForm').addEventListener('submit',async e=>{
+$('#cotacaoForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const f=Object.fromEntries(new FormData(e.target));
   const item=state.itens.find(i=>String(i.id)===String(f.item_id));
@@ -7989,27 +8221,22 @@ document.addEventListener('click',async e=>{
 
 
 
-$('#quoteReadBtn')?.addEventListener('click',readQuoteImportFile);
 $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   state.quoteViewTenderId=e.target.value||'';
   const importTender=$('#quoteImportTender');
   if(importTender)importTender.value=state.quoteViewTenderId;
   clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente para revisar os itens corretos.');
-  state.quoteWorkspaceMode='list';
+  state.quoteWorkspaceMode='import';
   renderQuotesWorkspace();
 });
 $('#quoteImportTender')?.addEventListener('change',()=>clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente.'));
-$('#quoteImportSupplier')?.addEventListener('change',()=>clearQuoteImportPreview('O fornecedor mudou. Leia o arquivo novamente.'));
-$('#quoteImportFile')?.addEventListener('change',()=>clearQuoteImportPreview('O arquivo mudou. Leia-o novamente para atualizar a revisão.'));
+$('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());
+$('#quoteImportFile')?.addEventListener('change',()=>startAutomaticQuoteImport());
+$('#quoteRetryBtn')?.addEventListener('click',()=>startAutomaticQuoteImport(true));
 $('#quoteWorkspaceSearch')?.addEventListener('input',e=>{
   state.quoteWorkspaceSearch=e.target.value||'';
   renderQuoteTenderComparison();
 });
-['cotacaoItem','cotacaoFornecedor','cotacaoPreco','cotacaoFator','cotacaoFrete'].forEach(id=>{
-  $('#'+id)?.addEventListener(id==='cotacaoItem'||id==='cotacaoFornecedor'?'change':'input',renderQuoteUnitPreview);
-});
-document.querySelectorAll('[data-quote-mode]').forEach(btn=>btn.addEventListener('click',()=>setQuoteWorkspaceMode(btn.dataset.quoteMode)));
-document.querySelectorAll('[data-quote-close-editor]').forEach(btn=>btn.addEventListener('click',()=>setQuoteWorkspaceMode('list',false)));
 document.querySelectorAll('[data-quote-filter]').forEach(btn=>btn.addEventListener('click',()=>{
   state.quoteWorkspaceFilter=btn.dataset.quoteFilter||'all';
   renderQuoteTenderComparison();
@@ -8038,15 +8265,6 @@ document.addEventListener('change',e=>{
 });
 
 document.addEventListener('click',async e=>{
-  const quoteItem=e.target.closest('[data-quote-add-item]');
-  if(quoteItem){
-    setQuoteWorkspaceMode('manual',false);
-    const select=$('#cotacaoItem');
-    if(select)select.value=quoteItem.dataset.quoteAddItem||'';
-    renderQuoteUnitPreview();
-    $('#cotacaoFornecedor')?.focus();
-    return;
-  }
   const btn=e.target.closest('[data-sync-pncp]');
   if(!btn)return;
   const select=$('#pncpSyncTender');

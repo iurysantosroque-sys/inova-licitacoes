@@ -1,2 +1,2 @@
-36.10.0 - Cotações diretas por edital, com resumo, filtros, custo unitário e importação revisável.
+36.11.0 - Importação automática de PDF com IA, associação conservadora e salvamento apenas de itens seguros.
 

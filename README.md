@@ -5,15 +5,15 @@ Aplicação web/PWA para acompanhar editais, itens, fornecedores, cotações e p
 ## Funcionalidades
 
 - tela de cotações por edital com resumo, busca, filtros e comparação direta do melhor custo;
-- lançamento manual com cálculo unitário imediato e importação revisável de Excel, CSV e PDF;
+- importação automática de PDF: upload privado, leitura multimodal por IA, associação aos itens oficiais e salvamento conservador;
 - autenticação individual e empresa compartilhada por código de convite;
 - importação e sincronização de editais/itens pelo PNCP;
-- cadastro manual de licitações, itens, fornecedores e cotações;
-- leitura local de cotações em Excel, CSV e PDF com texto;
-- associação conservadora por texto e associação inteligente por Edge Function, sempre com revisão humana;
+- cadastro manual de licitações, itens e fornecedores;
+- simulação local de cotações em CSV ou PDF com texto no modo demonstração;
+- revisão humana separada para sugestões incertas; baixa confiança nunca é salva automaticamente;
 - cálculo de custo equivalente, frete, impostos, reserva, margem e lucro mínimo;
 - metas por item salvas no navegador e configurações globais salvas no Supabase;
-- arquivamento privado de cotações no Storage (PDF/Excel/CSV, até 25 MB);
+- arquivamento privado de PDFs de cotação no Storage (até 25 MB), preservado para auditoria;
 - modo demonstração local e instalação como PWA.
 
 ## Desenvolvimento local
@@ -51,7 +51,7 @@ A Publishable Key é pública por definição e só é segura quando tabelas, fu
 - `supabase/schema.sql`: bootstrap completo para um projeto novo, usando as tabelas atuais em inglês.
 - `supabase/migrations/`: alterações incrementais revisáveis. A migração de hardening incluída no repositório **não é aplicada automaticamente**.
 - `supabase/functions/pncp-import`: proxy PNCP autenticado, com orçamento total de tempo e limites de paginação.
-- `supabase/functions/ai-match-quote`: associação Gemini que valida o usuário, a empresa, a licitação e busca os itens oficiais pelo JWT/RLS.
+- `supabase/functions/ai-match-quote`: recebe somente `quote_id`, valida acesso pelo JWT/RLS, baixa o PDF privado e usa o Gemini multimodal para extrair e relacionar os itens.
 
 Secrets necessários para `ai-match-quote`:
 
@@ -68,10 +68,10 @@ Depois de aplicar qualquer mudança de banco, execute os Security e Performance 
 
 1. Cadastre ou importe a licitação e seus itens.
 2. Cadastre o fornecedor.
-3. Na aba **Cotações**, selecione licitação, fornecedor e arquivo.
-4. Leia o arquivo; use a IA online se desejar.
-5. Revise descrições, embalagem, equivalência, preço e correspondências abaixo de 85%.
-6. Salve. Reimportar a mesma combinação substitui os itens correspondentes sem acumular duplicatas.
+3. Na aba **Cotações**, selecione o edital, o fornecedor e o PDF; o processamento começa automaticamente.
+4. A IA lê o documento, relaciona os itens oficiais e salva apenas vínculos com confiança de item ≥ 90%, confiança do fator ≥ 85% e sem incompatibilidades.
+5. Revise as sugestões incertas e marque **Aprovar correção** somente após conferir vínculo, embalagem e preço.
+6. Reprocessar a mesma combinação atualiza os itens correspondentes na cotação de origem IA e preserva os arquivos enviados para auditoria.
 7. Na aba **Precificação**, selecione um item e arraste a bolinha de preço para acompanhar lucro, margens, preço de parada e recomendação em tempo real. A simulação não altera os dados salvos; metas, filtros e exportação CSV continuam disponíveis.
 
 ## Publicação

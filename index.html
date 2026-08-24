@@ -9,8 +9,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=36.10.0" />
-  <script src="./app-config.js?v=36.10.0"></script>
+  <link rel="stylesheet" href="styles.css?v=36.11.0" />
+  <script src="./app-config.js?v=36.11.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -249,7 +249,7 @@
         <header class="quote-workspace-header">
           <div>
             <h1>Cotações</h1>
-            <p>Registre preços de fornecedores e encontre o menor custo por item.</p>
+            <p>Importe o PDF do fornecedor. A IA lê, relaciona e salva automaticamente apenas os itens seguros.</p>
           </div>
           <label class="quote-tender-field" for="quoteWorkspaceTender">
             Edital em análise
@@ -259,64 +259,12 @@
 
         <div id="quoteWorkspaceSummary" class="quote-summary" aria-live="polite"></div>
 
-        <div class="quote-primary-actions" aria-label="Ações de cotação">
-          <button type="button" data-quote-mode="manual">Adicionar cotação</button>
-          <button type="button" class="secondary" data-quote-mode="import">Importar arquivo</button>
-        </div>
-
-        <div id="quoteManualPanel" class="panel quote-editor-panel" hidden>
+        <div id="quoteImportPanel" class="panel quote-import-panel quote-editor-panel">
           <div class="panel-title">
             <div>
-              <h2>Adicionar cotação</h2>
-              <p class="hint">Informe o preço recebido. O custo por unidade é calculado antes de salvar.</p>
+              <h2>Importar PDF com IA</h2>
+              <p class="hint">Selecione o fornecedor e o PDF. A leitura começa automaticamente, sem outro botão.</p>
             </div>
-            <button type="button" class="action-btn" data-quote-close-editor aria-label="Fechar formulário">Fechar</button>
-          </div>
-          <form id="cotacaoForm" class="quote-manual-form">
-            <label for="cotacaoItem">Item do edital
-              <select name="item_id" id="cotacaoItem" required></select>
-            </label>
-            <label for="cotacaoFornecedor">Fornecedor
-              <select name="fornecedor_id" id="cotacaoFornecedor" required></select>
-            </label>
-            <label for="cotacaoPreco">Preço da embalagem (R$)
-              <input id="cotacaoPreco" name="preco" type="number" min="0.0001" step="0.0001" inputmode="decimal" required />
-            </label>
-            <label for="cotacaoFator">Quantidade por embalagem
-              <input id="cotacaoFator" name="fator_equivalencia" type="number" min="0.001" step="0.001" value="1" inputmode="decimal" required />
-            </label>
-
-            <div id="quoteUnitPreview" class="quote-unit-preview" aria-live="polite">
-              Preencha o item, o fornecedor e o preço para ver o custo unitário.
-            </div>
-
-            <details class="quote-advanced-fields">
-              <summary>Detalhes opcionais</summary>
-              <div>
-                <label for="cotacaoApresentacao">Apresentação
-                  <input id="cotacaoApresentacao" name="apresentacao" placeholder="Ex.: galão 5 L" />
-                </label>
-                <label for="cotacaoMarca">Marca/modelo
-                  <input id="cotacaoMarca" name="marca" />
-                </label>
-                <label for="cotacaoFrete">Frete por embalagem (R$)
-                  <input id="cotacaoFrete" name="frete_rateado" type="number" step="0.01" min="0" value="0" inputmode="decimal" />
-                  <small>Se ficar em zero, será usado o frete padrão do fornecedor.</small>
-                </label>
-              </div>
-            </details>
-
-            <button type="submit" class="quote-submit-btn">Salvar cotação</button>
-          </form>
-        </div>
-
-        <div id="quoteImportPanel" class="panel quote-import-panel quote-editor-panel" hidden>
-          <div class="panel-title">
-            <div>
-              <h2>Importar arquivo</h2>
-              <p class="hint">Leia uma planilha ou PDF, relacione os produtos aos itens e revise antes de salvar.</p>
-            </div>
-            <button type="button" class="action-btn" data-quote-close-editor aria-label="Fechar importação">Fechar</button>
           </div>
 
           <select id="quoteImportTender" hidden aria-hidden="true" tabindex="-1"></select>
@@ -325,18 +273,24 @@
             <label for="quoteImportSupplier">Fornecedor
               <select id="quoteImportSupplier"></select>
             </label>
-            <label class="quote-file-label" for="quoteImportFile">Arquivo da cotação
-              <input id="quoteImportFile" type="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <label class="quote-file-label" for="quoteImportFile">PDF da cotação
+              <input id="quoteImportFile" type="file" accept=".pdf,.csv,application/pdf,text/csv" aria-describedby="quoteImportHelp">
             </label>
-            <button type="button" id="quoteReadBtn">Ler arquivo e revisar</button>
           </div>
 
-          <div class="quote-import-help">
-            <strong>Formatos aceitos:</strong>
-            <span>Excel e CSV oferecem melhor precisão. O PDF precisa ter texto selecionável.</span>
+          <div id="quoteImportHelp" class="quote-import-help">
+            <strong>Automático e seguro:</strong>
+            <span>No modo online, envie PDF de até 25 MB. A demonstração também aceita CSV e usa correspondência textual local; a IA real exige login.</span>
           </div>
 
           <div id="quoteImportStatus" class="quote-import-status" role="status" aria-live="polite" hidden></div>
+          <ol id="quoteImportProgress" class="quote-import-progress" aria-label="Etapas da importação" hidden>
+            <li data-quote-step="upload">Enviando PDF</li>
+            <li data-quote-step="reading">IA lendo documento</li>
+            <li data-quote-step="matching">Relacionando itens</li>
+            <li data-quote-step="saving">Salvando seguros</li>
+          </ol>
+          <button type="button" id="quoteRetryBtn" class="secondary" hidden>Tentar novamente</button>
           <div id="quoteImportPreview" class="quote-import-preview"></div>
         </div>
 
@@ -536,11 +490,11 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.10.0</span><i></i><span>Sistema atualizado</span></div>
+      <div class="footer-status"><span>Versão 36.11.0</span><i></i><span>Cotações automáticas por IA</span></div>
     </footer>
   </div>
 
-  <script type="module" src="./app.js?v=36.10.0"></script>
+  <script type="module" src="./app.js?v=36.11.0"></script>
 </body>
 </html>
 
