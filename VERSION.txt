@@ -1,6 +1,7 @@
-INOVA V36.9.1
+INOVA V36.10.0
 
 - Formulários manuais e modo demonstração funcionais.
+- Cotações diretas por edital, com resumo, filtros, custo unitário e importação revisável.
 - Precificação simplificada com slider, metas, limites e resultado em tempo real.
 - Associação por IA com validação e revisão humana.
 - Upload privado validado e PWA com cache atualizável.

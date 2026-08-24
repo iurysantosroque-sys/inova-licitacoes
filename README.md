@@ -4,6 +4,8 @@ Aplicação web/PWA para acompanhar editais, itens, fornecedores, cotações e p
 
 ## Funcionalidades
 
+- tela de cotações por edital com resumo, busca, filtros e comparação direta do melhor custo;
+- lançamento manual com cálculo unitário imediato e importação revisável de Excel, CSV e PDF;
 - autenticação individual e empresa compartilhada por código de convite;
 - importação e sincronização de editais/itens pelo PNCP;
 - cadastro manual de licitações, itens, fornecedores e cotações;

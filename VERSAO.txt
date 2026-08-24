@@ -1,2 +1,2 @@
-36.9.1 - Precificação simplificada com simulador visual de preço, metas e decisão em tempo real.
+36.10.0 - Cotações diretas por edital, com resumo, filtros, custo unitário e importação revisável.
 
