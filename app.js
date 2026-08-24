@@ -153,6 +153,7 @@ let state = {
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
+const QUOTE_PARSER_VERSION='36.11.2';
 const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
 const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
@@ -1820,6 +1821,36 @@ async function parsePdfFile(file){
   return dedupeQuotePdfRows(candidates);
 }
 
+function compactExtractedQuoteRows(rows){
+  const compact=[];
+  for(const source of Array.isArray(rows)?rows:[]){
+    if(compact.length>=500)break;
+    const description=String(source?.description||'').trim().slice(0,1800);
+    const unitPrice=Number(source?.unit_price??source?.price);
+    if(!description||!Number.isFinite(unitPrice)||unitPrice<=0)continue;
+    const quantity=Number(source?.quantity);
+    const subtotal=Number(source?.subtotal);
+    compact.push({
+      row_index:compact.length,
+      code:String(source?.code||'').trim().slice(0,120),
+      description,
+      quantity:Number.isFinite(quantity)&&quantity>0?quantity:null,
+      unit:String(source?.unit||'').trim().slice(0,40),
+      unit_price:unitPrice,
+      subtotal:Number.isFinite(subtotal)&&subtotal>0?subtotal:null,
+      brand:String(source?.brand||'').trim().slice(0,160),
+      presentation:String(source?.presentation||'').trim().slice(0,300)
+    });
+  }
+  return compact;
+}
+
+async function downloadStoredQuoteFile(context){
+  const {data,error}=await supabase.storage.from('quote-files').download(context.storagePath);
+  if(error||!data)throw new Error('Não foi possível baixar o PDF armazenado para reprocessamento.');
+  return new File([data],context.sourceFilename||'cotacao-armazenada.pdf',{type:'application/pdf',lastModified:Date.now()});
+}
+
 
 function setupManualQuoteMode(){
   const help=$('.quote-import-help span');
@@ -2060,7 +2091,7 @@ async function startAutomaticQuoteImport(force=false){
     }else{
       if(retryContext){
         setQuoteImportProgress('reading');
-        setQuoteImportStatus('Reprocessando o PDF que já está armazenado…','loading');
+        setQuoteImportStatus('Baixando o PDF armazenado para identificar os itens…','loading');
       }else{
         setQuoteImportProgress('upload');
         setQuoteImportStatus('Enviando o PDF para o arquivo privado…','loading');
@@ -2097,12 +2128,31 @@ async function startAutomaticQuoteImport(force=false){
       if(runToken!==state.quoteImportRunToken)return;
 
       setQuoteImportProgress('reading');
-      if(!retryContext)setQuoteImportStatus('PDF enviado. A IA está lendo o documento…','loading');
-      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:{quote_id:quoteId}});
+      if(!retryContext)setQuoteImportStatus('PDF enviado. Identificando os itens do documento…','loading');
+      const parserFile=retryContext?await downloadStoredQuoteFile(retryContext):file;
+      if(runToken!==state.quoteImportRunToken)return;
+      let extractedRows=[];
+      try{
+        extractedRows=compactExtractedQuoteRows(await parsePdfFile(parserFile));
+      }catch(parserError){
+        console.warn('Extração textual local indisponível; usando leitura multimodal da IA.');
+      }
+      if(runToken!==state.quoteImportRunToken)return;
+      if(state.quoteImportContext)state.quoteImportContext.extractedRows=extractedRows;
+      const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION};
+      if(extractedRows.length){
+        invokeBody.extracted_rows=extractedRows;
+        setQuoteImportProgress('matching');
+        setQuoteImportStatus(`${extractedRows.length} itens identificados. A IA está relacionando cada produto aos itens oficiais…`,'loading');
+      }else{
+        setQuoteImportProgress('reading');
+        setQuoteImportStatus('Não foi possível extrair itens localmente. A IA está lendo o PDF completo…','loading');
+      }
+      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:invokeBody});
       if(runToken!==state.quoteImportRunToken)return;
       if(error||data?.error)throw await quoteAiInvokeFailure(error,data);
       setQuoteImportProgress('matching');
-      setQuoteImportStatus('Leitura concluída. Validando as relações com os itens oficiais…','loading');
+      setQuoteImportStatus('Relacionamento concluído. Validando os itens identificados…','loading');
       state.quoteImportRows=mapAiQuoteLines(data,tenderId);
       renderQuoteImportPreview();
       setQuoteImportProgress('saving');

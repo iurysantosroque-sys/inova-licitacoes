@@ -5,7 +5,7 @@ Aplicação web/PWA para acompanhar editais, itens, fornecedores, cotações e p
 ## Funcionalidades
 
 - tela de cotações por edital com resumo, busca, filtros e comparação direta do melhor custo;
-- importação automática de PDF: upload privado, leitura multimodal por IA, associação aos itens oficiais e salvamento conservador;
+- importação automática de PDF: upload privado, extração textual local, associação por IA em lotes e salvamento conservador, com fallback multimodal para PDFs sem texto;
 - autenticação individual e empresa compartilhada por código de convite;
 - importação e sincronização de editais/itens pelo PNCP;
 - cadastro manual de licitações, itens e fornecedores;
@@ -51,7 +51,7 @@ A Publishable Key é pública por definição e só é segura quando tabelas, fu
 - `supabase/schema.sql`: bootstrap completo para um projeto novo, usando as tabelas atuais em inglês.
 - `supabase/migrations/`: alterações incrementais revisáveis. A migração de hardening incluída no repositório **não é aplicada automaticamente**.
 - `supabase/functions/pncp-import`: proxy PNCP autenticado, com orçamento total de tempo e limites de paginação.
-- `supabase/functions/ai-match-quote`: recebe somente `quote_id`, valida acesso pelo JWT/RLS, baixa o PDF privado e usa o Gemini multimodal para extrair e relacionar os itens.
+- `supabase/functions/ai-match-quote`: recebe `quote_id` e, quando disponíveis, linhas extraídas localmente; valida JWT/RLS, baixa e confere o PDF privado e usa o Gemini para relacionar lotes aos itens oficiais. PDFs sem texto mantêm o fallback multimodal.
 - Em falha temporária da IA, **Reprocessar PDF armazenado** reutiliza o mesmo `quote_id` e arquivo privado, sem criar outro upload.
 
 Secrets necessários para `ai-match-quote`:

@@ -1,2 +1,2 @@
-36.11.1 - Gemini com schema JSON atual, erros específicos e reprocessamento sem novo upload.
+36.11.2 - Extração textual local e relacionamento por IA em lotes, com fallback multimodal seguro.
 

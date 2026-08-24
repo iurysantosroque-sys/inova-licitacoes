@@ -1,6 +1,6 @@
-const CACHE='inova-licitacoes-v36.11.1';
+const CACHE='inova-licitacoes-v36.11.2';
 const CORE=[
-  './','./index.html','./styles.css?v=36.11.1','./app.js?v=36.11.1','./manifest.json',
+  './','./index.html','./styles.css?v=36.11.2','./app.js?v=36.11.2','./manifest.json',
   './assets/logo.png','./icons/icon-192.png','./icons/icon-512.png'
 ];
 
