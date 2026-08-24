@@ -1,4 +1,4 @@
-INOVA V36.11.4
+INOVA V36.11.5
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas por edital, com resumo, filtros, custo unitário e importação revisável.

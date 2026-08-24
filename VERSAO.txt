@@ -1,2 +1,2 @@
-36.11.4 - Importação de licitações direta e segura pelo link oficial do PNCP.
+36.11.5 - Importação rápida de licitações pelo link oficial do PNCP, com falha segura quando o portal estiver indisponível.
 
