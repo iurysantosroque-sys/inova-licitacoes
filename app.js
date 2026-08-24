@@ -7238,8 +7238,8 @@ function renderTenderManagement(){
 
   renderRows();
 
-  // Ao abrir a tela, sincroniza automaticamente todos os editais PNCP já cadastrados.
-  setTimeout(()=>autoSyncPncpTenders(false),400);
+  // A sincronização em massa ao abrir a tela sobrecarregava o PNCP e bloqueava novas buscas.
+  // Cada edital continua podendo ser atualizado explicitamente pelo botão “Atualizar itens”.
 }
 
 

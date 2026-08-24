@@ -1,2 +1,2 @@
-36.11.2 - Extração textual local e relacionamento por IA em lotes, com fallback multimodal seguro.
+36.11.3 - Busca do PNCP com limite de tempo, concorrência controlada e sincronização manual por edital.
 
