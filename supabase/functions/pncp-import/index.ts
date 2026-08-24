@@ -174,9 +174,9 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     }catch{/* tenta a fonte oficial do PNCP abaixo */}
   }
   const itemSources=[
-    // O endpoint de itens ainda é servido pela API PNCP v1 e rejeita os
-    // parâmetros de paginação usados pela API de consultas.
-    {url:`${API}/pncp/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:false},
+    // O PNCP limita algumas contratações a 10 itens quando estes parâmetros
+    // são omitidos. Pedir uma página ampla recupera a lista completa.
+    {url:`${API}/pncp/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:true},
     // Mantém compatibilidade caso o PNCP conclua a migração deste recurso.
     {url:`${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:true}
   ]
