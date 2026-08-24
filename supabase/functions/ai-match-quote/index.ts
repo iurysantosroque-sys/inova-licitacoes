@@ -167,6 +167,70 @@ function sanitizeExtractedRows(value:unknown):ExtractedRow[]{
   return rows
 }
 
+const MATCH_STOPWORDS=new Set(['A','AS','AO','AOS','COM','DA','DAS','DE','DO','DOS','E','EM','PARA','POR','SEM'])
+function normalizedMatchText(value:unknown){
+  return text(value,2000).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ')
+}
+function descriptionTokens(value:unknown){
+  return normalizedMatchText(value).split(' ').filter(token=>token.length>1&&!MATCH_STOPWORDS.has(token))
+}
+function descriptionSimilarity(left:unknown,right:unknown){
+  const aText=normalizedMatchText(left),bText=normalizedMatchText(right)
+  if(!aText||!bText)return 0
+  if(aText===bText)return 1
+  const a=new Set(descriptionTokens(aText)),b=new Set(descriptionTokens(bText))
+  if(!a.size||!b.size)return 0
+  const common=[...a].filter(token=>b.has(token)).length
+  const dice=(2*common)/(a.size+b.size)
+  const containment=common/Math.min(a.size,b.size)
+  const substring=aText.includes(bText)||bText.includes(aText)
+  return Math.min(1,Math.max(substring?.92:0,dice*.55+containment*.45))
+}
+function fallbackPackageFactor(row:ExtractedRow,item:any){
+  const supplierUnit=normalizedUnit(row.unit),officialUnit=normalizedUnit(item?.unit)
+  if(supplierUnit&&officialUnit&&supplierUnit===officialUnit)return {factor:1,confidence:.9}
+  const source=normalizedMatchText(`${row.presentation} ${row.description}`)
+  const packageMatch=source.match(/(?:C|COM|CONTEM|CAIXA|PACOTE)\s*(\d{1,5})\s*(?:UN|UND|UNIDADE|UNIDADES|PC|PCS)\b/)
+  if(officialUnit==='UN'&&packageMatch&&Number(packageMatch[1])>0){
+    return {factor:Number(packageMatch[1]),confidence:.9}
+  }
+  return {factor:0,confidence:0}
+}
+function automaticFallbackMatches(rows:ExtractedRow[],officialItems:any[]){
+  const proposals=rows.map(row=>{
+    const numericCode=/^\d+$/.test(row.code.trim())?Number(row.code):null
+    const ranked=officialItems.map(item=>{
+      const similarity=descriptionSimilarity(`${row.description} ${row.presentation}`,item.description)
+      const codeMatch=numericCode!=null&&numericCode===Number(item.item_number)
+      const supplierUnit=normalizedUnit(row.unit),officialUnit=normalizedUnit(item.unit)
+      const unitConflict=Boolean(supplierUnit&&officialUnit&&supplierUnit!==officialUnit)
+      const measureConflict=measuresConflict(`${row.description} ${row.presentation}`,item.description)
+      const score=(codeMatch&&similarity>=.62?Math.max(.96,similarity):similarity)-(unitConflict?.18:0)-(measureConflict?.22:0)
+      return {item,score,similarity,codeMatch,unitConflict,measureConflict}
+    }).sort((a,b)=>b.score-a.score)
+    const best=ranked[0],second=ranked[1]
+    const gap=(best?.score||0)-(second?.score||0)
+    const confident=Boolean(best&&!best.unitConflict&&!best.measureConflict&&(
+      (best.codeMatch&&best.similarity>=.62)||(best.score>=.9)||(best.score>=.84&&gap>=.08)
+    ))
+    const confidence=confident?(best.codeMatch ? .97 : best.score>=.9 ? .95 : .91):0
+    return {row,best,confidence}
+  }).sort((a,b)=>b.confidence-a.confidence||(b.best?.score||0)-(a.best?.score||0))
+  const used=new Set<string>(),byRow=new Map<number,any>()
+  for(const proposal of proposals){
+    const itemId=proposal.best?String(proposal.best.item.id):''
+    const matched=Boolean(proposal.confidence>0&&itemId&&!used.has(itemId))
+    if(matched)used.add(itemId)
+    const factor=matched?fallbackPackageFactor(proposal.row,proposal.best.item):{factor:0,confidence:0}
+    byRow.set(proposal.row.row_index,{row_index:proposal.row.row_index,package_base_quantity:factor.factor,match:{
+      matched,tender_item_id:matched?itemId:'',confidence:matched?proposal.confidence:0,
+      factor_confidence:factor.confidence,reason:'correspondência automática local',incompatibilities:[]
+    }})
+  }
+  return rows.map(row=>byRow.get(row.row_index))
+}
+
 async function mapWithConcurrency<T,R>(items:T[],limit:number,worker:(item:T,index:number)=>Promise<R>):Promise<R[]>{
   const results=new Array<R>(items.length)
   let cursor=0
@@ -473,6 +537,16 @@ Deno.serve(async(req)=>{
             }
             if(error instanceof BlockHttpFailure){
               if(error.status===400&&variantIndex<variants.length-1&&hasVariantBudget)continue
+              if(error.status===429){
+                const matches=automaticFallbackMatches(extractedRows,officialItems)
+                const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
+                parsed={lines:extractedRows.map(row=>{
+                  const automatic:any=matchByRow.get(row.row_index)
+                  return {...row,package_base_quantity:automatic.package_base_quantity,match:automatic.match}
+                })}
+                model=`${model}:automatic-fallback`
+                break textModelLoop
+              }
               if(error.status===404&&index<staticModelCount)staticNotFoundCount++
               if(error.status===404&&!discoveryAttempted&&index===staticModelCount-1&&staticNotFoundCount===staticModelCount){
                 discoveryAttempted=true
