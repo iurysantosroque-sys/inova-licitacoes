@@ -9,8 +9,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=36.11.5" />
-  <script src="./app-config.js?v=36.11.5"></script>
+  <link rel="stylesheet" href="styles.css?v=36.12.0" />
+  <script src="./app-config.js?v=36.12.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -91,7 +91,7 @@
         <button data-tab="cotacoes"><span>Cotações</span></button>
         <button data-tab="precificacao"><span>Precificação</span></button>
         <button data-tab="fornecedores"><span>Fornecedores</span></button>
-        <button data-tab="arquivos"><span>Arquivos</span></button>
+        <button data-tab="arquivos"><span>Documentação</span></button>
         <button data-tab="equipe"><span>Equipe</span></button>
       </nav>
 
@@ -377,17 +377,127 @@
       </section>
 
       <section id="arquivos" class="tab">
-        <div class="panel">
-          <div class="panel-title"><div><h2>Arquivar cotação do fornecedor</h2><p class="hint">PDF, Excel ou CSV. O arquivo fica salvo na área privada da empresa; para ler e relacionar os produtos, use a aba Cotações.</p></div></div>
-          <form id="arquivoForm" class="grid-form">
-            <select name="licitacao_id" id="arquivoLicitacao" required></select>
-            <select name="fornecedor_id" id="arquivoFornecedor" required></select>
-            <input name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
-            <button type="submit">Enviar arquivo</button>
-          </form>
-          <div class="notice compact"><strong>Importante:</strong> esta área arquiva somente cotações de fornecedores (até 25 MB). A leitura inteligente e a revisão dos vínculos ficam na aba Cotações.</div>
+        <div class="documentation-head">
+          <div>
+            <h2>Documentação</h2>
+            <p class="hint">Editais, documentos de habilitação fiscal e cotações ficam organizados em áreas privadas da empresa.</p>
+          </div>
+          <div class="document-tabs" role="tablist" aria-label="Tipos de documentação">
+            <button id="documentTabEditais" type="button" role="tab" aria-selected="true" aria-controls="documentPanelEditais" tabindex="0" data-document-tab="editais">Editais</button>
+            <button id="documentTabHabilitacao" type="button" role="tab" aria-selected="false" aria-controls="documentPanelHabilitacao" tabindex="-1" data-document-tab="habilitacao">Habilitação fiscal</button>
+            <button id="documentTabCotacoes" type="button" role="tab" aria-selected="false" aria-controls="documentPanelCotacoes" tabindex="-1" data-document-tab="cotacoes">Cotações</button>
+          </div>
         </div>
-        <div class="panel"><h2>Arquivos enviados</h2><div id="arquivosLista" class="table-wrap"></div></div>
+
+        <div id="documentPanelEditais" class="document-panel" role="tabpanel" aria-labelledby="documentTabEditais">
+          <div class="panel">
+            <div class="panel-title">
+              <div>
+                <h2>Edital vigente</h2>
+                <p class="hint">Envie um arquivo Word por licitação. Um novo envio substitui o edital vigente.</p>
+              </div>
+              <span class="badge neutral">DOC ou DOCX • até 25 MB</span>
+            </div>
+            <form id="tenderDocumentForm" class="grid-form document-upload-form">
+              <label>Licitação<select name="licitacao_id" id="tenderDocumentTender" required></select></label>
+              <label>Arquivo Word<input name="arquivo" type="file" accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required /></label>
+              <button type="submit">Enviar edital</button>
+            </form>
+            <div id="tenderDocumentPermission" class="notice compact" aria-live="polite"></div>
+            <div id="tenderDocumentStatus" class="document-status" role="status" aria-live="polite" hidden></div>
+          </div>
+          <div class="panel"><h2>Editais enviados</h2><div id="tenderDocumentsList" class="table-wrap"></div></div>
+        </div>
+
+        <div id="documentPanelHabilitacao" class="document-panel" role="tabpanel" aria-labelledby="documentTabHabilitacao" hidden>
+          <div id="qualificationPending" class="notice qualification-pending" role="status" aria-live="polite" hidden></div>
+
+          <div id="qualificationWorkspace">
+            <div class="qualification-alerts" id="qualificationAlerts" aria-live="polite"></div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <div>
+                  <h2>Biblioteca fiscal da empresa</h2>
+                  <p class="hint">Cadastre cada PDF uma vez e reutilize sua versão em vários pregões. Renovações preservam o histórico.</p>
+                </div>
+                <span class="badge neutral">PDF • até 25 MB</span>
+              </div>
+              <form id="qualificationDocumentForm" class="grid-form qualification-document-form">
+                <input type="hidden" name="document_series_id" id="qualificationDocumentSeries" />
+                <label>Uso do documento
+                  <select name="tender_id" id="qualificationDocumentTender"><option value="">Geral da empresa</option></select>
+                </label>
+                <label>Tipo do documento
+                  <input name="document_type" id="qualificationDocumentType" list="qualificationDocumentTypes" maxlength="120" placeholder="Ex.: FGTS/CRF" required />
+                </label>
+                <label>Nome do documento
+                  <input name="name" maxlength="180" placeholder="Ex.: Certificado de Regularidade do FGTS" required />
+                </label>
+                <label>Órgão emissor
+                  <input name="issuer" maxlength="160" placeholder="Ex.: Caixa Econômica Federal" required />
+                </label>
+                <label>Número (opcional)
+                  <input name="document_number" maxlength="100" />
+                </label>
+                <label>Data de emissão
+                  <input name="issued_on" type="date" required />
+                </label>
+                <label>Data de validade
+                  <input name="expires_on" id="qualificationExpiresOn" type="date" required />
+                </label>
+                <label class="toggle-line qualification-no-expiry">
+                  <input name="has_no_expiry" id="qualificationNoExpiry" type="checkbox" />
+                  Documento sem validade definida
+                </label>
+                <label>Abrangência
+                  <input name="coverage" maxlength="180" placeholder="Ex.: nacional, estadual ou municipal" />
+                </label>
+                <label class="qualification-notes">Observações
+                  <textarea name="notes" maxlength="1200" rows="2"></textarea>
+                </label>
+                <label>Arquivo PDF
+                  <input name="file" type="file" accept=".pdf,application/pdf" required />
+                </label>
+                <div class="qualification-form-actions">
+                  <button type="submit" id="qualificationDocumentSubmit">Cadastrar documento</button>
+                  <button type="button" id="qualificationRenewCancel" class="secondary" hidden>Cancelar renovação</button>
+                </div>
+              </form>
+              <div id="qualificationDocumentPermission" class="notice compact" aria-live="polite"></div>
+              <div id="qualificationDocumentStatus" class="document-status" role="status" aria-live="polite" hidden></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <div><h2>Documentos cadastrados</h2><p class="hint">A versão mais recente aparece primeiro; abra o histórico para consultar renovações anteriores.</p></div>
+              </div>
+              <div id="qualificationSummary" class="qualification-summary"></div>
+              <div id="qualificationFilters" class="qualification-filters" aria-label="Filtrar documentos fiscais">
+                <button type="button" data-qualification-filter="all" aria-pressed="true">Todos</button>
+                <button type="button" data-qualification-filter="expiring" aria-pressed="false">Vencendo</button>
+                <button type="button" data-qualification-filter="expired" aria-pressed="false">Vencidos</button>
+                <button type="button" data-qualification-filter="valid" aria-pressed="false">Válidos</button>
+                <button type="button" data-qualification-filter="no_expiry_info" aria-pressed="false">Sem validade informada</button>
+              </div>
+              <div id="qualificationLibrary" class="qualification-library"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="documentPanelCotacoes" class="document-panel" role="tabpanel" aria-labelledby="documentTabCotacoes" hidden>
+          <div class="panel">
+            <div class="panel-title"><div><h2>Arquivar cotação do fornecedor</h2><p class="hint">PDF, Excel ou CSV. O arquivo fica salvo na área privada da empresa; para ler e relacionar os produtos, use a aba Cotações.</p></div></div>
+            <form id="arquivoForm" class="grid-form">
+              <label>Licitação<select name="licitacao_id" id="arquivoLicitacao" required></select></label>
+              <label>Fornecedor<select name="fornecedor_id" id="arquivoFornecedor" required></select></label>
+              <label>Arquivo da cotação<input name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required /></label>
+              <button type="submit">Enviar arquivo</button>
+            </form>
+            <div class="notice compact"><strong>Importante:</strong> esta área arquiva somente cotações de fornecedores (até 25 MB). A leitura inteligente e a revisão dos vínculos ficam na aba Cotações.</div>
+          </div>
+          <div class="panel"><h2>Arquivos enviados</h2><div id="arquivosLista" class="table-wrap"></div></div>
+        </div>
       </section>
 
       <section id="equipe" class="tab">
@@ -490,11 +600,23 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.11.5</span><i></i><span>Importação direta pelo link do PNCP</span></div>
+      <div class="footer-status"><span>Versão 36.12.0</span><i></i><span>Controle de habilitação fiscal por pregão</span></div>
     </footer>
   </div>
 
-  <script type="module" src="./app.js?v=36.11.5"></script>
+  <datalist id="qualificationDocumentTypes">
+    <option value="CNPJ"></option>
+    <option value="Inscrição estadual"></option>
+    <option value="Inscrição municipal"></option>
+    <option value="RFB/PGFN"></option>
+    <option value="Fazenda estadual"></option>
+    <option value="Fazenda municipal"></option>
+    <option value="FGTS/CRF"></option>
+    <option value="CNDT"></option>
+    <option value="Declaração art. 7º, XXXIII"></option>
+    <option value="Outro"></option>
+  </datalist>
+  <script type="module" src="./app.js?v=36.12.0"></script>
 </body>
 </html>
 
