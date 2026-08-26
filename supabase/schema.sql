@@ -35,7 +35,8 @@ create table public.tenders (
   number text not null, process_number text, agency text, city text, state text, platform text, object text,
   dispute_at timestamptz, status text not null default 'preparacao', pncp_control text, source_url text,
   publication_at timestamptz, proposal_open_at timestamptz, proposal_end_at timestamptz,
-  created_by uuid not null references auth.users(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+  created_by uuid not null references auth.users(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+  unique(id,company_id)
 );
 create table public.tender_items (
   id uuid primary key default gen_random_uuid(), tender_id uuid not null references public.tenders(id) on delete cascade,
@@ -64,6 +65,40 @@ create table public.quote_items (
   ai_match_confidence numeric check(ai_match_confidence is null or ai_match_confidence between 0 and 1),
   needs_review boolean not null default false, created_at timestamptz not null default now()
 );
+create table public.tender_documents (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  tender_id uuid not null,
+  file_name text not null check(length(trim(file_name)) between 1 and 255),
+  mime_type text not null check(mime_type in ('application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
+  file_size bigint not null check(file_size between 1 and 26214400),
+  storage_path text not null unique,
+  created_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(tender_id),
+  foreign key(tender_id,company_id) references public.tenders(id,company_id) on delete cascade,
+  check(
+    split_part(storage_path,'/',1)=company_id::text and
+    split_part(storage_path,'/',2)=tender_id::text and
+    split_part(storage_path,'/',3)<>''
+  )
+);
+create table public.qualification_documents (
+  id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
+  tender_id uuid, document_series_id uuid not null default gen_random_uuid(), version integer not null default 1 check(version>0),
+  document_type text not null check(length(trim(document_type)) between 1 and 120), name text not null check(length(trim(name)) between 1 and 180),
+  issuer text not null check(length(trim(issuer)) between 1 and 160), document_number text check(document_number is null or length(trim(document_number)) between 1 and 100),
+  issued_on date not null, expires_on date, has_no_expiry boolean not null default false,
+  coverage text check(coverage is null or length(trim(coverage)) between 1 and 180), notes text check(notes is null or length(notes)<=1200),
+  file_name text not null check(length(trim(file_name)) between 1 and 255), mime_type text not null default 'application/pdf' check(mime_type='application/pdf'),
+  file_size bigint not null check(file_size between 1 and 26214400), storage_path text not null unique,
+  created_by uuid not null references auth.users(id), created_at timestamptz not null default now(),
+  unique(id,company_id), unique(document_series_id,version),
+  foreign key(tender_id,company_id) references public.tenders(id,company_id) on delete restrict,
+  check((has_no_expiry and expires_on is null) or (not has_no_expiry and expires_on is not null and expires_on>=issued_on)),
+  check(split_part(storage_path,'/',1)=company_id::text and split_part(storage_path,'/',2)=document_series_id::text and split_part(storage_path,'/',3)<>'')
+);
 
 create index companies_created_by_idx on public.companies(created_by);
 create index company_members_user_id_idx on public.company_members(user_id);
@@ -77,10 +112,26 @@ create index quotes_supplier_id_idx on public.quotes(supplier_id);
 create index quotes_created_by_idx on public.quotes(created_by);
 create index quote_items_quote_id_idx on public.quote_items(quote_id);
 create index quote_items_tender_item_id_idx on public.quote_items(tender_item_id);
+create index tender_documents_company_id_idx on public.tender_documents(company_id);
+create index tender_documents_tender_company_idx on public.tender_documents(tender_id,company_id);
+create index tender_documents_created_by_idx on public.tender_documents(created_by);
+create index qualification_documents_company_id_idx on public.qualification_documents(company_id);
+create index qualification_documents_tender_id_idx on public.qualification_documents(tender_id) where tender_id is not null;
+create index qualification_documents_expiry_idx on public.qualification_documents(company_id,expires_on) where expires_on is not null;
+create index qualification_documents_series_idx on public.qualification_documents(document_series_id,version desc);
+create index qualification_documents_tender_company_idx on public.qualification_documents(tender_id,company_id);
+create index qualification_documents_created_by_idx on public.qualification_documents(created_by);
 
 create function private.is_company_member(target_company_id uuid)
 returns boolean language sql stable security definer set search_path='' as $$
   select exists(select 1 from public.company_members where company_id=target_company_id and user_id=(select auth.uid()));
+$$;
+create function private.is_company_admin(target_company_id uuid, target_user_id uuid default auth.uid())
+returns boolean language sql stable security definer set search_path='' as $$
+  select exists(
+    select 1 from public.company_members
+    where company_id=target_company_id and user_id=target_user_id and role='admin'
+  );
 $$;
 create function private.users_share_company(target_user_id uuid)
 returns boolean language sql stable security definer set search_path='' as $$
@@ -181,6 +232,8 @@ alter table public.profiles enable row level security; alter table public.compan
 alter table public.company_members enable row level security; alter table public.pricing_settings enable row level security;
 alter table public.tenders enable row level security; alter table public.tender_items enable row level security;
 alter table public.suppliers enable row level security; alter table public.quotes enable row level security; alter table public.quote_items enable row level security;
+alter table public.tender_documents enable row level security;
+alter table public.qualification_documents enable row level security;
 create policy profiles_select_company on public.profiles for select to authenticated using(private.users_share_company(id));
 create policy profiles_insert_self on public.profiles for insert to authenticated with check(id=(select auth.uid()));
 create policy profiles_update_self on public.profiles for update to authenticated using(id=(select auth.uid())) with check(id=(select auth.uid()));
@@ -192,18 +245,69 @@ create policy items_all_members on public.tender_items for all to authenticated 
 create policy suppliers_all_members on public.suppliers for all to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
 create policy quotes_all_members on public.quotes for all to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
 create policy quote_items_all_members on public.quote_items for all to authenticated using(exists(select 1 from public.quotes where id=quote_id and private.is_company_member(company_id))) with check(exists(select 1 from public.quotes where id=quote_id and private.is_company_member(company_id)));
+create policy tender_documents_select_members on public.tender_documents for select to authenticated using(private.is_company_member(company_id));
+create policy tender_documents_insert_admins on public.tender_documents for insert to authenticated with check(private.is_company_admin(company_id) and created_by=(select auth.uid()));
+create policy tender_documents_update_admins on public.tender_documents for update to authenticated using(private.is_company_admin(company_id)) with check(private.is_company_admin(company_id) and created_by=(select auth.uid()));
+create policy tender_documents_delete_admins on public.tender_documents for delete to authenticated using(private.is_company_admin(company_id));
+create policy qualification_documents_select_members on public.qualification_documents for select to authenticated using(private.is_company_member(company_id));
+create policy qualification_documents_insert_admins on public.qualification_documents for insert to authenticated with check(private.is_company_admin(company_id) and created_by=(select auth.uid()));
+create policy qualification_documents_delete_admins on public.qualification_documents for delete to authenticated using(private.is_company_admin(company_id));
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('quote-files','quote-files',false,26214400,array['application/pdf','text/csv','application/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('tender-files','tender-files',false,26214400,array['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('qualification-files','qualification-files',false,26214400,array['application/pdf']);
 create policy quote_files_select_company on storage.objects for select to authenticated using(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
 create policy quote_files_insert_company on storage.objects for insert to authenticated with check(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
 create policy quote_files_delete_company on storage.objects for delete to authenticated using(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
+create policy tender_files_select_members on storage.objects for select to authenticated using(
+  bucket_id='tender-files' and exists(
+    select 1 from public.tender_documents td
+    where td.storage_path=name
+      and td.company_id::text=split_part(name,'/',1)
+      and td.tender_id::text=split_part(name,'/',2)
+      and private.is_company_member(td.company_id)
+  )
+);
+create policy tender_files_insert_admins on storage.objects for insert to authenticated with check(
+  bucket_id='tender-files'
+  and split_part(name,'/',1) ~ '^[0-9a-f-]{36}$'
+  and split_part(name,'/',2) ~ '^[0-9a-f-]{36}$'
+  and private.is_company_admin(split_part(name,'/',1)::uuid)
+  and exists(
+    select 1 from public.tenders t
+    where t.company_id=split_part(name,'/',1)::uuid and t.id=split_part(name,'/',2)::uuid
+  )
+);
+create policy tender_files_delete_admins on storage.objects for delete to authenticated using(
+  bucket_id='tender-files'
+  and split_part(name,'/',1) ~ '^[0-9a-f-]{36}$'
+  and private.is_company_admin(split_part(name,'/',1)::uuid)
+);
+create policy qualification_files_select_members on storage.objects for select to authenticated using(
+  bucket_id='qualification-files' and exists(
+    select 1 from public.qualification_documents qd
+    where qd.storage_path=name and qd.company_id::text=split_part(name,'/',1)
+      and qd.document_series_id::text=split_part(name,'/',2) and private.is_company_member(qd.company_id)
+  )
+);
+create policy qualification_files_insert_admins on storage.objects for insert to authenticated with check(
+  bucket_id='qualification-files' and split_part(name,'/',1) ~ '^[0-9a-f-]{36}$'
+  and split_part(name,'/',2) ~ '^[0-9a-f-]{36}$' and split_part(name,'/',3)<>''
+  and lower(storage.extension(name))='pdf' and private.is_company_admin(split_part(name,'/',1)::uuid)
+);
+create policy qualification_files_delete_admins on storage.objects for delete to authenticated using(
+  bucket_id='qualification-files' and split_part(name,'/',1) ~ '^[0-9a-f-]{36}$'
+  and private.is_company_admin(split_part(name,'/',1)::uuid)
+);
 
 revoke all on all tables in schema public from anon;
 grant usage on schema public,private to authenticated;
 grant select,insert,update on public.profiles to authenticated;
-grant select,insert,update,delete on public.pricing_settings,public.tenders,public.tender_items,public.suppliers,public.quotes,public.quote_items to authenticated;
+grant select,insert,update,delete on public.pricing_settings,public.tenders,public.tender_items,public.suppliers,public.quotes,public.quote_items,public.tender_documents to authenticated;
+grant select,insert,delete on public.qualification_documents to authenticated;
 grant select on public.companies,public.company_members to authenticated;
 revoke all on function private.enforce_quote_company(),private.enforce_quote_item_tender(),public.handle_new_user() from public,anon,authenticated;
-revoke all on function private.is_company_member(uuid),private.users_share_company(uuid) from public,anon;
+revoke all on function private.is_company_member(uuid),private.is_company_admin(uuid,uuid),private.users_share_company(uuid) from public,anon;
 revoke all on function public.create_company_with_owner(text),public.join_company_by_invite(text),public.get_pricing_map() from public,anon;
-grant execute on function public.create_company_with_owner(text),public.join_company_by_invite(text),public.get_pricing_map(),private.is_company_member(uuid),private.users_share_company(uuid) to authenticated;
+grant execute on function public.create_company_with_owner(text),public.join_company_by_invite(text),public.get_pricing_map(),private.is_company_member(uuid),private.is_company_admin(uuid,uuid),private.users_share_company(uuid) to authenticated;
+
