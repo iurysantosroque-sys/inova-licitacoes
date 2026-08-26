@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
@@ -159,6 +159,13 @@ const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/octet-stream',''
 ]);
+const TENDER_DOCUMENT_EXTENSIONS=new Set(['doc','docx']);
+const TENDER_DOCUMENT_MIME_TYPES={
+  doc:'application/msword',
+  docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
+const QUALIFICATION_FILE_SIZE_LIMIT=25*1024*1024;
+const QUALIFICATION_PDF_MIME_TYPES=new Set(['application/pdf','application/octet-stream','']);
 
 function toast(msg,type='success'){
   const el=$('#toast'); el.textContent=msg; el.className=`toast ${type}`; el.hidden=false;
@@ -3715,6 +3722,24 @@ async function refreshAll(){
   });
   state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,cnpj:f.cnpj,contato:f.contact_name,frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
   state.quotes=quotes.data||[];
+  const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
+  if(tenderDocumentsResp.error){
+    state.tenderDocuments=[];
+    state.tenderDocumentsError='A área de editais ainda não está disponível. Aplique a migration local de documentos antes de usar este recurso.';
+    console.warn('Documentos de editais:',tenderDocumentsResp.error.message);
+  }else{
+    state.tenderDocuments=tenderDocumentsResp.data||[];
+    state.tenderDocumentsError='';
+  }
+  const qualificationDocumentsResp=await supabase.from('qualification_documents').select('*').eq('company_id',cid).order('created_at',{ascending:false});
+  if(qualificationDocumentsResp.error){
+    state.qualificationDocuments=[];
+    state.qualificationError='Configuração pendente. Aplique a migration local de habilitação fiscal para liberar a biblioteca.';
+    console.warn('Habilitação fiscal:',qualificationDocumentsResp.error.message);
+  }else{
+    state.qualificationDocuments=qualificationDocumentsResp.data||[];
+    state.qualificationError='';
+  }
   const tenderIds=state.licitacoes.map(x=>x.id), quoteIds=state.quotes.map(x=>x.id);
   const itemResp=tenderIds.length?await supabase.from('tender_items').select('*').in('tender_id',tenderIds).order('item_number'):{data:[],error:null};
   const qiResp=quoteIds.length?await supabase.from('quote_items').select('*').in('quote_id',quoteIds).order('created_at'):{data:[],error:null};
@@ -7136,6 +7161,7 @@ function renderTenderManagement(){
     tbody.innerHTML=rows.map(l=>{
       const status=tenderStatusInfo(l);
       const itemCount=state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length;
+      const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
 
       // Abertura do edital = publicação quando disponível.
       const opening=l.publicationAt||l.proposalOpenAt;
@@ -7185,6 +7211,9 @@ function renderTenderManagement(){
 
           <td>
             <div class="tx-actions">
+              ${tenderDocument
+                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">Baixar edital</button>`
+                : `<button class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`}
               ${l.pncp_control?`<button class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
               <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
             </div>
@@ -8081,6 +8110,290 @@ function renderDashboardModel(){
 }
 
 
+function currentMemberIsAdmin(){
+  return state.membership?.role==='admin';
+}
+
+function activateDocumentTab(tab='editais',focus=false){
+  const selected=['editais','habilitacao','cotacoes'].includes(tab)?tab:'editais';
+  state.documentTab=selected;
+  document.querySelectorAll('[data-document-tab]').forEach(button=>{
+    const active=button.dataset.documentTab===selected;
+    button.setAttribute('aria-selected',String(active));
+    button.tabIndex=active?0:-1;
+    if(active&&focus)button.focus();
+  });
+  const editais=$('#documentPanelEditais');
+  const habilitacao=$('#documentPanelHabilitacao');
+  const cotacoes=$('#documentPanelCotacoes');
+  if(editais)editais.hidden=selected!=='editais';
+  if(habilitacao)habilitacao.hidden=selected!=='habilitacao';
+  if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
+}
+
+function setTenderDocumentStatus(message='',type=''){
+  const status=$('#tenderDocumentStatus');
+  if(!status)return;
+  status.hidden=!message;
+  status.textContent=message;
+  status.className=`document-status${type?` is-${type}`:''}`;
+}
+
+function documentDate(value){
+  const date=new Date(value||'');
+  return Number.isNaN(date.getTime())?'-':date.toLocaleString('pt-BR');
+}
+
+function localDateString(value){
+  if(!value)return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(value)))return String(value);
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return '';
+  const pad=number=>String(number).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+}
+
+function localTodayString(){
+  const date=new Date();
+  const pad=number=>String(number).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+}
+
+function dateOrdinal(value){
+  const match=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match?Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3])):null;
+}
+
+function qualificationDateBR(value){
+  const match=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match?`${match[3]}/${match[2]}/${match[1]}`:'Não informada';
+}
+
+function qualificationDocumentStatus(document){
+  if(document.has_no_expiry)return {key:'valid',label:'Sem prazo de validade',tone:'good'};
+  if(!document.expires_on)return {key:'no_expiry_info',label:'Validade não informada',tone:'warn'};
+  const expiry=dateOrdinal(document.expires_on);
+  const today=dateOrdinal(localTodayString());
+  // Certidões normalmente permanecem válidas durante todo o dia informado.
+  if(expiry<today)return {key:'expired',label:'Vencido na data de hoje',tone:'bad'};
+  const tender=state.licitacoes.find(row=>String(row.id)===String(document.tender_id));
+  const tenderDate=localDateString(tender?.proposalEndAt||tender?.raw?.dispute_at||tender?.data);
+  if(tenderDate&&expiry<dateOrdinal(tenderDate))return {key:'expired_for_tender',label:'Válido hoje, mas vencido no pregão',tone:'bad'};
+  const remaining=Math.floor((expiry-today)/86400000);
+  if(remaining<=30)return {key:'expiring',label:`Vence em ${remaining} dia${remaining===1?'':'s'}`,tone:'warn'};
+  return {key:'valid',label:'Válido',tone:'good'};
+}
+
+function qualificationCurrentDocuments(){
+  const groups=new Map();
+  state.qualificationDocuments.forEach(document=>{
+    const key=document.document_series_id||document.id;
+    const rows=groups.get(key)||[];
+    rows.push(document);
+    groups.set(key,rows);
+  });
+  return [...groups.values()].map(rows=>rows.sort((a,b)=>Number(b.version||1)-Number(a.version||1)||String(b.created_at).localeCompare(String(a.created_at)))[0]);
+}
+
+function setQualificationDocumentStatus(message='',type=''){
+  const status=$('#qualificationDocumentStatus');
+  if(!status)return;
+  status.hidden=!message;
+  status.textContent=message;
+  status.className=`document-status${type?` is-${type}`:''}`;
+}
+
+function cancelQualificationRenewal(){
+  state.qualificationRenewSeriesId='';
+  const form=$('#qualificationDocumentForm');
+  form?.reset();
+  const series=$('#qualificationDocumentSeries');
+  if(series)series.value='';
+  const expiry=$('#qualificationExpiresOn');
+  if(expiry){expiry.disabled=false;expiry.required=true;}
+  const submit=$('#qualificationDocumentSubmit');
+  if(submit)submit.textContent='Cadastrar documento';
+  const cancel=$('#qualificationRenewCancel');
+  if(cancel)cancel.hidden=true;
+  setQualificationDocumentStatus('');
+}
+
+function renderQualification(){
+  const pending=$('#qualificationPending');
+  const workspace=$('#qualificationWorkspace');
+  if(pending){pending.hidden=!state.qualificationError;pending.innerHTML=state.qualificationError?`<strong>Configuração pendente:</strong> ${esc(state.qualificationError)}`:'';}
+  if(workspace)workspace.hidden=Boolean(state.qualificationError);
+  if(state.qualificationError)return;
+
+  const tenderSelect=$('#qualificationDocumentTender');
+  const selectedTender=tenderSelect?.value||'';
+  if(tenderSelect){
+    tenderSelect.innerHTML='<option value="">Geral da empresa</option>'+state.licitacoes.map(tender=>`<option value="${esc(tender.id)}">${esc(tender.numero)} • ${esc(tender.orgao)}</option>`).join('');
+    if(state.licitacoes.some(tender=>String(tender.id)===String(selectedTender)))tenderSelect.value=selectedTender;
+  }
+
+  const canWrite=currentMemberIsAdmin();
+  $('#qualificationDocumentForm')?.querySelectorAll('input,select,textarea,button').forEach(control=>{
+    if(control.id==='qualificationRenewCancel')return;
+    control.disabled=!canWrite;
+  });
+  const permission=$('#qualificationDocumentPermission');
+  if(permission)permission.innerHTML=canWrite
+    ? '<strong>Acesso administrativo:</strong> você pode cadastrar e renovar documentos. Cada renovação preserva as versões anteriores.'
+    : '<strong>Somente leitura:</strong> apenas administradores podem cadastrar ou renovar documentos.';
+
+  const current=qualificationCurrentDocuments();
+  const statuses=current.map(document=>qualificationDocumentStatus(document));
+  const expired=statuses.filter(status=>['expired','expired_for_tender'].includes(status.key)).length;
+  const expiring=statuses.filter(status=>status.key==='expiring').length;
+  const valid=statuses.filter(status=>status.key==='valid').length;
+  const unknown=statuses.filter(status=>status.key==='no_expiry_info').length;
+  const summary=$('#qualificationSummary');
+  if(summary)summary.innerHTML=`
+    <div class="qualification-summary-card"><span>Documentos atuais</span><strong>${current.length}</strong></div>
+    <div class="qualification-summary-card"><span>Válidos</span><strong>${valid}</strong></div>
+    <div class="qualification-summary-card"><span>Vencendo em 30 dias</span><strong>${expiring}</strong></div>
+    <div class="qualification-summary-card"><span>Vencidos</span><strong>${expired}</strong></div>
+    <div class="qualification-summary-card"><span>Sem validade informada</span><strong>${unknown}</strong></div>`;
+
+  const alerts=$('#qualificationAlerts');
+  if(alerts){
+    const parts=[];
+    if(expired)parts.push(`<div class="qualification-alert bad"><div><strong>${expired} documento${expired===1?'':'s'} vencido${expired===1?'':'s'}</strong><span>Renove antes de usar em uma habilitação.</span></div></div>`);
+    if(expiring)parts.push(`<div class="qualification-alert warn"><div><strong>${expiring} documento${expiring===1?'':'s'} vence${expiring===1?'':'m'} em até 30 dias</strong><span>Programe a renovação com antecedência.</span></div></div>`);
+    if(!parts.length)parts.push('<div class="qualification-alert good"><div><strong>Nenhum alerta crítico agora</strong><span>Continue conferindo as exigências específicas de cada edital.</span></div></div>');
+    alerts.innerHTML=parts.join('');
+  }
+
+  document.querySelectorAll('[data-qualification-filter]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.qualificationFilter===state.qualificationFilter)));
+  const matches=document=>{
+    const key=qualificationDocumentStatus(document).key;
+    if(state.qualificationFilter==='all')return true;
+    if(state.qualificationFilter==='expired')return ['expired','expired_for_tender'].includes(key);
+    return key===state.qualificationFilter;
+  };
+  const library=$('#qualificationLibrary');
+  if(!library)return;
+  const groups=new Map();
+  state.qualificationDocuments.forEach(document=>{
+    const key=document.document_series_id||document.id;
+    const rows=groups.get(key)||[];rows.push(document);groups.set(key,rows);
+  });
+  const rows=[...groups.values()].map(versions=>versions.sort((a,b)=>Number(b.version||1)-Number(a.version||1))[0]).filter(matches);
+  if(!rows.length){library.innerHTML='<div class="qualification-empty">Nenhum documento encontrado neste filtro.</div>';return;}
+  library.innerHTML=rows.map(document=>{
+    const versions=(groups.get(document.document_series_id||document.id)||[]).sort((a,b)=>Number(b.version||1)-Number(a.version||1));
+    const status=qualificationDocumentStatus(document);
+    const tender=state.licitacoes.find(row=>String(row.id)===String(document.tender_id));
+    const history=versions.slice(1).map(version=>`<div class="qualification-history-row"><span>Versão ${Number(version.version||1)} • emissão ${qualificationDateBR(version.issued_on)} • validade ${version.has_no_expiry?'sem prazo':qualificationDateBR(version.expires_on)}</span><button type="button" class="action-btn" data-download-qualification-document="${esc(version.id)}">Baixar</button></div>`).join('');
+    return `<article class="qualification-library-card">
+      <div class="qualification-library-main">
+        <div><h3>${esc(document.name)}</h3><p>${esc(document.document_type)} • ${esc(document.issuer)}</p><span class="badge ${status.tone} qualification-status-label">${esc(status.label)}</span></div>
+        <div class="qualification-library-field"><small>Uso</small><strong>${esc(tender?`Pregão ${tender.numero}`:'Geral da empresa')}</strong></div>
+        <div class="qualification-library-field"><small>Emissão</small><strong>${qualificationDateBR(document.issued_on)}</strong></div>
+        <div class="qualification-library-field"><small>Validade</small><strong>${document.has_no_expiry?'Sem prazo':qualificationDateBR(document.expires_on)}</strong></div>
+        <div class="document-action-group"><button type="button" class="action-btn" data-download-qualification-document="${esc(document.id)}">Baixar</button>${canWrite?`<button type="button" class="action-btn" data-renew-qualification-document="${esc(document.document_series_id||document.id)}">Renovar</button>`:''}</div>
+      </div>
+      ${document.coverage||document.notes?`<p class="hint">${esc([document.coverage,document.notes].filter(Boolean).join(' • '))}</p>`:''}
+      ${history?`<details class="qualification-history"><summary>Histórico (${versions.length-1})</summary><div class="qualification-history-list">${history}</div></details>`:''}
+    </article>`;
+  }).join('');
+}
+
+function renderDocumentation(){
+  activateDocumentTab(state.documentTab,false);
+  const tenderSelect=$('#tenderDocumentTender');
+  const currentTender=tenderSelect?.value||'';
+  const options='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${esc(l.id)}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
+  if(tenderSelect){
+    tenderSelect.innerHTML=options;
+    if(state.licitacoes.some(l=>String(l.id)===String(currentTender)))tenderSelect.value=currentTender;
+  }
+
+  const canWrite=currentMemberIsAdmin()&&!state.tenderDocumentsError;
+  const form=$('#tenderDocumentForm');
+  form?.querySelectorAll('select,input,button').forEach(control=>control.disabled=!canWrite);
+  const permission=$('#tenderDocumentPermission');
+  if(permission){
+    permission.innerHTML=state.tenderDocumentsError
+      ? `<strong>Configuração pendente:</strong> ${esc(state.tenderDocumentsError)}`
+      : canWrite
+        ? '<strong>Acesso administrativo:</strong> você pode adicionar ou substituir o edital vigente.'
+        : '<strong>Somente leitura:</strong> apenas administradores da empresa podem adicionar ou substituir editais.';
+  }
+
+  const tenderList=$('#tenderDocumentsList');
+  if(tenderList){
+    tenderList.innerHTML=table(
+      ['Arquivo','Licitação','Atualizado','Ação'],
+      state.tenderDocuments.map(document=>{
+        const tender=state.licitacoes.find(l=>String(l.id)===String(document.tender_id));
+        return [
+          esc(document.file_name),
+          esc(tender?.numero||'-'),
+          documentDate(document.updated_at||document.created_at),
+          `<div class="document-action-group"><button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}">Baixar</button></div>`
+        ];
+      })
+    );
+  }
+
+  const quoteList=$('#arquivosLista');
+  if(quoteList){
+    quoteList.innerHTML=table(
+      ['Arquivo','Licitação','Fornecedor','Status','Enviado','Ações'],
+      state.documentos.map(document=>{
+        const tender=state.licitacoes.find(l=>String(l.id)===String(document.licitacao_id));
+        const supplier=state.fornecedores.find(f=>String(f.id)===String(document.fornecedor_id));
+        const download=document.storage_path
+          ? `<button type="button" class="action-btn" data-download-quote-document="${esc(document.id)}">Baixar</button>`
+          : '<span class="document-empty-action">Arquivo indisponível</span>';
+        const shortcut=document.licitacao_id
+          ? `<button type="button" class="action-btn" data-open-quote-document="${esc(document.licitacao_id)}">Abrir em Cotações</button>`
+          : '';
+        return [
+          esc(document.nome_arquivo),
+          esc(tender?.numero||'-'),
+          esc(supplier?.nome||'-'),
+          `<span class="badge neutral">${esc(document.status||'arquivado')}</span>`,
+          documentDate(document.created_at),
+          `<div class="document-action-group">${download}${shortcut}</div>`
+        ];
+      })
+    );
+  }
+  renderQualification();
+}
+
+async function downloadPrivateDocument(bucket,path,fileName,button){
+  if(state.demo||!configured||!supabase)return toast('O download privado funciona somente no modo online.','error');
+  const allowed=bucket==='tender-files'
+    ? state.tenderDocuments.some(document=>document.storage_path===path)
+    : bucket==='quote-files'
+      ? state.documentos.some(document=>document.storage_path===path)
+      : bucket==='qualification-files'&&state.qualificationDocuments.some(document=>document.storage_path===path);
+  if(!allowed||!path?.startsWith(`${currentCompanyId()}/`))return toast('Arquivo não encontrado ou sem acesso.','error');
+  const oldText=button?.textContent||'Baixar';
+  if(button){button.disabled=true;button.textContent='Baixando…';}
+  try{
+    const {data,error}=await supabase.storage.from(bucket).download(path);
+    if(error||!data)throw error||new Error('Arquivo não encontrado.');
+    const url=URL.createObjectURL(data);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=fileName||'documento';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(error){
+    console.warn('Download de documento:',error?.message||error);
+    toast('Não foi possível baixar o arquivo. Verifique seu acesso e tente novamente.','error');
+  }finally{
+    if(button){button.disabled=false;button.textContent=oldText;}
+  }
+}
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -8139,7 +8452,7 @@ function renderAll(){
   }
   renderQuotesWorkspace();
   renderPricingByTender();
-  $('#arquivosLista').innerHTML=table(['Arquivo','Licitação','Fornecedor','Status','Enviado','Próximo passo'],state.documentos.map(d=>{const l=state.licitacoes.find(x=>x.id===d.licitacao_id),f=state.fornecedores.find(x=>x.id===d.fornecedor_id);return [esc(d.nome_arquivo),esc(l?.numero||'-'),esc(f?.nome||'-'),`<span class="badge neutral">${esc(d.status||'arquivado')}</span>`,new Date(d.created_at).toLocaleString('pt-BR'),'<span class="hint">Leia e revise na aba Cotações</span>'];}));
+  renderDocumentation();
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
 }
@@ -8150,7 +8463,7 @@ function demoSeed(){
   state.pricingTargetsLoadedFor='';loadPricingTargets();
   state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
-  state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
+  state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.qualificationDocuments=[{id:'qd1',company_id:'demo',tender_id:null,document_series_id:'qs1',version:1,document_type:'FGTS/CRF',name:'Certificado de Regularidade do FGTS',issuer:'Caixa Econômica Federal',issued_on:'2026-08-01',expires_on:'2026-09-12',has_no_expiry:false,file_name:'crf-demo.pdf',storage_path:'demo/qs1/qd1-crf-demo.pdf',created_at:new Date().toISOString()}];state.qualificationError='';state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
 }
 
 async function findOrCreateQuote(tenderId,supplierId,extra={}){
@@ -8208,6 +8521,153 @@ $('#cotacaoForm')?.addEventListener('submit',async e=>{
   await refreshAll();
 });
 $('#configForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.config=Object.fromEntries(Object.entries(f).map(([k,v])=>[k,Number(v||0)]));try{localStorage.setItem('inova_demo_pricing_config',JSON.stringify(state.config));}catch{}renderAll();return toast('Regras atualizadas neste navegador.');}const row={company_id:currentCompanyId(),tax_percent:Number(f.imposto||0),target_margin_percent:Number(f.margem_alvo||0),minimum_profit_amount:Number(f.lucro_minimo||0),minimum_margin_percent:Number(f.margem_minima||0),operational_reserve_percent:Number(f.reserva_operacional||0),updated_at:new Date().toISOString()};const {error}=await supabase.from('pricing_settings').upsert(row,{onConflict:'company_id'});if(error)return toast(error.message,'error');toast('Regras salvas.');await refreshAll();});
+
+async function tenderDocumentHasValidSignature(file,extension){
+  const bytes=new Uint8Array(await file.slice(0,8).arrayBuffer());
+  if(extension==='docx')return bytes[0]===0x50&&bytes[1]===0x4b&&[0x03,0x05,0x07].includes(bytes[2]);
+  return [0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((value,index)=>bytes[index]===value);
+}
+
+$('#tenderDocumentForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const form=e.currentTarget;
+  const values=new FormData(form);
+  const tenderId=String(values.get('licitacao_id')||'');
+  const file=values.get('arquivo');
+  const submit=form.querySelector('button[type="submit"]');
+  if(state.demo||!configured||!supabase)return toast('O arquivamento privado funciona somente no modo online.','error');
+  if(!currentMemberIsAdmin())return toast('Somente administradores podem adicionar ou substituir editais.','error');
+  if(state.tenderDocumentsError)return toast(state.tenderDocumentsError,'error');
+  if(!state.licitacoes.some(tender=>String(tender.id)===tenderId))return toast('Selecione uma licitação válida.','error');
+  if(!file?.name)return toast('Selecione o arquivo Word do edital.','error');
+  const extension=file.name.toLowerCase().split('.').pop()||'';
+  if(!TENDER_DOCUMENT_EXTENSIONS.has(extension))return toast('Formato não suportado. Use DOC ou DOCX.','error');
+  if(file.size<1||file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo deve ter no máximo 25 MB.','error');
+  const expectedMime=TENDER_DOCUMENT_MIME_TYPES[extension];
+  if(file.type&&!['application/octet-stream',expectedMime].includes(String(file.type).toLowerCase()))return toast('O tipo do arquivo não corresponde à extensão Word informada.','error');
+  if(!await tenderDocumentHasValidSignature(file,extension))return toast('O conteúdo do arquivo não corresponde a um documento Word válido.','error');
+
+  const existing=state.tenderDocuments.find(document=>String(document.tender_id)===tenderId);
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path=`${currentCompanyId()}/${tenderId}/${Date.now()}-${safeName}`;
+  const now=new Date().toISOString();
+  const oldText=submit?.textContent||'Enviar edital';
+  if(submit){submit.disabled=true;submit.textContent='Enviando…';}
+  setTenderDocumentStatus('Enviando o edital para a área privada…');
+  try{
+    const {error:uploadError}=await supabase.storage.from('tender-files').upload(path,file,{upsert:false,contentType:expectedMime});
+    if(uploadError)throw uploadError;
+    const metadata={
+      id:existing?.id||crypto.randomUUID(),
+      company_id:currentCompanyId(),
+      tender_id:tenderId,
+      file_name:file.name,
+      mime_type:expectedMime,
+      file_size:file.size,
+      storage_path:path,
+      created_by:state.user.id,
+      created_at:existing?.created_at||now,
+      updated_at:now
+    };
+    const {error:metadataError}=await supabase.from('tender_documents').upsert(metadata,{onConflict:'tender_id'});
+    if(metadataError){
+      await supabase.storage.from('tender-files').remove([path]);
+      throw metadataError;
+    }
+    let cleanupWarning=false;
+    if(existing?.storage_path&&existing.storage_path!==path){
+      const {error:removeError}=await supabase.storage.from('tender-files').remove([existing.storage_path]);
+      if(removeError){cleanupWarning=true;console.warn('Limpeza do edital anterior:',removeError.message);}
+    }
+    form.reset();
+    await refreshAll();
+    if($('#tenderDocumentTender'))$('#tenderDocumentTender').value=tenderId;
+    const message=cleanupWarning
+      ? 'Edital atualizado. O arquivo anterior não pôde ser removido automaticamente e deve ser revisado por um administrador.'
+      : 'Edital vigente atualizado com segurança.';
+    setTenderDocumentStatus(message,cleanupWarning?'error':'success');
+    toast(message,cleanupWarning?'error':'success');
+  }catch(error){
+    console.warn('Upload do edital:',error?.message||error);
+    setTenderDocumentStatus('Não foi possível enviar o edital. Verifique seu acesso e tente novamente.','error');
+    toast('Não foi possível enviar o edital. Verifique seu acesso e tente novamente.','error');
+  }finally{
+    if(submit){submit.disabled=!currentMemberIsAdmin()||Boolean(state.tenderDocumentsError);submit.textContent=oldText;}
+  }
+});
+
+async function qualificationPdfHasValidSignature(file){
+  const bytes=new Uint8Array(await file.slice(0,5).arrayBuffer());
+  return bytes.length>=4&&bytes[0]===0x25&&bytes[1]===0x50&&bytes[2]===0x44&&bytes[3]===0x46;
+}
+
+$('#qualificationNoExpiry')?.addEventListener('change',event=>{
+  const expiry=$('#qualificationExpiresOn');
+  if(!expiry)return;
+  expiry.disabled=event.currentTarget.checked;
+  expiry.required=!event.currentTarget.checked;
+  if(event.currentTarget.checked)expiry.value='';
+});
+
+$('#qualificationRenewCancel')?.addEventListener('click',cancelQualificationRenewal);
+
+$('#qualificationDocumentForm')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.currentTarget;
+  const values=new FormData(form);
+  const file=values.get('file');
+  const tenderId=String(values.get('tender_id')||'');
+  const hasNoExpiry=values.get('has_no_expiry')==='on';
+  const issuedOn=String(values.get('issued_on')||'');
+  const expiresOn=String(values.get('expires_on')||'');
+  const submit=$('#qualificationDocumentSubmit');
+  if(state.demo||!configured||!supabase)return toast('O arquivamento privado funciona somente no modo online.','error');
+  if(!currentMemberIsAdmin())return toast('Somente administradores podem cadastrar documentos fiscais.','error');
+  if(state.qualificationError)return toast(state.qualificationError,'error');
+  if(tenderId&&!state.licitacoes.some(tender=>String(tender.id)===tenderId))return toast('Selecione um pregão válido ou deixe como documento geral.','error');
+  if(!file?.name)return toast('Selecione o arquivo PDF.','error');
+  if(file.name.toLowerCase().split('.').pop()!=='pdf')return toast('Formato não suportado. Use PDF.','error');
+  if(file.size<1||file.size>QUALIFICATION_FILE_SIZE_LIMIT)return toast('O PDF deve ter no máximo 25 MB.','error');
+  if(!QUALIFICATION_PDF_MIME_TYPES.has(String(file.type||'').toLowerCase()))return toast('O tipo do arquivo não corresponde a um PDF.','error');
+  if(!await qualificationPdfHasValidSignature(file))return toast('O conteúdo não possui a assinatura de um PDF válido.','error');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(issuedOn))return toast('Informe uma data de emissão válida.','error');
+  if(!hasNoExpiry&&!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn))return toast('Informe a validade ou marque “sem validade definida”.','error');
+  if(!hasNoExpiry&&dateOrdinal(expiresOn)<dateOrdinal(issuedOn))return toast('A validade não pode ser anterior à emissão.','error');
+
+  const seriesId=String(values.get('document_series_id')||'')||crypto.randomUUID();
+  const versions=state.qualificationDocuments.filter(document=>String(document.document_series_id)===seriesId);
+  const version=Math.max(0,...versions.map(document=>Number(document.version||1)))+1;
+  const id=crypto.randomUUID();
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path=`${currentCompanyId()}/${seriesId}/${id}-${safeName}`;
+  const oldText=submit?.textContent||'Cadastrar documento';
+  if(submit){submit.disabled=true;submit.textContent='Enviando…';}
+  setQualificationDocumentStatus('Enviando o PDF para a área privada…');
+  try{
+    const {error:uploadError}=await supabase.storage.from('qualification-files').upload(path,file,{upsert:false,contentType:'application/pdf'});
+    if(uploadError)throw uploadError;
+    const metadata={
+      id,company_id:currentCompanyId(),tender_id:tenderId||null,document_series_id:seriesId,version,
+      document_type:String(values.get('document_type')||'').trim(),name:String(values.get('name')||'').trim(),issuer:String(values.get('issuer')||'').trim(),
+      document_number:String(values.get('document_number')||'').trim()||null,issued_on:issuedOn,expires_on:hasNoExpiry?null:expiresOn,
+      has_no_expiry:hasNoExpiry,coverage:String(values.get('coverage')||'').trim()||null,notes:String(values.get('notes')||'').trim()||null,
+      file_name:file.name,mime_type:'application/pdf',file_size:file.size,storage_path:path,created_by:state.user.id
+    };
+    const {error:metadataError}=await supabase.from('qualification_documents').insert(metadata);
+    if(metadataError){await supabase.storage.from('qualification-files').remove([path]);throw metadataError;}
+    cancelQualificationRenewal();
+    await refreshAll();
+    activateDocumentTab('habilitacao');
+    setQualificationDocumentStatus(version>1?'Documento renovado; a versão anterior foi preservada.':'Documento fiscal cadastrado com segurança.','success');
+    toast(version>1?'Documento renovado com histórico preservado.':'Documento fiscal cadastrado.');
+  }catch(error){
+    console.warn('Upload de habilitação fiscal:',error?.message||error);
+    setQualificationDocumentStatus('Não foi possível cadastrar o documento. Verifique a configuração e tente novamente.','error');
+    toast('Não foi possível cadastrar o documento fiscal.','error');
+  }finally{
+    if(submit){submit.disabled=!currentMemberIsAdmin()||Boolean(state.qualificationError);submit.textContent=state.qualificationRenewSeriesId?'Salvar renovação':'Cadastrar documento';}
+  }
+});
 
 $('#arquivoForm').addEventListener('submit',async e=>{
   e.preventDefault();
@@ -8290,6 +8750,85 @@ document.addEventListener('click',async e=>{
     return;
   }
 
+  const addTenderDocument=e.target.closest('[data-add-tender-document]');
+  if(addTenderDocument){
+    document.querySelector('#mainTabs [data-tab="arquivos"]')?.click();
+    activateDocumentTab('editais');
+    const select=$('#tenderDocumentTender');
+    if(select){select.value=addTenderDocument.dataset.addTenderDocument;select.focus();}
+    $('#documentPanelEditais')?.scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
+
+  const downloadTenderDocument=e.target.closest('[data-download-tender-document]');
+  if(downloadTenderDocument){
+    const document=state.tenderDocuments.find(row=>String(row.id)===String(downloadTenderDocument.dataset.downloadTenderDocument));
+    if(!document)return toast('Edital não encontrado. Atualize a página e tente novamente.','error');
+    await downloadPrivateDocument('tender-files',document.storage_path,document.file_name,downloadTenderDocument);
+    return;
+  }
+
+  const downloadQuoteDocument=e.target.closest('[data-download-quote-document]');
+  if(downloadQuoteDocument){
+    const document=state.documentos.find(row=>String(row.id)===String(downloadQuoteDocument.dataset.downloadQuoteDocument));
+    if(!document)return toast('Cotação não encontrada. Atualize a página e tente novamente.','error');
+    await downloadPrivateDocument('quote-files',document.storage_path,document.nome_arquivo,downloadQuoteDocument);
+    return;
+  }
+
+  const qualificationFilter=e.target.closest('[data-qualification-filter]');
+  if(qualificationFilter){
+    state.qualificationFilter=qualificationFilter.dataset.qualificationFilter||'all';
+    renderQualification();
+    return;
+  }
+
+  const downloadQualification=e.target.closest('[data-download-qualification-document]');
+  if(downloadQualification){
+    const document=state.qualificationDocuments.find(row=>String(row.id)===String(downloadQualification.dataset.downloadQualificationDocument));
+    if(!document)return toast('Documento fiscal não encontrado. Atualize a página e tente novamente.','error');
+    await downloadPrivateDocument('qualification-files',document.storage_path,document.file_name,downloadQualification);
+    return;
+  }
+
+  const renewQualification=e.target.closest('[data-renew-qualification-document]');
+  if(renewQualification){
+    if(!currentMemberIsAdmin())return toast('Somente administradores podem renovar documentos.','error');
+    const seriesId=renewQualification.dataset.renewQualificationDocument;
+    const document=state.qualificationDocuments.filter(row=>String(row.document_series_id||row.id)===String(seriesId)).sort((a,b)=>Number(b.version||1)-Number(a.version||1))[0];
+    const form=$('#qualificationDocumentForm');
+    if(!document||!form)return;
+    state.qualificationRenewSeriesId=seriesId;
+    $('#qualificationDocumentSeries').value=seriesId;
+    form.elements.tender_id.value=document.tender_id||'';
+    form.elements.document_type.value=document.document_type||'';
+    form.elements.name.value=document.name||'';
+    form.elements.issuer.value=document.issuer||'';
+    form.elements.document_number.value=document.document_number||'';
+    form.elements.coverage.value=document.coverage||'';
+    form.elements.notes.value=document.notes||'';
+    form.elements.issued_on.value='';
+    form.elements.expires_on.value='';
+    form.elements.has_no_expiry.checked=false;
+    form.elements.expires_on.disabled=false;
+    form.elements.expires_on.required=true;
+    $('#qualificationDocumentSubmit').textContent='Salvar renovação';
+    $('#qualificationRenewCancel').hidden=false;
+    setQualificationDocumentStatus(`Renovando ${document.name}. Selecione o novo PDF e informe as novas datas.`);
+    form.scrollIntoView({behavior:'smooth',block:'start'});
+    form.elements.issued_on.focus();
+    return;
+  }
+
+  const openQuoteDocument=e.target.closest('[data-open-quote-document]');
+  if(openQuoteDocument){
+    state.quoteViewTenderId=openQuoteDocument.dataset.openQuoteDocument||'';
+    state.quoteWorkspaceMode='list';
+    renderQuotesWorkspace();
+    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+    return;
+  }
+
   const removeQuoteBtn=e.target.closest('[data-remove-item-quotes]');
   if(removeQuoteBtn){
     await removeAllQuotesFromItem(removeQuoteBtn.dataset.removeItemQuotes);
@@ -8299,6 +8838,21 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.tab).classList.add('active');}));
+document.querySelectorAll('[data-document-tab]').forEach(button=>{
+  button.addEventListener('click',()=>activateDocumentTab(button.dataset.documentTab));
+  button.addEventListener('keydown',event=>{
+    const tabs=[...document.querySelectorAll('[data-document-tab]')];
+    const index=tabs.indexOf(button);
+    let next=-1;
+    if(event.key==='ArrowRight')next=(index+1)%tabs.length;
+    if(event.key==='ArrowLeft')next=(index-1+tabs.length)%tabs.length;
+    if(event.key==='Home')next=0;
+    if(event.key==='End')next=tabs.length-1;
+    if(next<0)return;
+    event.preventDefault();
+    activateDocumentTab(tabs[next].dataset.documentTab,true);
+  });
+});
 let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').hidden=false;});$('#installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').hidden=true;});
 if('serviceWorker' in navigator)window.addEventListener('load',async()=>{
   try{
@@ -8401,3 +8955,4 @@ document.addEventListener('click',async e=>{
 
 setupManualQuoteMode();
 boot();
+
