@@ -8364,12 +8364,14 @@ function renderDocumentation(){
   const tenderList=$('#tenderDocumentsList');
   if(tenderList){
     tenderList.innerHTML=table(
-      ['Arquivo','Licitação','Atualizado','Ação'],
+      ['Licitação','Atualizado','Ação'],
       state.tenderDocuments.map(document=>{
         const tender=state.licitacoes.find(l=>String(l.id)===String(document.tender_id));
+        const tenderLabel=tender
+          ? [tender.numero,tender.orgao||tender.cidade].filter(Boolean).join(' • ')
+          : 'Licitação não encontrada';
         return [
-          esc(document.file_name),
-          esc(tender?.numero||'-'),
+          esc(tenderLabel),
           documentDate(document.updated_at||document.created_at),
           `<div class="document-action-group"><button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}">${esc(tenderDocumentDownloadLabel(document))}</button></div>`
         ];
