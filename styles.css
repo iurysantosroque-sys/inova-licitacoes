@@ -52,6 +52,7 @@ main{max-width:1720px;margin:auto;padding:28px 30px 44px}
 .grid-form input:focus,.grid-form select:focus,.grid-form textarea:focus,.stack-form input:focus{border-color:var(--gold)}
 .grid-form textarea{min-height:46px;resize:vertical}
 .grid-form label,.stack-form label{font-size:.84rem;color:#d2d7da;display:grid;gap:6px}
+.grid-form-wide{grid-column:1/-1}
 .grid-form button,.stack-form button{border:1px solid var(--gold);border-radius:10px;padding:12px 14px;background:var(--gold);color:#090d10;font-weight:800}
 .grid-form button:hover,.stack-form button:hover{filter:brightness(1.06)}
 .inline-label{grid-column:auto}
