@@ -159,8 +159,9 @@ const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/octet-stream',''
 ]);
-const TENDER_DOCUMENT_EXTENSIONS=new Set(['doc','docx']);
+const TENDER_DOCUMENT_EXTENSIONS=new Set(['pdf','doc','docx']);
 const TENDER_DOCUMENT_MIME_TYPES={
+  pdf:'application/pdf',
   doc:'application/msword',
   docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
@@ -170,6 +171,17 @@ const QUALIFICATION_PDF_MIME_TYPES=new Set(['application/pdf','application/octet
 function toast(msg,type='success'){
   const el=$('#toast'); el.textContent=msg; el.className=`toast ${type}`; el.hidden=false;
   clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.hidden=true,4000);
+}
+
+function tenderDocumentExtension(document){
+  const extension=String(document?.file_name||'').toLowerCase().split('.').pop()||'';
+  if(TENDER_DOCUMENT_EXTENSIONS.has(extension))return extension;
+  return Object.entries(TENDER_DOCUMENT_MIME_TYPES).find(([,mime])=>mime===document?.mime_type)?.[0]||'';
+}
+
+function tenderDocumentDownloadLabel(document){
+  const extension=tenderDocumentExtension(document);
+  return extension?`Baixar ${extension.toUpperCase()}`:'Baixar arquivo';
 }
 function showOnly(id){ ['setupScreen','authScreen','companyScreen','appShell'].forEach(x=>$('#'+x).hidden=x!==id); }
 function table(headers,rows){
@@ -7239,7 +7251,7 @@ function renderTenderManagement(){
           <td>
             <div class="tx-actions">
               ${tenderDocument
-                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">Baixar Word</button>`
+                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">${esc(tenderDocumentDownloadLabel(tenderDocument))}</button>`
                 : currentMemberIsAdmin()?`<button class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`:''}
               ${l.pncp_control?`<button class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
               <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
@@ -8359,7 +8371,7 @@ function renderDocumentation(){
           esc(document.file_name),
           esc(tender?.numero||'-'),
           documentDate(document.updated_at||document.created_at),
-          `<div class="document-action-group"><button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}">Baixar</button></div>`
+          `<div class="document-action-group"><button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}">${esc(tenderDocumentDownloadLabel(document))}</button></div>`
         ];
       })
     );
@@ -8551,8 +8563,14 @@ $('#configForm').addEventListener('submit',async e=>{e.preventDefault();const f=
 
 async function tenderDocumentHasValidSignature(file,extension){
   const bytes=new Uint8Array(await file.slice(0,8).arrayBuffer());
-  if(extension==='docx')return bytes[0]===0x50&&bytes[1]===0x4b&&[0x03,0x05,0x07].includes(bytes[2]);
-  return [0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((value,index)=>bytes[index]===value);
+  if(extension==='pdf')return bytes.length>=5&&bytes[0]===0x25&&bytes[1]===0x50&&bytes[2]===0x44&&bytes[3]===0x46&&bytes[4]===0x2d;
+  if(extension==='docx')return bytes[0]===0x50&&bytes[1]===0x4b&&(
+    (bytes[2]===0x03&&bytes[3]===0x04)||
+    (bytes[2]===0x05&&bytes[3]===0x06)||
+    (bytes[2]===0x07&&bytes[3]===0x08)
+  );
+  if(extension==='doc')return [0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((value,index)=>bytes[index]===value);
+  return false;
 }
 
 $('#tenderDocumentForm')?.addEventListener('submit',async e=>{
@@ -8566,13 +8584,14 @@ $('#tenderDocumentForm')?.addEventListener('submit',async e=>{
   if(!currentMemberIsAdmin())return toast('Somente administradores podem adicionar ou substituir editais.','error');
   if(state.tenderDocumentsError)return toast(state.tenderDocumentsError,'error');
   if(!state.licitacoes.some(tender=>String(tender.id)===tenderId))return toast('Selecione uma licitação válida.','error');
-  if(!file?.name)return toast('Selecione o arquivo Word do edital.','error');
+  if(!file?.name)return toast('Selecione o arquivo PDF, DOC ou DOCX do edital.','error');
   const extension=file.name.toLowerCase().split('.').pop()||'';
-  if(!TENDER_DOCUMENT_EXTENSIONS.has(extension))return toast('Formato não suportado. Use DOC ou DOCX.','error');
+  if(!TENDER_DOCUMENT_EXTENSIONS.has(extension))return toast('Formato não suportado. Use PDF, DOC ou DOCX.','error');
   if(file.size<1||file.size>MAX_QUOTE_FILE_SIZE)return toast('O arquivo deve ter no máximo 25 MB.','error');
   const expectedMime=TENDER_DOCUMENT_MIME_TYPES[extension];
-  if(file.type&&!['application/octet-stream',expectedMime].includes(String(file.type).toLowerCase()))return toast('O tipo do arquivo não corresponde à extensão Word informada.','error');
-  if(!await tenderDocumentHasValidSignature(file,extension))return toast('O conteúdo do arquivo não corresponde a um documento Word válido.','error');
+  const declaredMime=String(file.type||'').toLowerCase();
+  if(!['','application/octet-stream',expectedMime].includes(declaredMime))return toast('O tipo do arquivo não corresponde à extensão PDF, DOC ou DOCX informada.','error');
+  if(!await tenderDocumentHasValidSignature(file,extension))return toast('O conteúdo do arquivo não corresponde a um PDF, DOC ou DOCX válido.','error');
 
   const existing=state.tenderDocuments.find(document=>String(document.tender_id)===tenderId);
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
