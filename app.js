@@ -7502,6 +7502,14 @@ function ensureDashboardModelStyles(){
       margin-top:4px;
     }
 
+    .db-deadline-actions{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:7px;
+      margin-top:8px;
+    }
+
     .db-open-tender{
       margin-top:8px;
       height:30px;
@@ -7512,6 +7520,18 @@ function ensureDashboardModelStyles(){
       padding:0 9px;
       font-size:.66rem;
       cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      text-decoration:none;
+    }
+
+    .db-deadline-actions .db-open-tender{
+      margin-top:0;
+    }
+
+    .db-edital-unavailable{
+      color:#8f9fa9;
+      font-size:.67rem;
     }
 
     .db-calendar{
@@ -7957,7 +7977,16 @@ function renderDashboardModel(){
           </div>
 
           <div class="db-deadlines">
-            ${upcoming.length?upcoming.map(({l,meta})=>`
+            ${upcoming.length?upcoming.map(({l,meta})=>{
+              const officialUrl=officialPncpTenderUrl(l);
+              const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
+              const pdfAction=tenderDocument&&tenderDocumentIsPdf(tenderDocument)
+                ? `<button type="button" class="db-open-tender" data-open-tender-document="${esc(tenderDocument.id)}" aria-label="Abrir PDF do edital ${esc(l.numero||'')} em nova aba">Abrir PDF</button>`
+                : '';
+              const pncpAction=officialUrl
+                ? `<a class="db-open-tender" href="${esc(officialUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir edital ${esc(l.numero||'')} no PNCP em nova aba">Abrir no PNCP</a>`
+                : '';
+              return `
               <div class="db-deadline ${meta.cls}">
                 <div class="db-deadline-time">${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}</div>
                 <div class="db-deadline-title">
@@ -7966,11 +7995,11 @@ function renderDashboardModel(){
                 <div class="db-deadline-meta">
                   ${state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length} itens
                 </div>
-                <button type="button" class="db-open-tender" data-db-open-tender="${l.id}">
-                  Abrir edital
-                </button>
+                <div class="db-deadline-actions">
+                  ${pncpAction}${pdfAction}${!pncpAction&&!pdfAction?'<span class="db-edital-unavailable">Edital indisponível</span>':''}
+                </div>
               </div>
-            `).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
+            `}).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
           </div>
         </section>
 
@@ -8132,11 +8161,6 @@ function renderDashboardModel(){
     });
   });
 
-  shell.querySelectorAll('[data-db-open-tender]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.querySelector('#mainTabs [data-tab="licitacoes"]')?.click();
-    });
-  });
 }
 
 
@@ -8546,7 +8570,7 @@ $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();c
 $('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');toast('Você entrou na empresa.');await loadMembershipAndData();});
 async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
 
-$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
+$('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const linkText=String(f.link_pncp||'').trim();const linkParts=linkText?pncpLinkParts(linkText):null;if(linkText&&!linkParts)return toast('Informe um link válido de edital do PNCP.','error');const sourceUrl=linkParts?`https://pncp.gov.br/app/editais/${linkParts.cnpj}/${linkParts.ano}/${linkParts.sequencial}`:'';if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',source_url:sourceUrl,proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,source_url:sourceUrl||null,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});renderAll();return;}const {error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Item adicionado.');await refreshAll();});
 $('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
 $('#cotacaoForm')?.addEventListener('submit',async e=>{
