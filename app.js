@@ -872,6 +872,17 @@ function pncpLinkParts(value){
   }
 }
 
+function officialPncpTenderUrl(tender){
+  const controlParts=pncpControlParts(tender?.pncp_control);
+  if(controlParts){
+    return `https://pncp.gov.br/app/editais/${controlParts.cnpj}/${controlParts.ano}/${controlParts.sequencial}`;
+  }
+
+  const sourceParts=pncpLinkParts(tender?.source_url);
+  if(!sourceParts)return '';
+  return `https://pncp.gov.br/app/editais/${sourceParts.cnpj}/${sourceParts.ano}/${sourceParts.sequencial}`;
+}
+
 function setPncpStatus(message,type='loading'){
   const el=$('#pncpSearchStatus');
   if(!el)return;
@@ -6859,7 +6870,7 @@ function ensureTenderExactStyles(){
     }
     .tx-table-wrap{padding:0 24px;overflow:auto}
     .tx-table{
-      width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;
+      width:100%;min-width:1300px;border-collapse:separate;border-spacing:0;
       border:1px solid #243541;border-radius:9px;overflow:hidden;
     }
     .tx-table th{
@@ -6889,6 +6900,14 @@ function ensureTenderExactStyles(){
     .tx-platform strong{display:block;color:#fff}
     .tx-platform small{display:block;color:#95a2ac;margin-top:4px}
     .tx-items{display:flex;align-items:center;gap:7px;white-space:nowrap}
+    .tx-edital-link{
+      display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+      padding:0 13px;border:1px solid #f0b429;border-radius:7px;
+      color:#f0b429;text-decoration:none;font-weight:800;white-space:nowrap
+    }
+    .tx-edital-link:hover,.tx-edital-link:focus-visible{background:#f0b429;color:#07131a}
+    .tx-edital-link:focus-visible{outline:3px solid rgba(240,180,41,.35);outline-offset:2px}
+    .tx-edital-missing{display:inline-block;color:#8e9ba6;font-size:.78rem;white-space:nowrap}
     .tx-status{display:inline-flex;border-radius:999px;padding:5px 10px;font-size:.73rem;font-weight:800}
     .tx-status.good{background:#164c2c;color:#73e995}
     .tx-status.warn{background:#55420e;color:#ffd65b}
@@ -6898,7 +6917,7 @@ function ensureTenderExactStyles(){
     .tx-actions{display:grid;gap:7px;min-width:112px}
     .tx-action{
       border:1px solid #31434f;border-radius:7px;background:#09161e;color:#e6edf2;
-      height:34px;padding:0 10px;font-weight:650;cursor:pointer
+      min-height:44px;padding:7px 10px;font-weight:650;cursor:pointer
     }
     .tx-action.danger{border-color:#8b2d2d;color:#ff6e67}
     .tx-action:hover{background:#10212b}
@@ -7119,6 +7138,7 @@ function renderTenderManagement(){
             <th>Data limite para propostas<br><small style="color:#efb426">(Fecha propostas)</small></th>
             <th>Plataforma</th>
             <th>Itens</th>
+            <th>Edital</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
@@ -7162,6 +7182,7 @@ function renderTenderManagement(){
       const status=tenderStatusInfo(l);
       const itemCount=state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length;
       const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
+      const officialUrl=officialPncpTenderUrl(l);
 
       // Abertura do edital = publicação quando disponível.
       const opening=l.publicationAt||l.proposalOpenAt;
@@ -7205,6 +7226,12 @@ function renderTenderManagement(){
           </td>
 
           <td>
+            ${officialUrl
+              ? `<a class="tx-edital-link" href="${esc(officialUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir edital ${esc(l.numero||'')} no PNCP em nova aba">Abrir edital</a>`
+              : '<span class="tx-edital-missing">Sem link</span>'}
+          </td>
+
+          <td>
             <span class="tx-status ${statusClass}">${esc(status.label==='Prazo próximo'?'Ativo':status.label)}</span>
             <span class="tx-status-date">${l.createdAt?'Cadastrado em '+dateBR(l.createdAt,false):''}</span>
           </td>
@@ -7212,8 +7239,8 @@ function renderTenderManagement(){
           <td>
             <div class="tx-actions">
               ${tenderDocument
-                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">Baixar edital</button>`
-                : `<button class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`}
+                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">Baixar Word</button>`
+                : currentMemberIsAdmin()?`<button class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`:''}
               ${l.pncp_control?`<button class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
               <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
             </div>
@@ -8461,7 +8488,7 @@ function demoSeed(){
   state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
   try{state.config={...state.config,...JSON.parse(localStorage.getItem('inova_demo_pricing_config')||'{}')}}catch{}
   state.pricingTargetsLoadedFor='';loadPricingTargets();
-  state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas'}];
+  state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas',pncp_control:'11308823000103-1-000027/2026',source_url:'https://pncp.gov.br/app/editais/11308823000103/2026/27'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
   state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.qualificationDocuments=[{id:'qd1',company_id:'demo',tender_id:null,document_series_id:'qs1',version:1,document_type:'FGTS/CRF',name:'Certificado de Regularidade do FGTS',issuer:'Caixa Econômica Federal',issued_on:'2026-08-01',expires_on:'2026-09-12',has_no_expiry:false,file_name:'crf-demo.pdf',storage_path:'demo/qs1/qd1-crf-demo.pdf',created_at:new Date().toISOString()}];state.qualificationError='';state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
 }
