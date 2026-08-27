@@ -70,7 +70,7 @@ create table public.tender_documents (
   company_id uuid not null references public.companies(id) on delete cascade,
   tender_id uuid not null,
   file_name text not null check(length(trim(file_name)) between 1 and 255),
-  mime_type text not null check(mime_type in ('application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
+  mime_type text not null check(mime_type in ('application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
   file_size bigint not null check(file_size between 1 and 26214400),
   storage_path text not null unique,
   created_by uuid not null references auth.users(id),
@@ -254,7 +254,7 @@ create policy qualification_documents_insert_admins on public.qualification_docu
 create policy qualification_documents_delete_admins on public.qualification_documents for delete to authenticated using(private.is_company_admin(company_id));
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('quote-files','quote-files',false,26214400,array['application/pdf','text/csv','application/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('tender-files','tender-files',false,26214400,array['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('tender-files','tender-files',false,26214400,array['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('qualification-files','qualification-files',false,26214400,array['application/pdf']);
 create policy quote_files_select_company on storage.objects for select to authenticated using(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
 create policy quote_files_insert_company on storage.objects for insert to authenticated with check(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
@@ -272,6 +272,7 @@ create policy tender_files_insert_admins on storage.objects for insert to authen
   bucket_id='tender-files'
   and split_part(name,'/',1) ~ '^[0-9a-f-]{36}$'
   and split_part(name,'/',2) ~ '^[0-9a-f-]{36}$'
+  and lower(storage.extension(name)) in ('pdf','doc','docx')
   and private.is_company_admin(split_part(name,'/',1)::uuid)
   and exists(
     select 1 from public.tenders t
