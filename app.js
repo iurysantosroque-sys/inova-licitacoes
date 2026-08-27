@@ -8929,7 +8929,52 @@ document.querySelectorAll('[data-document-tab]').forEach(button=>{
     activateDocumentTab(tabs[next].dataset.documentTab,true);
   });
 });
-let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').hidden=false;});$('#installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').hidden=true;});
+let deferredInstallPrompt=null;
+const installBtn=$('#installBtn');
+const isStandaloneApp=()=>window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+const isIosDevice=()=>/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+function updateInstallButton(){
+  if(!installBtn)return;
+  const installed=isStandaloneApp();
+  installBtn.textContent=installed?'App instalado':'Instalar App';
+  installBtn.disabled=installed;
+  installBtn.setAttribute('aria-disabled',String(installed));
+  installBtn.title=installed?'O INOVA Licitações já está instalado neste dispositivo.':'Instalar o INOVA Licitações neste dispositivo.';
+}
+window.addEventListener('beforeinstallprompt',event=>{
+  event.preventDefault();
+  deferredInstallPrompt=event;
+  updateInstallButton();
+});
+window.addEventListener('appinstalled',()=>{
+  deferredInstallPrompt=null;
+  updateInstallButton();
+  toast('App instalado com sucesso.');
+});
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change',updateInstallButton);
+installBtn?.addEventListener('click',async()=>{
+  if(isStandaloneApp()){
+    updateInstallButton();
+    return toast('O app já está instalado neste dispositivo.');
+  }
+  if(deferredInstallPrompt){
+    const prompt=deferredInstallPrompt;
+    deferredInstallPrompt=null;
+    try{
+      await prompt.prompt();
+      const choice=await prompt.userChoice;
+      if(choice?.outcome==='dismissed')toast('Instalação cancelada. Você pode tentar novamente pelo menu do navegador.');
+    }catch(error){
+      console.warn('Instalação do app:',error?.message||error);
+      toast('Use o menu do navegador e escolha “Instalar app” ou “Adicionar à tela inicial”.');
+    }
+    updateInstallButton();
+    return;
+  }
+  if(isIosDevice())return toast('No iPhone ou iPad, toque em Compartilhar e depois em “Adicionar à Tela de Início”.');
+  toast('Abra o menu do navegador e escolha “Instalar app” ou “Adicionar à tela inicial”.');
+});
+updateInstallButton();
 if('serviceWorker' in navigator)window.addEventListener('load',async()=>{
   try{
     const isLocal=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
