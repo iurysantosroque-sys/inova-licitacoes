@@ -183,6 +183,10 @@ function tenderDocumentDownloadLabel(document){
   const extension=tenderDocumentExtension(document);
   return extension?`Baixar ${extension.toUpperCase()}`:'Baixar arquivo';
 }
+
+function tenderDocumentIsPdf(document){
+  return tenderDocumentExtension(document)==='pdf';
+}
 function showOnly(id){ ['setupScreen','authScreen','companyScreen','appShell'].forEach(x=>$('#'+x).hidden=x!==id); }
 function table(headers,rows){
   if(!rows.length) return '<p class="hint">Nenhum registro ainda.</p>';
@@ -6882,7 +6886,7 @@ function ensureTenderExactStyles(){
     }
     .tx-table-wrap{padding:0 24px;overflow:auto}
     .tx-table{
-      width:100%;min-width:1300px;border-collapse:separate;border-spacing:0;
+      width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;
       border:1px solid #243541;border-radius:9px;overflow:hidden;
     }
     .tx-table th{
@@ -7146,7 +7150,6 @@ function renderTenderManagement(){
             <th>Número</th>
             <th>Órgão</th>
             <th>Cidade / UF</th>
-            <th>Abertura do edital</th>
             <th>Data limite para propostas<br><small style="color:#efb426">(Fecha propostas)</small></th>
             <th>Plataforma</th>
             <th>Itens</th>
@@ -7171,7 +7174,6 @@ function renderTenderManagement(){
     <div class="tx-info">
       <div>
         <div class="tx-info-title">ⓘ &nbsp;Sobre as datas</div>
-        <p><strong>Abertura do edital:</strong> data em que o edital foi publicado/disponibilizado.</p>
         <p><strong>Data limite para propostas (fecha propostas):</strong> último dia e horário para envio de propostas e lances.</p>
         <p class="attention">Atenção: após o horário limite, o sistema da plataforma não aceitará novas propostas.</p>
       </div>
@@ -7196,8 +7198,6 @@ function renderTenderManagement(){
       const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
       const officialUrl=officialPncpTenderUrl(l);
 
-      // Abertura do edital = publicação quando disponível.
-      const opening=l.publicationAt||l.proposalOpenAt;
       const statusClass=status.cls==='bad'?'bad':status.cls==='warn'?'warn':status.cls==='good'?'good':'neutral';
 
       return `
@@ -7205,15 +7205,6 @@ function renderTenderManagement(){
           <td><span class="tx-number">${esc(l.numero)}</span></td>
           <td><div class="tx-agency">${esc(l.orgao||'-')}</div></td>
           <td><div class="tx-city">${esc(l.cidade||'-')}</div></td>
-
-          <td>
-            ${
-              opening
-                ? `<div class="tx-date-main"><span class="tx-date-icon" style="color:#43d16e">▣</span>${dateBR(opening,false)}</div>
-                   <span class="tx-date-sub">${esc(weekdayBR(opening))}</span>`
-                : '<span style="color:#73838f">-</span>'
-            }
-          </td>
 
           <td>
             ${
@@ -7239,7 +7230,7 @@ function renderTenderManagement(){
 
           <td>
             ${officialUrl
-              ? `<a class="tx-edital-link" href="${esc(officialUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir edital ${esc(l.numero||'')} no PNCP em nova aba">Abrir edital</a>`
+              ? `<a class="tx-edital-link" href="${esc(officialUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir edital ${esc(l.numero||'')} no PNCP em nova aba">Abrir no PNCP</a>`
               : '<span class="tx-edital-missing">Sem link</span>'}
           </td>
 
@@ -7251,10 +7242,10 @@ function renderTenderManagement(){
           <td>
             <div class="tx-actions">
               ${tenderDocument
-                ? `<button class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}">${esc(tenderDocumentDownloadLabel(tenderDocument))}</button>`
-                : currentMemberIsAdmin()?`<button class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`:''}
-              ${l.pncp_control?`<button class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
-              <button class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
+                ? `${tenderDocumentIsPdf(tenderDocument)?`<button type="button" class="tx-action" data-open-tender-document="${esc(tenderDocument.id)}" aria-label="Abrir PDF do edital ${esc(l.numero||'')} em nova aba">Abrir PDF</button>`:''}<button type="button" class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}" aria-label="${esc(tenderDocumentDownloadLabel(tenderDocument))} do edital ${esc(l.numero||'')}">${esc(tenderDocumentDownloadLabel(tenderDocument))}</button>`
+                : currentMemberIsAdmin()?`<button type="button" class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`:''}
+              ${l.pncp_control?`<button type="button" class="tx-action" data-direct-pncp-sync="${l.id}">Atualizar itens</button>`:''}
+              <button type="button" class="tx-action danger" data-delete="licitacao" data-id="${l.id}">Excluir</button>
             </div>
           </td>
         </tr>
@@ -8373,7 +8364,7 @@ function renderDocumentation(){
         return [
           esc(tenderLabel),
           documentDate(document.updated_at||document.created_at),
-          `<div class="document-action-group"><button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}">${esc(tenderDocumentDownloadLabel(document))}</button></div>`
+          `<div class="document-action-group">${tenderDocumentIsPdf(document)?`<button type="button" class="action-btn" data-open-tender-document="${esc(document.id)}" aria-label="Abrir PDF de ${esc(tenderLabel)} em nova aba">Abrir PDF</button>`:''}<button type="button" class="action-btn" data-download-tender-document="${esc(document.id)}" aria-label="${esc(tenderDocumentDownloadLabel(document))} de ${esc(tenderLabel)}">${esc(tenderDocumentDownloadLabel(document))}</button></div>`
         ];
       })
     );
@@ -8432,6 +8423,37 @@ async function downloadPrivateDocument(bucket,path,fileName,button){
     toast('Não foi possível baixar o arquivo. Verifique seu acesso e tente novamente.','error');
   }finally{
     if(button){button.disabled=false;button.textContent=oldText;}
+  }
+}
+
+async function openPrivateTenderPdf(documentId,button){
+  const document=state.tenderDocuments.find(row=>String(row.id)===String(documentId));
+  const companyId=currentCompanyId();
+  if(
+    !document||
+    !tenderDocumentIsPdf(document)||
+    !companyId||
+    !document.storage_path?.startsWith(`${companyId}/`)
+  )return toast('Edital não encontrado ou sem acesso.','error');
+  if(state.demo||!configured||!supabase)return toast('A abertura do PDF funciona somente no modo online.','error');
+
+  const popup=window.open('about:blank','_blank');
+  if(!popup)return toast('O navegador bloqueou a nova aba. Permita pop-ups para abrir o PDF.','error');
+  popup.opener=null;
+
+  const oldText=button?.textContent||'Abrir PDF';
+  if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Abrindo…';}
+  try{
+    const {data,error}=await supabase.storage.from('tender-files').createSignedUrl(document.storage_path,60);
+    if(error||!data?.signedUrl)throw error||new Error('URL temporária indisponível.');
+    if(popup.closed)throw new Error('A nova aba foi fechada.');
+    popup.location.replace(data.signedUrl);
+  }catch(error){
+    try{if(!popup.closed)popup.close();}catch{}
+    console.warn('Abertura do edital privado:',error?.message||'falha');
+    toast('Não foi possível abrir o PDF. Verifique seu acesso e tente novamente.','error');
+  }finally{
+    if(button){button.disabled=false;button.removeAttribute('aria-busy');button.textContent=oldText;}
   }
 }
 
@@ -8813,6 +8835,12 @@ document.addEventListener('click',async e=>{
     const document=state.tenderDocuments.find(row=>String(row.id)===String(downloadTenderDocument.dataset.downloadTenderDocument));
     if(!document)return toast('Edital não encontrado. Atualize a página e tente novamente.','error');
     await downloadPrivateDocument('tender-files',document.storage_path,document.file_name,downloadTenderDocument);
+    return;
+  }
+
+  const openTenderDocument=e.target.closest('[data-open-tender-document]');
+  if(openTenderDocument){
+    await openPrivateTenderPdf(openTenderDocument.dataset.openTenderDocument,openTenderDocument);
     return;
   }
 
