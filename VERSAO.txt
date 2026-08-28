@@ -1,2 +1,1 @@
-36.11.5 - Importação rápida de licitações pelo link oficial do PNCP, com falha segura quando o portal estiver indisponível.
-
+36.13.0 - Cotações simplificadas com revisão manual dos casos incertos e leitura integral do PDF.

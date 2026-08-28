@@ -371,3 +371,105 @@ tr:hover td{background:#0a141a}
 @media(max-width:1000px){.qualification-library-main{grid-template-columns:1fr 1fr}.qualification-library-main>div:first-child{grid-column:1/-1}.qualification-summary{grid-template-columns:repeat(3,1fr)}.qualification-requirement-card{grid-template-columns:1fr 1fr}.qualification-requirement-actions{grid-column:1/-1;justify-content:flex-start}}
 @media(max-width:720px){.documentation-head{align-items:stretch;flex-direction:column}.document-tabs{display:grid;grid-template-columns:1fr;width:100%}.document-tabs button{min-width:0}.document-action-group{min-width:155px}.qualification-document-form .qualification-notes,.qualification-requirement-form .qualification-notes{grid-column:auto}.qualification-tender-controls,.qualification-library-main,.qualification-requirement-card{grid-template-columns:1fr}.qualification-library-main>div:first-child,.qualification-requirement-actions{grid-column:auto}.qualification-summary{grid-template-columns:1fr 1fr}.qualification-progress{grid-column:1/-1}.qualification-form-actions{align-items:stretch;flex-direction:column}.qualification-alert{flex-direction:column}}
 
+/* Cotações 36.13 — fluxo direto: importar, revisar dúvidas e itens cotados. */
+#cotacoes .quote-summary-direct{
+  display:block;
+  margin:0 0 12px;
+  color:var(--muted);
+  font-size:.94rem;
+}
+#cotacoes .quote-summary-direct strong{color:var(--text)}
+#cotacoes .quote-section-tabs{
+  display:flex;
+  gap:6px;
+  width:max-content;
+  max-width:100%;
+  margin:0 0 14px;
+  padding:5px;
+  overflow-x:auto;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#071117;
+}
+#cotacoes .quote-section-tabs button{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:42px;
+  padding:9px 16px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:var(--muted);
+  white-space:nowrap;
+}
+#cotacoes .quote-section-tabs button.active{
+  background:var(--gold);
+  color:#071117;
+}
+#cotacoes .quote-tab-count{
+  min-width:22px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  color:inherit;
+  text-align:center;
+  font-size:.78rem;
+}
+#cotacoes .quote-import-panel,
+#cotacoes .quote-review-panel,
+#cotacoes .quote-comparison-panel{margin-top:0}
+#cotacoes .quote-import-help,
+#cotacoes .quote-summary-card{display:none!important}
+#cotacoes .quote-import-progress{
+  display:flex;
+  gap:0;
+  margin:12px 0 0;
+  padding:0;
+  list-style:none;
+}
+#cotacoes .quote-import-progress li{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:var(--muted);
+  font-size:.82rem;
+}
+#cotacoes .quote-import-progress li:not(:last-child)::after{
+  content:'→';
+  margin:0 8px;
+  color:#50606a;
+}
+#cotacoes .quote-import-progress li.active,
+#cotacoes .quote-import-progress li.done{color:var(--gold)}
+#cotacoes .quote-review-list{display:grid;gap:8px}
+#cotacoes .quote-review-row{
+  display:grid;
+  grid-template-columns:minmax(220px,1.2fr) minmax(230px,1.4fr) 130px 100px auto;
+  gap:12px;
+  align-items:end;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#071117;
+}
+#cotacoes .quote-review-product strong,
+#cotacoes .quote-review-product span{display:block}
+#cotacoes .quote-review-product span,
+#cotacoes .quote-review-reason{margin-top:4px;color:var(--muted);font-size:.82rem}
+#cotacoes .quote-review-row label{margin:0;color:var(--muted);font-size:.78rem}
+#cotacoes .quote-review-row select,
+#cotacoes .quote-review-row input{width:100%;margin-top:5px}
+#cotacoes .quote-review-actions{display:flex;gap:7px;justify-content:flex-end}
+#cotacoes .quote-review-empty{padding:30px 16px;text-align:center;color:var(--muted)}
+@media(max-width:1000px){
+  #cotacoes .quote-review-row{grid-template-columns:1fr 1fr}
+  #cotacoes .quote-review-product,#cotacoes .quote-review-actions{grid-column:1/-1}
+  #cotacoes .quote-review-actions{justify-content:flex-start}
+}
+@media(max-width:640px){
+  #cotacoes .quote-section-tabs{width:100%}
+  #cotacoes .quote-section-tabs button{flex:1;justify-content:center;padding:9px 10px}
+  #cotacoes .quote-review-row{grid-template-columns:1fr}
+  #cotacoes .quote-review-product,#cotacoes .quote-review-actions{grid-column:auto}
+}

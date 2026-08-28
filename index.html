@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.12.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.12.8" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.12.8" />
-  <link rel="stylesheet" href="styles.css?v=36.12.8" />
-  <script src="./app-config.js?v=36.12.8"></script>
+  <link rel="manifest" href="manifest.json?v=36.13.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.13.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.13.0" />
+  <link rel="stylesheet" href="styles.css?v=36.13.0" />
+  <script src="./app-config.js?v=36.13.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -261,7 +261,13 @@
           </label>
         </header>
 
-        <div id="quoteWorkspaceSummary" class="quote-summary" aria-live="polite"></div>
+        <div id="quoteWorkspaceSummary" class="quote-summary quote-summary-direct" aria-live="polite"></div>
+
+        <nav class="quote-section-tabs" aria-label="Áreas de cotações">
+          <button type="button" data-quote-section="import" aria-controls="quoteImportPanel">Importar PDF</button>
+          <button type="button" data-quote-section="review" aria-controls="quoteReviewPanel">Revisar dúvidas <span id="quoteReviewCount" class="quote-tab-count">0</span></button>
+          <button type="button" data-quote-section="quoted" aria-controls="quoteQuotedPanel">Itens cotados</button>
+        </nav>
 
         <div id="quoteImportPanel" class="panel quote-import-panel quote-editor-panel">
           <div class="panel-title">
@@ -282,11 +288,6 @@
             </label>
           </div>
 
-          <div id="quoteImportHelp" class="quote-import-help">
-            <strong>Automático e seguro:</strong>
-            <span>No modo online, envie PDF de até 25 MB. A demonstração também aceita CSV e usa correspondência textual local; a IA real exige login.</span>
-          </div>
-
           <div id="quoteImportStatus" class="quote-import-status" role="status" aria-live="polite" hidden></div>
           <ol id="quoteImportProgress" class="quote-import-progress" aria-label="Etapas da importação" hidden>
             <li data-quote-step="upload">Enviando PDF</li>
@@ -295,10 +296,19 @@
             <li data-quote-step="saving">Salvando seguros</li>
           </ol>
           <button type="button" id="quoteRetryBtn" class="secondary" hidden>Tentar novamente</button>
+        </div>
+
+        <div id="quoteReviewPanel" class="panel quote-review-panel" hidden>
+          <div class="quote-list-heading">
+            <div>
+              <h2>Revisar dúvidas</h2>
+              <p class="hint">Confirme, troque o item ou ignore. Nada desta área entra na precificação sem sua confirmação.</p>
+            </div>
+          </div>
           <div id="quoteImportPreview" class="quote-import-preview"></div>
         </div>
 
-        <div class="panel quote-comparison-panel">
+        <div id="quoteQuotedPanel" class="panel quote-comparison-panel" hidden>
           <div class="quote-list-heading">
             <div>
               <h2>Cotações do edital</h2>
@@ -604,7 +614,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.12.8</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+      <div class="footer-status"><span>Versão 36.13.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -620,7 +630,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.12.8"></script>
+  <script type="module" src="./app.js?v=36.13.0"></script>
 </body>
 </html>
-

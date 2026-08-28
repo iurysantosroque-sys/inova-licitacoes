@@ -676,7 +676,9 @@ Deno.serve(async(req)=>{
     const lines=normalized.map((line:any)=>{
       const duplicate=line.match.matched&&(itemCounts.get(line.match.tender_item_id)||0)>1
       if(duplicate)line.match.incompatibilities.push('mais de uma linha relacionada ao mesmo item do edital')
-      const safe=Boolean(line.match.matched&&line.unit_price>0&&line.package_base_quantity>0&&line.match.confidence>=.90&&line.match.factor_confidence>=.85&&!line.match.incompatibilities.length&&!duplicate)
+      const automaticFallback=model.includes('automatic-fallback')
+      if(automaticFallback)line.match.incompatibilities.push('correspondência local exige confirmação humana')
+      const safe=Boolean(!automaticFallback&&line.match.matched&&line.unit_price>0&&line.package_base_quantity>0&&line.match.confidence>=.90&&line.match.factor_confidence>=.85&&!line.match.incompatibilities.length&&!duplicate)
       return {...line,safe_to_save:safe,needs_review:!safe}
     })
     await db.from('quotes').update({status:'matched',ai_error:null}).eq('id',quoteId)
@@ -691,4 +693,3 @@ Deno.serve(async(req)=>{
     return json(req,{code:'AI_INVALID_RESPONSE',error:AI_MESSAGES.AI_INVALID_RESPONSE,message:AI_MESSAGES.AI_INVALID_RESPONSE},500)
   }
 })
-

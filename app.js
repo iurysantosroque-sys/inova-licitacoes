@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
@@ -2188,15 +2188,17 @@ async function startAutomaticQuoteImport(force=false){
       }
       if(runToken!==state.quoteImportRunToken)return;
       if(state.quoteImportContext)state.quoteImportContext.extractedRows=extractedRows;
+      // O parser local serve apenas para diagnóstico. A IA sempre recebe o PDF
+      // original completo: uma extração textual parcial nunca mais substitui o
+      // documento e, portanto, não pode fazer produtos desaparecerem.
       const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION};
-      if(extractedRows.length){
-        invokeBody.extracted_rows=extractedRows;
-        setQuoteImportProgress('matching');
-        setQuoteImportStatus(`${extractedRows.length} itens identificados. A IA está relacionando cada produto aos itens oficiais…`,'loading');
-      }else{
-        setQuoteImportProgress('reading');
-        setQuoteImportStatus('Não foi possível extrair itens localmente. A IA está lendo o PDF completo…','loading');
-      }
+      setQuoteImportProgress('reading');
+      setQuoteImportStatus(
+        extractedRows.length
+          ?`${extractedRows.length} linhas preliminares encontradas. A IA está conferindo o PDF completo…`
+          :'A IA está lendo o PDF completo, inclusive páginas sem texto selecionável…',
+        'loading'
+      );
       const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:invokeBody});
       if(runToken!==state.quoteImportRunToken)return;
       if(error||data?.error)throw await quoteAiInvokeFailure(error,data);
@@ -2218,6 +2220,8 @@ async function startAutomaticQuoteImport(force=false){
     const summary=quoteImportSummaryText(tenderId);
     setQuoteImportStatus(summary,'success');
     renderQuoteImportPreview();
+    const pendingReview=state.quoteImportRows.filter(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.needsReview&&!r.ignored).length;
+    setQuoteWorkspaceSection(pendingReview?'review':'quoted',false);
     toast('A leitura automática da cotação foi concluída.');
   }catch(error){
     if(runToken!==state.quoteImportRunToken)return;
@@ -2881,7 +2885,128 @@ function ensureQuoteModernStyles(){
   document.head.appendChild(style);
 }
 
+function quotePendingReviewRows(){
+  return (state.quoteImportRows||[])
+    .map((row,index)=>({row,index}))
+    .filter(({row})=>!row.savedAutomatically&&!row.savedAfterReview&&row.needsReview&&!row.ignored);
+}
+
+function quoteReviewDraftKey(tenderId){
+  if(state.demo)return 'inova:quote-review:demo:current';
+  const owner=state.user?.id||'anonymous';
+  return `inova:quote-review:${owner}:${currentCompanyId()||'local'}:${tenderId||'none'}`;
+}
+
+function persistQuoteReviewDraft(){
+  const tenderId=state.quoteImportContext?.tenderId||state.quoteViewTenderId||'';
+  if(!tenderId||!(state.quoteImportRows||[]).length)return;
+  try{
+    if(!quotePendingReviewRows().length){
+      localStorage.removeItem(quoteReviewDraftKey(tenderId));
+      return;
+    }
+    localStorage.setItem(quoteReviewDraftKey(tenderId),JSON.stringify({
+      rows:state.quoteImportRows,
+      context:state.quoteImportContext,
+      savedAt:Date.now()
+    }));
+  }catch(error){console.warn('Não foi possível guardar temporariamente a revisão.');}
+}
+
+function restoreQuoteReviewDraft(tenderId){
+  if(!tenderId||(state.quoteImportRows||[]).length)return;
+  try{
+    const draft=JSON.parse(localStorage.getItem(quoteReviewDraftKey(tenderId))||'null');
+    if(!draft||!Array.isArray(draft.rows)||(!state.demo&&String(draft.context?.tenderId)!==String(tenderId)))return;
+    state.quoteImportRows=draft.rows;
+    state.quoteImportContext=draft.context;
+    if(state.demo&&state.quoteImportContext)state.quoteImportContext.tenderId=String(tenderId);
+  }catch(error){console.warn('A revisão temporária anterior não pôde ser restaurada.');}
+}
+
+function quoteReviewReason(row){
+  const reasons=[...(row.incompatibilities||[])];
+  if(!row.itemId)reasons.push('item do edital não confirmado');
+  if(!(Number(row.price)>0))reasons.push('preço não confirmado');
+  if(!(Number(row.factor)>0))reasons.push('embalagem não confirmada');
+  if(!reasons.length&&row.aiReason)reasons.push(row.aiReason);
+  return [...new Set(reasons)].join(' • ')||'confira a correspondência antes de salvar';
+}
+
+function renderQuoteImportReviewCompact(){
+  const el=$('#quoteImportPreview');
+  if(!el)return;
+  const tenderId=$('#quoteImportTender')?.value||state.quoteViewTenderId||'';
+  const items=state.itens
+    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero));
+  const pending=quotePendingReviewRows();
+  persistQuoteReviewDraft();
+  const count=$('#quoteReviewCount');
+  if(count)count.textContent=String(pending.length);
+  if(!pending.length){
+    el.innerHTML='<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>';
+    return;
+  }
+  el.innerHTML=`<div class="quote-review-list">${pending.map(({row,index})=>`
+    <article class="quote-review-row" data-quote-row="${index}">
+      <div class="quote-review-product">
+        <strong>${esc(row.description||'Produto sem descrição')}</strong>
+        <span>${row.code?`Cód. ${esc(row.code)} • `:''}${row.unit?esc(row.unit):'unidade não identificada'}${row.page?` • pág. ${esc(row.page)}`:''}</span>
+        <div class="quote-review-reason">${esc(quoteReviewReason(row))}</div>
+      </div>
+      <label>Item correto do edital
+        <select data-q-field="itemId">
+          <option value="">Selecione o item…</option>
+          ${items.map(item=>`<option value="${esc(item.id)}" ${String(row.itemId)===String(item.id)?'selected':''}>Item ${esc(item.numero)} — ${esc(item.descricao)}</option>`).join('')}
+        </select>
+      </label>
+      <label>Preço
+        <input data-q-field="price" type="number" min="0.0001" step="0.0001" value="${Number(row.price||0)}">
+      </label>
+      <label>Fator
+        <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(row.factor||1)}">
+      </label>
+      <div class="quote-review-actions">
+        <button type="button" class="action-btn" data-ignore-quote-row="${index}">Ignorar</button>
+        <button type="button" data-confirm-quote-row="${index}" ${row.itemId&&Number(row.price)>0&&Number(row.factor)>0?'':'disabled'}>Confirmar</button>
+      </div>
+    </article>`).join('')}</div>`;
+
+  el.querySelectorAll('[data-q-field]').forEach(field=>field.addEventListener('change',()=>{
+    syncQuoteRowsFromDom();
+    const box=field.closest('[data-quote-row]');
+    const row=state.quoteImportRows[Number(box?.dataset.quoteRow)];
+    if(row&&field.dataset.qField==='itemId'){
+      row.manualMatched=Boolean(row.itemId);
+      row.aiMatched=false;
+      row.safeToSave=false;
+      row.selected=Boolean(row.itemId&&Number(row.price)>0&&Number(row.factor)>0);
+    }
+    renderQuoteImportPreview();
+  }));
+  el.querySelectorAll('[data-ignore-quote-row]').forEach(button=>button.addEventListener('click',()=>{
+    const row=state.quoteImportRows[Number(button.dataset.ignoreQuoteRow)];
+    if(!row)return;
+    row.ignored=true;row.needsReview=false;row.selected=false;
+    persistQuoteReviewDraft();
+    renderQuoteImportPreview();
+    renderQuotesWorkspace();
+    toast('Linha ignorada. Ela não entrou na precificação.');
+  }));
+  el.querySelectorAll('[data-confirm-quote-row]').forEach(button=>button.addEventListener('click',async()=>{
+    syncQuoteRowsFromDom();
+    const row=state.quoteImportRows[Number(button.dataset.confirmQuoteRow)];
+    if(!row?.itemId||!(Number(row.price)>0)||!(Number(row.factor)>0))return toast('Selecione o item e confirme preço e fator.','error');
+    (state.quoteImportRows||[]).forEach(candidate=>{candidate.selected=false;});
+    row.selected=true;
+    await saveImportedQuotes();
+  }));
+}
+
 function renderQuoteImportPreview(){
+  return renderQuoteImportReviewCompact();
+  /* Interface detalhada anterior mantida abaixo apenas como compatibilidade temporária. */
   const el=$('#quoteImportPreview');
   if(!el)return;
 
@@ -3561,7 +3686,7 @@ async function saveImportedQuotes(){
     !context ||
     String(context.tenderId)!==String(tenderId||'') ||
     String(context.supplierId)!==String(supplierId||'') ||
-    context.fileKey!==quoteImportFileKey(file)
+    (!state.demo&&!context.storagePath&&context.fileKey!==quoteImportFileKey(file))
   ){
     clearQuoteImportPreview('O edital, fornecedor ou arquivo mudou. Leia o arquivo novamente antes de salvar.');
     return toast('Leia o arquivo novamente para atualizar a revisão.','error');
@@ -3620,6 +3745,7 @@ async function saveImportedQuotes(){
         r.savedAfterReview=true;r.needsReview=false;r.selected=false;
       }
       renderAll();
+      persistQuoteReviewDraft();
       setQuoteImportStatus(quoteImportSummaryText(tenderId),'success');
       return;
     }
@@ -3659,6 +3785,7 @@ async function saveImportedQuotes(){
     persistenceComplete=true;
 
     rows.forEach(r=>{r.savedAfterReview=true;r.needsReview=false;r.selected=false;});
+    persistQuoteReviewDraft();
     const hasReview=state.quoteImportRows.some(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.needsReview);
     if(context.quoteId)await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',context.quoteId);
     await refreshAll();
@@ -3823,11 +3950,24 @@ function renderQuoteUnitPreview(){
   preview.innerHTML=`<strong>${money(realUnit)} por ${esc(item.unidade||'unidade')}</strong><br>${money(price)} ÷ ${factor} + ${freightSource} (${money(freightUnit)} por unidade).`;
 }
 
+function setQuoteWorkspaceSection(section='import',focus=true){
+  const allowed=new Set(['import','review','quoted']);
+  state.quoteWorkspaceSection=allowed.has(section)?section:'import';
+  const panels={import:$('#quoteImportPanel'),review:$('#quoteReviewPanel'),quoted:$('#quoteQuotedPanel')};
+  Object.entries(panels).forEach(([key,panel])=>{if(panel)panel.hidden=key!==state.quoteWorkspaceSection;});
+  document.querySelectorAll('[data-quote-section]').forEach(button=>{
+    const active=button.dataset.quoteSection===state.quoteWorkspaceSection;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-selected',String(active));
+  });
+  if(focus){
+    const target=state.quoteWorkspaceSection==='import'?$('#quoteImportSupplier'):state.quoteWorkspaceSection==='review'?$('#quoteReviewPanel h2'):$('#quoteWorkspaceSearch');
+    target?.focus?.();
+  }
+}
+
 function setQuoteWorkspaceMode(mode='list',focus=true){
-  state.quoteWorkspaceMode='import';
-  const imported=$('#quoteImportPanel');
-  if(imported)imported.hidden=false;
-  if(focus)$('#quoteImportSupplier')?.focus();
+  setQuoteWorkspaceSection(mode==='list'?'quoted':'import',focus);
 }
 
 function renderQuoteTenderComparison(){
@@ -3898,6 +4038,7 @@ function renderQuotesWorkspace(){
   if(!exists)state.quoteViewTenderId=state.licitacoes[0]?.id||'';
   const tenderId=state.quoteViewTenderId||'';
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  restoreQuoteReviewDraft(tenderId);
   const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
   const quoted=tenderItems.filter(i=>Boolean(bestQuote(i.id))).length;
 
@@ -3915,15 +4056,17 @@ function renderQuotesWorkspace(){
   const importLabel=$('#quoteImportTenderLabel');
   if(importLabel)importLabel.innerHTML=tender?`Arquivo para <strong>${esc(tender.numero)} • ${esc(tender.orgao)}</strong>`:'Selecione um edital acima antes de importar.';
 
+  const reviewCount=quotePendingReviewRows().length;
   const summary=$('#quoteWorkspaceSummary');
-  if(summary)summary.innerHTML=`
-    <div class="quote-summary-card"><span>Itens do edital</span><strong>${tenderItems.length}</strong></div>
-    <div class="quote-summary-card is-good"><span>Cotados</span><strong>${quoted} de ${tenderItems.length}</strong></div>
-    <div class="quote-summary-card is-warn"><span>Pendentes</span><strong>${Math.max(0,tenderItems.length-quoted)}</strong></div>
-  `;
+  if(summary)summary.innerHTML=tender
+    ?`<strong>${esc(tender.numero)} • ${esc(tender.orgao)}</strong> — ${tenderItems.length} itens • ${quoted} cotados • ${reviewCount} dúvida${reviewCount===1?'':'s'} para revisar`
+    :'Selecione um edital para começar.';
+  const reviewBadge=$('#quoteReviewCount');
+  if(reviewBadge)reviewBadge.textContent=String(reviewCount);
   const search=$('#quoteWorkspaceSearch');
   if(search&&search.value!==state.quoteWorkspaceSearch)search.value=state.quoteWorkspaceSearch||'';
-  setQuoteWorkspaceMode(state.quoteWorkspaceMode,false);
+  setQuoteWorkspaceSection(state.quoteWorkspaceSection||'import',false);
+  renderQuoteImportPreview();
   renderQuoteTenderComparison();
 }
 
@@ -9052,9 +9195,13 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   if(importTender)importTender.value=state.quoteViewTenderId;
   clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente para revisar os itens corretos.');
   state.quoteWorkspaceMode='import';
+  state.quoteWorkspaceSection='import';
   renderQuotesWorkspace();
   startAutomaticQuoteImport();
 });
+document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
+  setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
+}));
 $('#quoteImportTender')?.addEventListener('change',()=>clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente.'));
 $('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());
 $('#quoteImportFile')?.addEventListener('change',()=>startAutomaticQuoteImport());
@@ -9100,4 +9247,3 @@ document.addEventListener('click',async e=>{
 
 setupManualQuoteMode();
 boot();
-

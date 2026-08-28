@@ -1,9 +1,10 @@
-INOVA V36.11.5
+INOVA V36.13.0
 
 - Formulários manuais e modo demonstração funcionais.
-- Cotações diretas por edital, com resumo, filtros, custo unitário e importação revisável.
+- Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.
+- O PDF completo é conferido pela IA; leituras parciais não descartam produtos.
 - Precificação simplificada com slider, metas, limites e resultado em tempo real.
 - Associação por IA com validação e revisão humana.
 - Upload privado validado e PWA com cache atualizável.
 - Schema, hardening e Edge Functions atuais versionados.
-
+- Biblioteca privada de habilitação fiscal com validade, alertas, filtros e histórico de renovação.
