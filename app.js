@@ -4033,7 +4033,7 @@ async function refreshAll(){
 
 function quoteTenderOptions(selectedId=''){
   const available=state.licitacoes.filter(l=>!l.is_quoted);
-  return (available.length?'':'<option value="">Nenhum edital disponível</option>')+available.map(l=>
+  return `<option value="">Selecione uma licitação</option>`+(available.length?'':'<option value="" disabled>Nenhum edital disponível</option>')+available.map(l=>
     `<option value="${l.id}" ${String(l.id)===String(selectedId)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`
   ).join('');
 }
@@ -4253,7 +4253,7 @@ function renderQuotesWorkspace(){
   ensureQuoteWorkspaceStyles();
   const availableTenders=state.licitacoes.filter(l=>!l.is_quoted);
   const exists=availableTenders.some(l=>String(l.id)===String(state.quoteViewTenderId));
-  if(!exists)state.quoteViewTenderId=availableTenders[0]?.id||'';
+  if(state.quoteViewTenderId&&!exists)state.quoteViewTenderId='';
   const tenderId=state.quoteViewTenderId||'';
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   restoreQuoteReviewDraft(tenderId);
@@ -5915,8 +5915,7 @@ function renderPricingExactModelPrevious(){
     section.appendChild(shell);
   }
 
-  const tenderId=state.pricingViewTenderId || state.licitacoes[0]?.id || '';
-  if(!state.pricingViewTenderId && tenderId)state.pricingViewTenderId=tenderId;
+  const tenderId=state.pricingViewTenderId || '';
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   const items=state.itens
     .filter(i=>String(i.licitacao_id)===String(tenderId))
@@ -6398,8 +6397,7 @@ function renderPricingExactModelLegacy(){
     section.appendChild(shell);
   }
 
-  const tenderId=state.pricingViewTenderId || state.licitacoes[0]?.id || '';
-  if(!state.pricingViewTenderId && tenderId)state.pricingViewTenderId=tenderId;
+  const tenderId=state.pricingViewTenderId || '';
 
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   const items=state.itens
@@ -6980,8 +6978,7 @@ function renderPricingExactModel(){
   const requestedTenderId=state.pricingViewTenderId||'';
   const tenderId=state.licitacoes.some(row=>String(row.id)===String(requestedTenderId))
     ?requestedTenderId
-    :state.licitacoes[0]?.id||'';
-  if(tenderId&&!state.pricingViewTenderId)state.pricingViewTenderId=tenderId;
+    :'';
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
   const items=state.itens
     .filter(item=>String(item.licitacao_id)===String(tenderId))
@@ -7022,9 +7019,10 @@ function renderPricingExactModel(){
       <div class="pricing-sheet-toolbar">
         <label for="pricingSheetTender">Licitação
           <select id="pricingSheetTender">
+            <option value="">Selecione uma licitação</option>
             ${state.licitacoes.length
               ?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')
-              :'<option value="">Nenhuma licitação cadastrada</option>'}
+              :'<option value="" disabled>Nenhuma licitação cadastrada</option>'}
           </select>
         </label>
         <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
