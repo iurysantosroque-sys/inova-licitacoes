@@ -1,1 +1,1 @@
-36.19.0 - Nova aba Financeiro com balanço, filtro de período e gráfico mensal.
+36.19.1 - Financeiro exibe órgão comprador e cidade na licitação.
