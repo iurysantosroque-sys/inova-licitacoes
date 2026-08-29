@@ -1,1 +1,1 @@
-36.22.1 - Importação PNCP busca todas as páginas de itens.
+36.22.2 - Complementa listas parciais com todos os itens oficiais do PNCP.

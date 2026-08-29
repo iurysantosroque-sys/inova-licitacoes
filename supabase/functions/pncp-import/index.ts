@@ -183,8 +183,11 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     // Mantém compatibilidade caso o PNCP conclua a migração deste recurso.
     {url:`${API}/consulta/v1/orgaos/${realCnpj}/compras/${realAno}/${realSequencial}/itens`,paginated:true}
   ]
-  for(const source of itemSourceWorked?[]:itemSources){
+  // Mesmo quando a Licitanet fornece uma lista parcial, consulte também a
+  // fonte oficial do PNCP para completar editais com muitos itens.
+  for(const source of itemSources){
     let sourceFailed=false
+    let sourceHadRows=false
     for(let page=1;page<=100;page++){
       if(Date.now()>deadline-900){partial=true;break}
       try{
@@ -195,7 +198,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
         }
         const payload=await getJson(url.toString(),deadline,metrics)
         const rows=rowsFromPayload(payload)
-        if(rows.length)itemSourceWorked=true
+        if(rows.length){sourceHadRows=true;itemSourceWorked=true}
         for(const row of rows){
           const key=String(row?.numeroItem??`${page}-${items.length}`)
           if(seen.has(key))continue
@@ -212,7 +215,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
         if(page===100)partial=true
       }catch{sourceFailed=true;break}
     }
-    if(itemSourceWorked&&!sourceFailed)break
+    if(sourceHadRows&&!sourceFailed)break
   }
   if(!itemSourceWorked)partial=true
   return {
