@@ -1,1 +1,1 @@
-36.38.0 - Simplifica o título da área de editais e remove o subtítulo.
+36.39.0 - Remove o botão de adicionar cotação da aba Cotações.
