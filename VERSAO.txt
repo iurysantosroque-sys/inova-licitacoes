@@ -1,1 +1,1 @@
-36.49.0 - Adiciona fotos de perfil da equipe no aplicativo e no chat.
+36.50.0 - Adiciona controle para silenciar notificações sonoras do chat.
