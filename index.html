@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.13.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.13.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.13.0" />
-  <link rel="stylesheet" href="styles.css?v=36.13.0" />
-  <script src="./app-config.js?v=36.13.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.14.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.14.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.14.0" />
+  <link rel="stylesheet" href="styles.css?v=36.14.0" />
+  <script src="./app-config.js?v=36.14.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -328,66 +328,15 @@
         </div>
       </section>
 
-      <section id="precificacao" class="tab">
-        <div class="panel">
-          <h2>Regras de precificação</h2>
-          <form id="configForm" class="grid-form">
-            <label>Imposto (%)<input name="imposto" type="number" step="0.01" value="6" /></label>
-            <label>Margem desejada (%)<input name="margem_alvo" type="number" step="0.01" value="25" /></label>
-            <label>Lucro mínimo total por item (R$)<input name="lucro_minimo" type="number" step="0.01" min="0" value="500" /></label>
-            <label>Margem mínima aceitável (%)<input name="margem_minima" type="number" step="0.01" value="10" /></label>
-            <label>Reserva operacional (%)<input name="reserva_operacional" type="number" step="0.01" value="0" /></label>
-            <button type="submit">Salvar regras</button>
-          </form>
-        </div>
-
-        <div class="panel pricing-guide">
-          <h2>Como usar na disputa</h2>
-          <div class="guide-grid">
-            <div><strong>Preço-alvo</strong><span>Valor necessário para alcançar sua margem desejada.</span></div>
-            <div><strong>Preço p/ lucro mínimo</strong><span>Valor necessário para atingir o lucro mínimo total configurado.</span></div>
-            <div><strong>Preço de parada</strong><span>Menor valor que você deve aceitar durante a disputa.</span></div>
-            <div><strong>Ponto de equilíbrio</strong><span>Abaixo deste valor você começa a ter prejuízo.</span></div>
-          </div>
-        </div>
-
-        <div id="pricingSummary" class="pricing-summary"></div>
-
-        <div class="panel simulator-panel">
-          <div class="panel-title">
-            <div>
-              <h2>Simulador de lance</h2>
-              <p class="hint">Digite um lance durante o pregão para ver imediatamente lucro, margem e até quanto você ainda pode baixar.</p>
-            </div>
-            <span class="badge neutral">Uso durante a disputa</span>
-          </div>
-
-          <div class="bid-simulator">
-            <label>
-              Item
-              <select id="simItem">
-                <option value="">Selecione o item</option>
-              </select>
-            </label>
-
-            <label>
-              Lance que pretendo dar (R$)
-              <input id="simBid" type="number" step="0.0001" min="0" placeholder="Ex.: 0,75" />
-            </label>
-          </div>
-
-          <div id="simResult" class="sim-result">
-            <div class="sim-empty">Selecione um item e informe um lance.</div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-title">
-            <h2>Mapa de oportunidades</h2>
-            <span class="badge neutral">Frete + imposto + margem + lucro mínimo</span>
-          </div>
-          <div id="precificacaoLista" class="table-wrap pricing-table"></div>
-        </div>
+      <section id="precificacao" class="tab" aria-labelledby="pricingPageTitle">
+        <div id="pricingExactShell" class="pricing-sheet-shell"></div>
+        <form id="configForm" hidden aria-hidden="true">
+          <input name="imposto" type="number" value="6" />
+          <input name="margem_alvo" type="number" value="25" />
+          <input name="lucro_minimo" type="number" value="500" />
+          <input name="margem_minima" type="number" value="10" />
+          <input name="reserva_operacional" type="number" value="0" />
+        </form>
       </section>
 
       <section id="arquivos" class="tab">
@@ -614,7 +563,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.13.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+      <div class="footer-status"><span>Versão 36.14.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -630,6 +579,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.13.0"></script>
+  <script type="module" src="./app.js?v=36.14.0"></script>
 </body>
 </html>

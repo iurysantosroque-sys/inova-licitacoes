@@ -1,7 +1,7 @@
-const CACHE='inova-licitacoes-v36.13.0';
+const CACHE='inova-licitacoes-v36.14.0';
 const CORE=[
-  './','./index.html','./styles.css?v=36.13.0','./app.js?v=36.13.0','./manifest.json?v=36.13.0',
-  './assets/logo.png','./icons/icon-192-v2.png?v=36.13.0','./icons/icon-512-v2.png?v=36.13.0'
+  './','./index.html','./styles.css?v=36.14.0','./app.js?v=36.14.0','./manifest.json?v=36.14.0',
+  './assets/logo.png','./icons/icon-192-v2.png?v=36.14.0','./icons/icon-512-v2.png?v=36.14.0'
 ];
 
 self.addEventListener('install',event=>{

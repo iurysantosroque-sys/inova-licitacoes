@@ -1,1 +1,1 @@
-36.13.0 - Cotações simplificadas com revisão manual dos casos incertos e leitura integral do PDF.
+36.14.0 - Precificação por licitação em tabela direta baseada na planilha modelo, com novo item e valor ganho persistente.

@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
@@ -3899,6 +3899,7 @@ async function refreshAll(){
   const qiResp=quoteIds.length?await supabase.from('quote_items').select('*').in('quote_id',quoteIds).order('created_at'):{data:[],error:null};
   if(itemResp.error)return toast(itemResp.error.message,'error'); if(qiResp.error)return toast(qiResp.error.message,'error');
   state.itens=(itemResp.data||[]).map(i=>({id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,quantidade:Number(i.quantity),unidade:i.unit||'',valor_estimado:Number(i.estimated_unit_price||0),raw:i}));
+  await loadPricingItemResults(state.itens.map(item=>item.id));
   state.cotacoes=(qiResp.data||[]).map(qi=>{const q=state.quotes.find(x=>x.id===qi.quote_id);return {id:qi.id,quote_id:qi.quote_id,item_id:qi.tender_item_id,fornecedor_id:q?.supplier_id,preco:Number(qi.unit_price),fator_equivalencia:Number(qi.package_base_quantity||1),frete_rateado:Number(qi.freight_per_package||0),apresentacao:qi.package_description||'',marca:[qi.brand,qi.model].filter(Boolean).join(' '),raw:qi};});
   const pricingResp=await supabase.rpc('get_pricing_map');
   if(pricingResp.error){ console.warn('Precificação:',pricingResp.error.message); state.pricingMap=[]; }
@@ -5618,7 +5619,7 @@ function costField(id,label,value,help){
   </label>`;
 }
 
-function renderPricingExactModel(){
+function renderPricingExactModelPrevious(){
   const section=$('#precificacao');
   if(!section)return;
 
@@ -6605,6 +6606,355 @@ function renderPricingExactModelLegacy(){
 
   renderRows();
   updateSim();
+}
+
+function pricingItemResultsStorageKey(){
+  const companyId=currentCompanyId()||'local';
+  const userId=state.user?.id||state.user?.email||'anonymous';
+  return `inova_pricing_item_results:${companyId}:${userId}`;
+}
+
+function loadLocalPricingItemResults(){
+  const key=pricingItemResultsStorageKey();
+  if(state.pricingItemResultsLoadedFor===key)return;
+  state.pricingItemResultsLoadedFor=key;
+  try{
+    const stored=JSON.parse(localStorage.getItem(key)||'{}');
+    state.pricingItemResults=stored&&typeof stored==='object'?stored:{};
+  }catch{
+    state.pricingItemResults={};
+  }
+}
+
+function persistLocalPricingItemResults(){
+  try{
+    localStorage.setItem(pricingItemResultsStorageKey(),JSON.stringify(state.pricingItemResults||{}));
+    return true;
+  }catch(error){
+    console.warn('Valor ganho local:',error?.message||error);
+    return false;
+  }
+}
+
+function pricingResultsTableIsMissing(error){
+  const code=String(error?.code||'').toUpperCase();
+  const message=String(error?.message||'').toLowerCase();
+  return ['PGRST204','PGRST205','42P01','42703'].includes(code)||
+    message.includes('pricing_item_results')&&(message.includes('not find')||message.includes('does not exist'));
+}
+
+async function loadPricingItemResults(itemIds=[]){
+  loadLocalPricingItemResults();
+  if(state.demo||!configured||!supabase||!itemIds.length||state.pricingItemResultsTableAvailable===false)return;
+  const {data,error}=await supabase
+    .from('pricing_item_results')
+    .select('tender_item_id,winning_unit_price')
+    .in('tender_item_id',itemIds);
+  if(error){
+    state.pricingItemResultsTableAvailable=false;
+    if(pricingResultsTableIsMissing(error))console.info('pricing_item_results indisponível; usando armazenamento local.');
+    else console.warn('Resultados de precificação:',error.message);
+    return;
+  }
+  state.pricingItemResultsTableAvailable=true;
+  (data||[]).forEach(row=>{
+    const value=row.winning_unit_price;
+    if(value!=null&&Number.isFinite(Number(value))&&Number(value)>=0){
+      state.pricingItemResults[String(row.tender_item_id)]=Number(value);
+    }
+  });
+  persistLocalPricingItemResults();
+}
+
+async function savePricingWinningUnit(itemId,value){
+  loadLocalPricingItemResults();
+  const key=String(itemId);
+  if(value==null)delete state.pricingItemResults[key];
+  else state.pricingItemResults[key]=value;
+  const localSaved=persistLocalPricingItemResults();
+
+  if(state.demo||!configured||!supabase||state.pricingItemResultsTableAvailable===false||!currentMemberIsAdmin()){
+    return {server:false,local:localSaved};
+  }
+
+  const payload={
+    company_id:currentCompanyId(),
+    tender_item_id:itemId,
+    winning_unit_price:value,
+    updated_by:state.user?.id||null,
+    updated_at:new Date().toISOString()
+  };
+  const {error}=await supabase
+    .from('pricing_item_results')
+    .upsert(payload,{onConflict:'tender_item_id'});
+  if(error){
+    state.pricingItemResultsTableAvailable=false;
+    if(pricingResultsTableIsMissing(error))console.info('pricing_item_results indisponível; valor mantido neste navegador.');
+    else console.warn('Salvar valor ganho:',error.message);
+    return {server:false,local:localSaved,error};
+  }
+  state.pricingItemResultsTableAvailable=true;
+  return {server:true,local:true};
+}
+
+function pricingSheetMoney(value){
+  return value==null||!Number.isFinite(Number(value))
+    ? '<span class="pricing-sheet-pending">Pendente</span>'
+    : money(Number(value));
+}
+
+function renderPricingExactModel(){
+  const section=$('#precificacao');
+  const shell=$('#pricingExactShell');
+  if(!section||!shell)return;
+
+  section.querySelector('.pricing-side')?.remove();
+  section.classList.remove('pricing-exact');
+  shell.className='pricing-sheet-shell';
+  loadLocalPricingItemResults();
+
+  const requestedTenderId=state.pricingViewTenderId||'';
+  const tenderId=state.licitacoes.some(row=>String(row.id)===String(requestedTenderId))
+    ?requestedTenderId
+    :state.licitacoes[0]?.id||'';
+  if(tenderId&&!state.pricingViewTenderId)state.pricingViewTenderId=tenderId;
+  const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
+  const items=state.itens
+    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .sort((a,b)=>Number(a.numero)-Number(b.numero)||String(a.numero).localeCompare(String(b.numero),'pt-BR'));
+  const tax=Math.max(0,Number(state.config?.imposto??6));
+  const nextItemNumber=items.reduce((max,item)=>{
+    const number=Number(item.numero);
+    return Number.isInteger(number)&&number>max?number:max;
+  },0)+1;
+  const cityText=String(tender?.cidade||'').trim();
+  const municipality=cityText&&!/^[A-Z]{2}$/i.test(cityText)
+    ?cityText
+    :[tender?.orgao,cityText].filter(Boolean).join(' • ')||'Pendente';
+  const deadlineRaw=tender?.proposalEndAt||tender?.raw?.dispute_at||combineDateTime(tender?.data,tender?.horario);
+  const deadline=deadlineRaw?dateBR(deadlineRaw,true):'Pendente';
+
+  const pricingRows=items.map(item=>{
+    const quantity=Number(item.quantidade)>0?Number(item.quantidade):null;
+    const governmentUnit=Number(item.valor_estimado)>0?Number(item.valor_estimado):null;
+    const governmentTotal=governmentUnit!=null&&quantity!=null?governmentUnit*quantity:null;
+    const quote=bestQuote(item.id);
+    const supplierUnit=Number(quote?.custoEq)>0?Number(quote.custoEq):null;
+    const supplierTotal=supplierUnit!=null&&quantity!=null?supplierUnit*quantity:null;
+    const costUnit=supplierUnit!=null?supplierUnit*(1+tax/100):null;
+    const costTotal=costUnit!=null&&quantity!=null?costUnit*quantity:null;
+    const supplier=quote?state.fornecedores.find(row=>String(row.id)===String(quote.fornecedor_id)):null;
+    const winningRaw=state.pricingItemResults?.[String(item.id)];
+    const winningUnit=winningRaw==null||!Number.isFinite(Number(winningRaw))?null:Number(winningRaw);
+    const profit=winningUnit!=null&&quantity!=null&&costTotal!=null?(winningUnit*quantity)-costTotal:null;
+    return {item,quantity,governmentUnit,governmentTotal,quote,supplierUnit,supplierTotal,costUnit,costTotal,supplier,winningUnit,profit};
+  });
+
+  shell.innerHTML=`
+    <header class="pricing-sheet-head">
+      <div>
+        <h1 id="pricingPageTitle">Precificação</h1>
+        <p>Tabela automática por licitação, no mesmo formato da planilha de referência.</p>
+      </div>
+      <div class="pricing-sheet-toolbar">
+        <label for="pricingSheetTender">Licitação
+          <select id="pricingSheetTender">
+            ${state.licitacoes.length
+              ?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')
+              :'<option value="">Nenhuma licitação cadastrada</option>'}
+          </select>
+        </label>
+        <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar novo item</button>
+      </div>
+    </header>
+
+    <section class="pricing-sheet-meta" aria-label="Dados da licitação selecionada">
+      <dl><div><dt>MUNICÍPIO</dt><dd>${esc(municipality)}</dd></div><div><dt>EDITAL</dt><dd>${esc(tender?.numero||'Pendente')}</dd></div><div><dt>DATA FINAL</dt><dd>${esc(deadline)}</dd></div></dl>
+      <div class="pricing-sheet-tax">
+        <label for="pricingTaxInput">Imposto (%)</label>
+        <input id="pricingTaxInput" type="number" min="0" max="99.99" step="0.01" inputmode="decimal" value="${esc(tax)}">
+        <button id="pricingTaxSave" type="button">Aplicar</button>
+      </div>
+    </section>
+
+    <section class="pricing-sheet-table-card" aria-labelledby="pricingItemsTitle">
+      <div class="pricing-sheet-table-title"><h2 id="pricingItemsTitle">Itens do edital</h2><span>${items.length} ${items.length===1?'item':'itens'}</span></div>
+      ${tender?`
+        <div class="pricing-sheet-scroll" tabindex="0" aria-label="Tabela de precificação; deslize horizontalmente para ver todas as colunas">
+          <table class="pricing-sheet-table">
+            <thead>
+              <tr class="pricing-sheet-groups">
+                <th colspan="6" scope="colgroup">GOVERNO</th>
+                <th colspan="3" scope="colgroup">FORNECEDOR</th>
+                <th rowspan="2" scope="col">MARCA</th>
+                <th colspan="2" scope="colgroup">PREÇO DE CUSTO <small>+ ${esc(tax.toFixed(2).replace('.',','))}%</small></th>
+                <th rowspan="2" scope="col">PREÇO PARA 25%</th>
+                <th rowspan="2" scope="col">PREÇO PARA 15%</th>
+                <th rowspan="2" scope="col">PREÇO PARA 10%</th>
+                <th rowspan="2" scope="col">VALOR GANHO<br><small>P. unidade</small></th>
+                <th rowspan="2" scope="col">LUCRO<br><small>P. total</small></th>
+              </tr>
+              <tr>
+                <th scope="col">Código</th><th scope="col">Descrição</th><th scope="col">Unidade</th><th scope="col">Qntd</th><th scope="col">P. unidade</th><th scope="col">P. total</th>
+                <th scope="col">Nome / melhor cotação</th><th scope="col">P. unidade</th><th scope="col">P. total</th>
+                <th scope="col">P. unidade</th><th scope="col">P. total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pricingRows.length?pricingRows.map(row=>`
+                <tr data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
+                  <th class="pricing-sheet-code" scope="row">${esc(row.item.numero)}</th>
+                  <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
+                  <td>${esc(row.item.unidade||'Pendente')}</td>
+                  <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
+                  <td>${pricingSheetMoney(row.governmentUnit)}</td>
+                  <td>${pricingSheetMoney(row.governmentTotal)}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}</small>`:`<span class="pricing-sheet-pending">Pendente</span><button type="button" data-pricing-go-quotes="${esc(row.item.id)}">Ir para cotações</button>`}</td>
+                  <td>${pricingSheetMoney(row.supplierUnit)}</td>
+                  <td>${pricingSheetMoney(row.supplierTotal)}</td>
+                  <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
+                  <td>${pricingSheetMoney(row.costUnit)}</td>
+                  <td>${pricingSheetMoney(row.costTotal)}</td>
+                  <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.25)}</td>
+                  <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.15)}</td>
+                  <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.10)}</td>
+                  <td class="pricing-sheet-winning"><input type="number" min="0" step="0.01" inputmode="decimal" value="${row.winningUnit??''}" data-winning-input="${esc(row.item.id)}" aria-label="Valor ganho unitário do item ${esc(row.item.numero)}"><small data-winning-status></small></td>
+                  <td class="pricing-sheet-profit" data-profit-output>${pricingSheetMoney(row.profit)}</td>
+                </tr>`).join(''):'<tr><td colspan="17" class="pricing-sheet-empty">Esta licitação ainda não possui itens. Use “Adicionar novo item”.</td></tr>'}
+            </tbody>
+          </table>
+        </div>`:'<div class="pricing-sheet-empty">Cadastre uma licitação para criar sua tabela de precificação automaticamente.</div>'}
+    </section>
+
+    <dialog id="pricingItemDialog" class="pricing-item-dialog" aria-labelledby="pricingItemDialogTitle">
+      <form id="pricingItemForm" method="dialog">
+        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar novo item</h2><p>${esc(tender?.numero||'Selecione uma licitação')}</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
+        <div class="pricing-item-form-grid">
+          <label>Número<input name="numero" type="number" min="1" step="1" required value="${nextItemNumber}"></label>
+          <label>Unidade<input name="unidade" maxlength="30" required placeholder="Ex.: UN"></label>
+          <label class="pricing-item-description-field">Descrição<input name="descricao" maxlength="1000" required></label>
+          <label>Quantidade<input name="quantidade" type="number" min="0.0001" step="0.0001" required></label>
+          <label>Preço estimado <small>(opcional)</small><input name="valor_estimado" type="number" min="0" step="0.0001"></label>
+        </div>
+        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button type="submit">Salvar item</button></div>
+      </form>
+    </dialog>`;
+
+  const goToQuotes=itemId=>{
+    state.quoteViewTenderId=tenderId;
+    state.quoteWorkspaceSection='import';
+    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+    setTimeout(()=>{
+      const itemSelect=$('#cotacaoItem');
+      if(itemSelect)itemSelect.value=itemId;
+      $('#quoteImportSupplier')?.focus();
+    },0);
+  };
+
+  shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
+    state.pricingViewTenderId=event.target.value||'';
+    renderPricingExactModel();
+  });
+  shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
+
+  const dialog=shell.querySelector('#pricingItemDialog');
+  shell.querySelector('#pricingAddItemButton')?.addEventListener('click',()=>{
+    if(!tender)return;
+    if(typeof dialog.showModal==='function')dialog.showModal();
+    else dialog.setAttribute('open','');
+    dialog.querySelector('[name="descricao"]')?.focus();
+  });
+  shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
+  dialog?.addEventListener('click',event=>{
+    if(event.target===dialog)dialog.close?.();
+  });
+  shell.querySelector('#pricingItemForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!tender)return toast('Selecione uma licitação.','error');
+    const values=Object.fromEntries(new FormData(event.currentTarget));
+    const number=Number(values.numero);
+    const description=String(values.descricao||'').trim();
+    const unit=String(values.unidade||'').trim().toUpperCase();
+    const quantity=Number(values.quantidade);
+    const estimatedText=String(values.valor_estimado??'').trim();
+    const estimated=estimatedText===''?null:Number(estimatedText);
+    if(!Number.isInteger(number)||number<=0)return toast('Informe um número de item inteiro e maior que zero.','error');
+    if(items.some(item=>Number(item.numero)===number))return toast(`O item ${number} já existe nesta licitação.`,'error');
+    if(!description)return toast('Informe a descrição do item.','error');
+    if(!unit)return toast('Informe a unidade do item.','error');
+    if(!Number.isFinite(quantity)||quantity<=0)return toast('A quantidade deve ser maior que zero.','error');
+    if(estimated!=null&&(!Number.isFinite(estimated)||estimated<0))return toast('O preço estimado não pode ser negativo.','error');
+    const submit=event.currentTarget.querySelector('[type="submit"]');
+    submit.disabled=true;submit.textContent='Salvando…';
+    if(state.demo){
+      state.itens.push({id:crypto.randomUUID(),licitacao_id:tenderId,numero:number,descricao:description,quantidade:quantity,unidade:unit,valor_estimado:estimated||0});
+      dialog.close?.();
+      renderAll();
+      return toast('Item adicionado à tabela.');
+    }
+    const {error}=await supabase.from('tender_items').insert({
+      tender_id:tenderId,item_number:number,description,quantity,unit,estimated_unit_price:estimated
+    });
+    if(error){submit.disabled=false;submit.textContent='Salvar item';return toast(error.message,'error');}
+    dialog.close?.();
+    toast('Item adicionado à tabela.');
+    await refreshAll();
+  });
+
+  shell.querySelector('#pricingTaxSave')?.addEventListener('click',async event=>{
+    const input=shell.querySelector('#pricingTaxInput');
+    const value=Number(input?.value);
+    if(!Number.isFinite(value)||value<0||value>=100)return toast('Informe um imposto entre 0% e 99,99%.','error');
+    const button=event.currentTarget;button.disabled=true;button.textContent='Aplicando…';
+    state.config={...(state.config||{}),imposto:value};
+    if(state.demo){
+      try{localStorage.setItem('inova_demo_pricing_config',JSON.stringify(state.config));}catch{}
+      renderPricingExactModel();
+      return toast('Imposto atualizado.');
+    }
+    const row={
+      company_id:currentCompanyId(),tax_percent:value,
+      target_margin_percent:Number(state.config.margem_alvo||0),
+      minimum_profit_amount:Number(state.config.lucro_minimo||0),
+      minimum_margin_percent:Number(state.config.margem_minima||0),
+      operational_reserve_percent:Number(state.config.reserva_operacional||0),
+      updated_at:new Date().toISOString()
+    };
+    const {error}=await supabase.from('pricing_settings').upsert(row,{onConflict:'company_id'});
+    if(error){button.disabled=false;button.textContent='Aplicar';return toast(error.message,'error');}
+    renderPricingExactModel();
+    toast('Imposto atualizado.');
+  });
+
+  const updateProfit=input=>{
+    const row=input.closest('[data-pricing-item]');
+    const output=row?.querySelector('[data-profit-output]');
+    if(!row||!output)return;
+    const winning=input.value===''?null:Number(input.value);
+    const quantity=Number(row.dataset.quantity);
+    const costTotal=Number(row.dataset.costTotal);
+    const canCalculate=winning!=null&&Number.isFinite(winning)&&winning>=0&&Number.isFinite(quantity)&&quantity>0&&row.dataset.costTotal!==''&&Number.isFinite(costTotal);
+    output.innerHTML=pricingSheetMoney(canCalculate?(winning*quantity)-costTotal:null);
+  };
+  const persistWinning=async input=>{
+    const raw=input.value.trim();
+    const value=raw===''?null:Number(raw);
+    if(value!=null&&(!Number.isFinite(value)||value<0))return toast('O valor ganho deve ser zero ou maior.','error');
+    const signature=value==null?'':String(value);
+    if(input.dataset.lastPersisted===signature)return;
+    input.dataset.lastPersisted=signature;
+    const status=input.parentElement.querySelector('[data-winning-status]');
+    if(status)status.textContent='Salvando…';
+    const result=await savePricingWinningUnit(input.dataset.winningInput,value);
+    if(status)status.textContent=result.server?'Salvo para a empresa':result.local?'Salvo neste navegador':'Não foi possível salvar';
+    if(!result.server&&!result.local)toast('Não foi possível salvar o valor ganho.','error');
+  };
+  shell.querySelectorAll('[data-winning-input]').forEach(input=>{
+    input.dataset.lastPersisted=input.value;
+    input.addEventListener('input',()=>updateProfit(input));
+    input.addEventListener('change',()=>persistWinning(input));
+    input.addEventListener('blur',()=>persistWinning(input));
+  });
 }
 
 function renderPricingByTender(){
@@ -8691,6 +9041,7 @@ function demoSeed(){
   state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
   try{state.config={...state.config,...JSON.parse(localStorage.getItem('inova_demo_pricing_config')||'{}')}}catch{}
   state.pricingTargetsLoadedFor='';loadPricingTargets();
+  state.pricingItemResultsLoadedFor='';loadLocalPricingItemResults();
   state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas',pncp_control:'11308823000103-1-000027/2026',source_url:'https://pncp.gov.br/app/editais/11308823000103/2026/27'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
   state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.qualificationDocuments=[{id:'qd1',company_id:'demo',tender_id:null,document_series_id:'qs1',version:1,document_type:'FGTS/CRF',name:'Certificado de Regularidade do FGTS',issuer:'Caixa Econômica Federal',issued_on:'2026-08-01',expires_on:'2026-09-12',has_no_expiry:false,file_name:'crf-demo.pdf',storage_path:'demo/qs1/qd1-crf-demo.pdf',created_at:new Date().toISOString()}];state.qualificationError='';state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');

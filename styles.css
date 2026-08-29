@@ -473,3 +473,87 @@ tr:hover td{background:#0a141a}
   #cotacoes .quote-review-row{grid-template-columns:1fr}
   #cotacoes .quote-review-product,#cotacoes .quote-review-actions{grid-column:auto}
 }
+
+/* Precificação 36.14 — tabela direta baseada na planilha de referência. */
+#precificacao{--ps-navy:#071720;--ps-navy-2:#0b202b;--ps-line:#29424f;--ps-gold:#efb12b;--ps-text:#edf3f6;--ps-muted:#99aab3}
+#precificacao .pricing-sheet-shell{display:grid;gap:14px;min-width:0}
+#precificacao .pricing-sheet-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+#precificacao .pricing-sheet-head h1{margin:0;color:var(--gold);font-size:1.65rem}
+#precificacao .pricing-sheet-head p{margin:5px 0 0;color:var(--ps-muted);font-size:.9rem}
+#precificacao .pricing-sheet-toolbar{display:flex;align-items:flex-end;gap:10px;min-width:min(100%,600px)}
+#precificacao .pricing-sheet-toolbar label{display:grid;gap:6px;flex:1;color:var(--ps-muted);font-size:.78rem;font-weight:700}
+#precificacao .pricing-sheet-toolbar select{width:100%;min-height:44px;border:1px solid var(--ps-line);border-radius:8px;background:var(--ps-navy);color:var(--ps-text);padding:0 11px}
+#precificacao .pricing-sheet-toolbar button,#precificacao .pricing-sheet-tax button{min-height:44px;border:1px solid var(--ps-gold);border-radius:8px;background:var(--ps-gold);color:#10171b;padding:0 15px;font-weight:850;white-space:nowrap}
+#precificacao .pricing-sheet-toolbar button:disabled{opacity:.55;cursor:not-allowed}
+#precificacao .pricing-sheet-meta{display:flex;align-items:stretch;justify-content:space-between;gap:16px;border:1px solid var(--ps-line);border-radius:10px;background:var(--ps-navy);padding:12px 14px}
+#precificacao .pricing-sheet-meta dl{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:0;flex:1;margin:0}
+#precificacao .pricing-sheet-meta dl>div{padding:2px 16px;border-right:1px solid var(--ps-line)}
+#precificacao .pricing-sheet-meta dl>div:first-child{padding-left:0}
+#precificacao .pricing-sheet-meta dt{color:var(--ps-gold);font-size:.68rem;font-weight:850;letter-spacing:.05em}
+#precificacao .pricing-sheet-meta dd{margin:5px 0 0;color:var(--ps-text);font-size:.92rem;font-weight:750}
+#precificacao .pricing-sheet-tax{display:grid;grid-template-columns:auto 86px auto;align-items:center;gap:8px}
+#precificacao .pricing-sheet-tax label{color:var(--ps-muted);font-size:.75rem;font-weight:700}
+#precificacao .pricing-sheet-tax input{width:86px;min-height:40px;border:1px solid var(--ps-line);border-radius:7px;background:#06131b;color:var(--ps-text);padding:0 9px;text-align:right}
+#precificacao .pricing-sheet-tax button{min-height:40px;padding:0 12px}
+#precificacao .pricing-sheet-table-card{min-width:0;border:1px solid var(--ps-line);border-radius:11px;background:var(--ps-navy);overflow:hidden}
+#precificacao .pricing-sheet-table-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid var(--ps-line)}
+#precificacao .pricing-sheet-table-title h2{margin:0;color:var(--ps-gold);font-size:1rem}
+#precificacao .pricing-sheet-table-title span{color:var(--ps-muted);font-size:.78rem}
+#precificacao .pricing-sheet-scroll{max-width:100%;overflow:auto;scrollbar-color:#50636d #07141c;outline:none}
+#precificacao .pricing-sheet-scroll:focus-visible{box-shadow:inset 0 0 0 2px var(--ps-gold)}
+#precificacao .pricing-sheet-table{width:max-content;min-width:1880px;border-collapse:separate;border-spacing:0;font-size:.76rem}
+#precificacao .pricing-sheet-table th,#precificacao .pricing-sheet-table td{min-width:100px;padding:10px 9px;border-right:1px solid var(--ps-line);border-bottom:1px solid var(--ps-line);background:#091922;color:var(--ps-text);text-align:center;vertical-align:middle}
+#precificacao .pricing-sheet-table thead th{position:sticky;top:0;z-index:4;background:#102733;color:#f3c559;font-weight:850}
+#precificacao .pricing-sheet-table thead tr:nth-child(2) th{top:41px;background:#0c202a;font-size:.68rem}
+#precificacao .pricing-sheet-table .pricing-sheet-groups th{height:41px;padding:7px 9px;background:#153441;color:#fff;font-size:.72rem;letter-spacing:.045em}
+#precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(n+2){background:#8b6517;color:#fff}
+#precificacao .pricing-sheet-table th small{display:block;margin-top:2px;color:inherit;font-size:.58rem;font-weight:700}
+#precificacao .pricing-sheet-table tbody tr:hover td,#precificacao .pricing-sheet-table tbody tr:hover th{background:#0d222c}
+#precificacao .pricing-sheet-code{position:sticky;left:0;z-index:2;width:78px;min-width:78px!important;background:#102733!important;color:var(--ps-gold)!important}
+#precificacao .pricing-sheet-description{position:sticky;left:78px;z-index:2;width:320px;min-width:320px!important;max-width:320px;text-align:left!important;background:#0b202a!important;line-height:1.35;white-space:normal}
+#precificacao thead tr:nth-child(2) th:first-child{left:0;z-index:7;width:78px;min-width:78px!important}
+#precificacao thead tr:nth-child(2) th:nth-child(2){left:78px;z-index:7;width:320px;min-width:320px!important}
+#precificacao .pricing-sheet-supplier{min-width:190px!important;text-align:left!important}
+#precificacao .pricing-sheet-supplier strong,#precificacao .pricing-sheet-supplier small{display:block}
+#precificacao .pricing-sheet-supplier small{margin-top:3px;color:var(--ps-muted)}
+#precificacao .pricing-sheet-supplier button{margin-top:7px;border:1px solid var(--ps-gold);border-radius:6px;background:transparent;color:var(--ps-gold);padding:6px 8px;font-size:.68rem;font-weight:800}
+#precificacao .pricing-sheet-pending{color:#98a8b1;font-size:.7rem;font-style:italic}
+#precificacao .pricing-sheet-winning{min-width:135px!important}
+#precificacao .pricing-sheet-winning input{width:110px;min-height:36px;border:1px solid #55717f;border-radius:6px;background:#06131b;color:#fff;padding:0 8px;text-align:right;font-weight:800}
+#precificacao .pricing-sheet-winning input:focus{border-color:var(--ps-gold);outline:2px solid rgba(239,177,43,.18)}
+#precificacao .pricing-sheet-winning small{display:block;min-height:13px;margin-top:3px;color:#71ca91;font-size:.58rem}
+#precificacao .pricing-sheet-profit{font-weight:850;color:#68d994!important}
+#precificacao .pricing-sheet-empty{padding:34px 16px!important;color:var(--ps-muted)!important;text-align:center!important}
+#precificacao .pricing-item-dialog{width:min(680px,calc(100% - 24px));border:1px solid var(--ps-line);border-radius:12px;background:#0a1b24;color:var(--ps-text);padding:0;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+#precificacao .pricing-item-dialog::backdrop{background:rgba(2,8,12,.78)}
+#precificacao .pricing-item-dialog form{padding:20px}
+#precificacao .pricing-item-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+#precificacao .pricing-item-dialog-head h2{margin:0;color:var(--ps-gold);font-size:1.15rem}
+#precificacao .pricing-item-dialog-head p{margin:4px 0 0;color:var(--ps-muted);font-size:.78rem}
+#precificacao .pricing-item-dialog-head button{border:0;background:transparent;color:#fff;font-size:1.55rem;line-height:1;cursor:pointer}
+#precificacao .pricing-item-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+#precificacao .pricing-item-form-grid label{display:grid;gap:6px;color:var(--ps-muted);font-size:.78rem;font-weight:700}
+#precificacao .pricing-item-form-grid input{width:100%;min-height:42px;border:1px solid var(--ps-line);border-radius:7px;background:#06131b;color:#fff;padding:0 10px}
+#precificacao .pricing-item-description-field{grid-column:1/-1}
+#precificacao .pricing-item-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+#precificacao .pricing-item-form-actions button{min-height:42px;border:1px solid var(--ps-gold);border-radius:7px;background:var(--ps-gold);color:#11191d;padding:0 16px;font-weight:850}
+#precificacao .pricing-item-form-actions .secondary{border-color:var(--ps-line);background:transparent;color:var(--ps-text)}
+
+@media(max-width:900px){
+  #precificacao .pricing-sheet-head{align-items:stretch;flex-direction:column}
+  #precificacao .pricing-sheet-toolbar{width:100%;min-width:0}
+  #precificacao .pricing-sheet-meta{align-items:stretch;flex-direction:column}
+  #precificacao .pricing-sheet-meta dl{grid-template-columns:1fr 1fr 1fr}
+  #precificacao .pricing-sheet-tax{align-self:flex-start}
+  #precificacao .pricing-sheet-code,#precificacao .pricing-sheet-description,#precificacao thead tr:nth-child(2) th:first-child,#precificacao thead tr:nth-child(2) th:nth-child(2){position:static}
+}
+@media(max-width:620px){
+  #precificacao .pricing-sheet-toolbar{display:grid;grid-template-columns:1fr}
+  #precificacao .pricing-sheet-toolbar button{width:100%}
+  #precificacao .pricing-sheet-meta dl{grid-template-columns:1fr}
+  #precificacao .pricing-sheet-meta dl>div{padding:9px 0;border-right:0;border-bottom:1px solid var(--ps-line)}
+  #precificacao .pricing-sheet-tax{grid-template-columns:1fr 86px;align-self:stretch}
+  #precificacao .pricing-sheet-tax button{grid-column:1/-1}
+  #precificacao .pricing-item-form-grid{grid-template-columns:1fr}
+  #precificacao .pricing-item-description-field{grid-column:auto}
+}
