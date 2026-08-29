@@ -9185,9 +9185,9 @@ function renderAll(){
   const supplierWithPhone=state.fornecedores.filter(f=>supplierPhone(f)).length;
   const supplierWhatsapp=state.fornecedores.filter(f=>supplierWhatsappUrl(supplierPhone(f))).length;
   const supplierList=state.fornecedores.length
-    ? table(['Fornecedor','CNPJ','Contato','Telefone / WhatsApp','E-mail','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>{
+    ? table(['Fornecedor','CNPJ','Contato','Telefone / WhatsApp','E-mail',''],state.fornecedores.map(f=>{
       const phone=supplierPhone(f); const whatsapp=supplierWhatsappUrl(phone);
-      return [esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),phone?`<span class="supplier-phone">${esc(supplierPhoneLabel(phone))}</span>`:'<span class="muted">Não informado</span>',f.email?`<a class="supplier-email" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:'<span class="muted">Não informado</span>',money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<div class="supplier-actions">${whatsapp?`<a class="action-btn supplier-whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:'<span class="supplier-no-contact">Sem telefone</span>'}<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${esc(f.id)}">Excluir</button></div>`];
+      return [esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),phone?`<span class="supplier-phone">${esc(supplierPhoneLabel(phone))}</span>`:'<span class="muted">Não informado</span>',f.email?`<a class="supplier-email" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:'<span class="muted">Não informado</span>',`<div class="supplier-actions">${whatsapp?`<a class="action-btn supplier-whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:'<span class="supplier-no-contact">Sem telefone</span>'}<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${esc(f.id)}">Excluir</button></div>`];
     }))
     : '<p class="hint">Nenhum fornecedor cadastrado ainda.</p>';
   $('#fornecedoresLista').innerHTML=`<div class="supplier-kpis"><article class="supplier-kpi"><span>Total de fornecedores</span><strong>${state.fornecedores.length}</strong><small>cadastrados</small></article><article class="supplier-kpi"><span>Com telefone</span><strong>${supplierWithPhone}</strong><small>contatos registrados</small></article><article class="supplier-kpi"><span>WhatsApp disponível</span><strong>${supplierWhatsapp}</strong><small>acesso em um clique</small></article></div><div class="supplier-list">${supplierList}</div>`;
@@ -9242,7 +9242,25 @@ $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Ob
 $('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',telefone:f.telefone||'',email:f.email||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,phone:f.telefone||null,email:f.email||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
 $('#novoFornecedor')?.addEventListener('click',()=>{const form=$('#fornecedorForm');if(!form)return;const open=form.hidden;form.hidden=!open;const button=$('#novoFornecedor');if(button)button.textContent=open?'× Fechar cadastro':'＋ Novo fornecedor';if(open)$('#fornecedorCnpj')?.focus();});
 let supplierCnpjLookupTimer;
-$('#fornecedorCnpj')?.addEventListener('input',e=>{clearTimeout(supplierCnpjLookupTimer);const digits=e.target.value.replace(/\D/g,'');if(digits.length!==14)return;supplierCnpjLookupTimer=setTimeout(async()=>{const input=e.target;input.classList.add('is-loading');try{const response=await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);if(!response.ok)throw new Error('CNPJ não encontrado');const data=await response.json();const form=$('#fornecedorForm');const set=(name,value)=>{const field=form?.elements?.namedItem(name);if(field&&value&&!field.value)field.value=value;};set('nome',data.razao_social||data.nome_fantasia);set('email',data.email||data.email_comercial||data.email_empresa);toast('Razão social e e-mail do CNPJ preenchidos. Informe manualmente o contato e o WhatsApp do vendedor.');}catch(error){toast('Não foi possível consultar este CNPJ. Confira o número ou preencha os dados manualmente.','error');}finally{input.classList.remove('is-loading');}},450);});
+async function lookupSupplierCnpj(digits){
+  const sources=[
+    `https://brasilapi.com.br/api/cnpj/v1/${digits}`,
+    `https://www.receitaws.com.br/v1/cnpj/${digits}`
+  ];
+  for(const url of sources){
+    try{
+      const response=await fetch(url,{headers:{Accept:'application/json'}});
+      if(!response.ok)continue;
+      const data=await response.json();
+      const email=data.email||data.email_comercial||data.email_empresa||data.emailContato||'';
+      const phone=data.ddd_telefone_1||data.ddd_telefone_2||data.telefone||'';
+      const contact=data.contato||data.nome_contato||data.responsavel||'';
+      if(data.razao_social||data.nome||data.email||data.telefone||email||phone||contact)return {data:{...data,razao_social:data.razao_social||data.nome,email,telefone:phone,contato:contact},source:url};
+    }catch{}
+  }
+  throw new Error('CNPJ não encontrado');
+}
+$('#fornecedorCnpj')?.addEventListener('input',e=>{clearTimeout(supplierCnpjLookupTimer);const digits=e.target.value.replace(/\D/g,'');if(digits.length!==14)return;supplierCnpjLookupTimer=setTimeout(async()=>{const input=e.target;input.classList.add('is-loading');try{const result=await lookupSupplierCnpj(digits);const data=result.data;const form=$('#fornecedorForm');const set=(name,value)=>{const field=form?.elements?.namedItem(name);if(field&&value&&!field.value)field.value=value;};set('nome',data.razao_social||data.nome_fantasia||data.fantasia);set('email',data.email);if(data.contato)set('contato',data.contato);toast(data.email?'Dados públicos da empresa preenchidos; confirme o contato do vendedor.':'Empresa encontrada, mas o cadastro público não informa e-mail. Preencha-o manualmente.');}catch(error){toast('Não foi possível localizar dados públicos para este CNPJ. Preencha os campos manualmente.','error');}finally{input.classList.remove('is-loading');}},650);});
 $('#cotacaoForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const f=Object.fromEntries(new FormData(e.target));

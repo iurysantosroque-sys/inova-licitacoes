@@ -1,1 +1,1 @@
-36.17.3 - Contato e WhatsApp manuais; consulta do CNPJ preenche apenas razão social e e-mail.
+36.17.5 - Fornecedores simplificados, sem frete, pedido mínimo ou prazo na interface.
