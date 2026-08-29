@@ -9272,11 +9272,9 @@ async function exportProposalPdf(){
     drawText(page,'VALOR TOTAL DA PROPOSTA:',{x:cols[6]-145,y:tableY-18,size:8.3,font:bold,color:ink});
     const totalText=moneyPdf(proposalTotal);
     drawText(page,totalText,{x:cols[6]+Math.max(3,(cols[7]-cols[6]-textWidth(totalText,7.2,bold))/2),y:tableY-18,size:7.2,font:bold,color:ink});
-    // A última página reproduz as declarações do novo modelo. O marcador
-    // “( Validade )” do arquivo de referência é sempre substituído pelo
-    // número informado no formulário, incluindo sua forma por extenso.
-    page=addPage();
-    centered(page,'DECLARAÇÕES',735,13,bold);
+    // As declarações ficam junto da tabela sempre que houver espaço; uma
+    // nova página só é aberta quando a tabela realmente ocupar o rodapé.
+    // O marcador “( Validade )” é substituído pelo valor informado.
     const validityText=`Declaro que o prazo de validade da presente proposta de preços é de ${validityDays} (${proposalValidityWords(validityDays)}) dias a contar da data de abertura da proposta.`;
     const declarations=[
       validityText,
@@ -9287,7 +9285,17 @@ async function exportProposalPdf(){
       'Declaro prazo de garantia dos itens conforme exigido no edital e no termo de referência.',
       'Os preços mantidos na proposta escrita e naqueles que por ventura vierem a ser ofertados através de lances verbais, estão incluídos todos os encargos trabalhistas previdenciários, fiscais, comerciais, de transporte, entrega (frete) e outros de qualquer natureza que se fizerem indispensáveis à perfeita contratação do objeto da licitação.'
     ];
-    let declarationY=700;
+    const declarationSizes=declarations.map(text=>Math.max(20,wrap(text,470,8.6,font).length*10+5));
+    const declarationsHeight=20+declarationSizes.reduce((sum,size)=>sum+size,0)+95;
+    let declarationY=tableY-48;
+    if(declarationY-declarationsHeight<45){
+      page=addPage();
+      centered(page,'DECLARAÇÕES',735,13,bold);
+      declarationY=700;
+    }else{
+      centered(page,'DECLARAÇÕES',declarationY,10.5,bold);
+      declarationY-=22;
+    }
     declarations.forEach(text=>{
       const lines=wrap(text,470,8.6,font);
       drawText(page,'-',{x:48,y:declarationY,size:8.6,font:bold,color:ink});

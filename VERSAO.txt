@@ -1,1 +1,1 @@
-36.35.0 - Atualiza a página final da proposta com validade substituída automaticamente.
+36.36.0 - Mantém as declarações junto da tabela da proposta quando houver espaço.
