@@ -1,1 +1,1 @@
-36.14.2 - Consultas ao PNCP com até 3 tentativas automáticas, mantendo a precificação em lotes para muitos itens.
+36.14.3 - Consultas ao PNCP com até 3 tentativas automáticas, sem exibir a contagem e com tempo ampliado para editais grandes.

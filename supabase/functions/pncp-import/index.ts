@@ -8,8 +8,11 @@ const cors={
 }
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors})
 const API='https://pncp.gov.br/api'
-const TOTAL_BUDGET_MS=9_000
-const FETCH_TIMEOUT_MS=7_000
+// O PNCP pode levar alguns segundos para responder em editais com muitos itens.
+// Mantemos um limite finito, mas acima do timeout típico do portal, para que a
+// consulta consiga concluir antes de o cliente aplicar suas tentativas de retry.
+const TOTAL_BUDGET_MS=24_000
+const FETCH_TIMEOUT_MS=18_000
 const SEARCH_CONCURRENCY=4
 const PAGE_SIZE=100
 const MODALITIES=[6,8,9,4,5,7,12,1,2,3,10,11,13]
@@ -300,4 +303,3 @@ Deno.serve(async(req)=>{
     return json({error:message,code:'PNCP_UNAVAILABLE'})
   }
 })
-

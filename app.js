@@ -1051,7 +1051,7 @@ async function searchPncp(query){
 
   const {data,error}=await invokePncpWithRetry(
     {query},
-    (attempt,total)=>setPncpStatus(`Consultando o PNCP… tentativa ${attempt} de ${total}`,'loading')
+    ()=>setPncpStatus('Consultando o PNCP…','loading')
   );
 
   if(error){
@@ -1086,7 +1086,7 @@ async function openPncpResult(btn){
 
   const {data,error}=await invokePncpWithRetry(
     payload,
-    (attempt,total)=>setPncpStatus(`Carregando dados e itens do edital… tentativa ${attempt} de ${total}`,'loading')
+    ()=>setPncpStatus('Carregando dados e itens do edital…','loading')
   );
   if(error){
     setPncpStatus(`Erro ao abrir edital: ${error.message}`,'error');
@@ -1232,7 +1232,7 @@ async function syncPncpItems(){
   try{
     const {data,error}=await invokePncpWithRetry(
       {query},
-      (attempt,total)=>setPncpSyncStatus(`Consultando itens no PNCP… tentativa ${attempt} de ${total}`,'loading')
+      ()=>setPncpSyncStatus('Consultando itens no PNCP…','loading')
     );
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
