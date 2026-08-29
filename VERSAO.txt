@@ -1,1 +1,1 @@
-36.21.0 - Nova cotação com tabela simplificada e exportação em PDF timbrado.
+36.21.1 - PDF de cotação com texto quebrado e grades de tabela.
