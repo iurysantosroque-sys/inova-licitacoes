@@ -1,1 +1,1 @@
-36.20.1 - Controles de atualizar, desfazer e refazer itens na precificação.
+36.20.3 - Remove card de Oportunidades do Dashboard.

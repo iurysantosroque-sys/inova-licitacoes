@@ -8511,9 +8511,8 @@ function renderDashboardModel(){
 
   const upcoming=activeTenders
     .map(l=>({l,meta:dashboardDeadlineMeta(l)}))
-    .filter(x=>x.meta)
-    .sort((a,b)=>a.meta.date-b.meta.date)
-    .slice(0,3);
+    .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=7)
+    .sort((a,b)=>a.meta.date-b.meta.date);
 
   if(!state.dashboardCalendarDate){
     const base=upcoming[0]?.meta?.date || new Date();
@@ -8626,14 +8625,6 @@ function renderDashboardModel(){
           </div>
         </div>
 
-        <div class="db-kpi">
-          <div class="db-kpi-icon purple">◎</div>
-          <div>
-            <small>Oportunidades</small>
-            <strong>${opportunities.length}</strong>
-            <span>itens com margem</span>
-          </div>
-        </div>
       </div>
 
       <div class="db-primary-grid">
