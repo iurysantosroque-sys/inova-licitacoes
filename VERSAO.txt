@@ -1,1 +1,1 @@
-36.24.1 - Exibe o status das certidões fiscais em coluna própria.
+36.24.2 - Corrige a abertura do aplicativo restaurando o formulário de Cotações da Documentação.

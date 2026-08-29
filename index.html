@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.24.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.24.1" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.24.1" />
-  <link rel="stylesheet" href="styles.css?v=36.24.1" />
-  <script src="./app-config.js?v=36.24.1"></script>
+  <link rel="manifest" href="manifest.json?v=36.24.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.24.2" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.24.2" />
+  <link rel="stylesheet" href="styles.css?v=36.24.2" />
+  <script src="./app-config.js?v=36.24.2"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -293,6 +293,7 @@
             <button id="documentTabEditais" type="button" role="tab" aria-selected="true" aria-controls="documentPanelEditais" tabindex="0" data-document-tab="editais">Editais</button>
             <button id="documentTabHabilitacao" type="button" role="tab" aria-selected="false" aria-controls="documentPanelHabilitacao" tabindex="-1" data-document-tab="habilitacao">Habilitação fiscal</button>
             <button id="documentTabPropostas" type="button" role="tab" aria-selected="false" aria-controls="documentPanelPropostas" tabindex="-1" data-document-tab="propostas">Propostas</button>
+            <button id="documentTabCotacoes" type="button" role="tab" aria-selected="false" aria-controls="documentPanelCotacoes" tabindex="-1" data-document-tab="cotacoes">Cotações</button>
           </div>
         </div>
 
@@ -399,6 +400,20 @@
           </div>
         </div>
 
+        <div id="documentPanelCotacoes" class="document-panel" role="tabpanel" aria-labelledby="documentTabCotacoes" hidden>
+          <div class="panel">
+            <div class="panel-title"><div><h2>Arquivar cotação do fornecedor</h2><p class="hint">PDF, Excel ou CSV. O arquivo fica salvo na área privada da empresa; para ler e relacionar os produtos, use a aba Cotações.</p></div></div>
+            <form id="arquivoForm" class="grid-form">
+              <label>Licitação<select name="licitacao_id" id="arquivoLicitacao" required></select></label>
+              <label>Fornecedor<select name="fornecedor_id" id="arquivoFornecedor" required></select></label>
+              <label>Arquivo da cotação<input name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required /></label>
+              <button type="submit">Enviar arquivo</button>
+            </form>
+            <div class="notice compact"><strong>Importante:</strong> esta área arquiva somente cotações de fornecedores (até 25 MB). A leitura inteligente e a revisão dos vínculos ficam na aba Cotações.</div>
+          </div>
+          <div class="panel"><h2>Arquivos enviados</h2><div id="arquivosLista" class="table-wrap"></div></div>
+        </div>
+
       </section>
 
       <section id="equipe" class="tab">
@@ -501,7 +516,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-              <div class="footer-status"><span>Versão 36.24.1</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+              <div class="footer-status"><span>Versão 36.24.2</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -517,6 +532,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.24.1"></script>
+  <script type="module" src="./app.js?v=36.24.2"></script>
 </body>
 </html>
