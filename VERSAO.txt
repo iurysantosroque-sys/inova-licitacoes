@@ -1,1 +1,1 @@
-36.17.2 - Cadastro de fornecedores com consulta automática por CNPJ.
+36.17.3 - Contato e WhatsApp manuais; consulta do CNPJ preenche apenas razão social e e-mail.
