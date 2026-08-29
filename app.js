@@ -9811,7 +9811,30 @@ if('serviceWorker' in navigator)window.addEventListener('load',async()=>{
       await Promise.all(registrations.filter(reg=>reg.scope.startsWith(location.origin)).map(reg=>reg.unregister()));
       return;
     }
-    await navigator.serviceWorker.register('./service-worker.js',{scope:'./'});
+    const registration=await navigator.serviceWorker.register('./service-worker.js',{scope:'./'});
+    let updatePending=false;
+    let reloading=false;
+    let hasLeftTab=false;
+    const applyWhenReturning=()=>{
+      if(document.visibilityState!=='visible'||!updatePending||!hasLeftTab||reloading)return;
+      reloading=true;
+      // A troca de versão só é aplicada quando o usuário volta para esta aba.
+      window.location.reload();
+    };
+    registration.addEventListener('updatefound',()=>{
+      const installing=registration.installing;
+      if(!installing)return;
+      installing.addEventListener('statechange',()=>{
+        if(installing.state==='installed'&&navigator.serviceWorker.controller){
+          updatePending=true;
+          applyWhenReturning();
+        }
+      });
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='hidden'){hasLeftTab=true;registration.update().catch(()=>{});}
+      else applyWhenReturning();
+    });
   }catch(err){console.warn('Service worker:',err?.message||err);}
 });
 if(configured)supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')showOnly('authScreen');if(event==='SIGNED_IN'&&session)state.user=session.user;});

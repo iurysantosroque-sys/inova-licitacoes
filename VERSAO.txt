@@ -1,1 +1,1 @@
-36.21.5 - Exclusão, atualização e desfazer/refazer de itens na cotação.
+36.21.6 - Atualização silenciosa do aplicativo ao retornar à aba.
