@@ -228,6 +228,10 @@ function supplierWhatsappUrl(value){
 }
 function currentCompanyId(){ return state.company?.id || null; }
 function profileName(){ return state.profile?.name || state.user?.user_metadata?.nome || state.user?.email || 'Usuário'; }
+function profileAvatar(){return state.profile?.avatar_url||'';}
+function avatarMarkup(member,extraClass=''){const url=member?.avatar_url||'';return url?`<img class="chat-avatar ${extraClass}" src="${esc(url)}" alt="Foto de ${esc(member.nome||'usuário')}" loading="lazy">`:`<span class="chat-avatar chat-avatar-fallback ${extraClass}" aria-hidden="true">${esc((member?.nome||'U').trim().slice(0,1).toUpperCase())}</span>`;}
+function resizeProfilePhoto(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(reader.error||new Error('Não foi possível ler a imagem.'));reader.onload=()=>{const img=new Image();img.onerror=()=>reject(new Error('Imagem inválida.'));img.onload=()=>{const size=256,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const scale=Math.max(size/img.width,size/img.height),w=img.width*scale,h=img.height*scale;canvas.getContext('2d').drawImage(img,(size-w)/2,(size-h)/2,w,h);resolve(canvas.toDataURL('image/jpeg',.82));};img.src=reader.result;};reader.readAsDataURL(file);});}
+function renderProfilePhoto(){const preview=$('#profilePhotoPreview'),url=profileAvatar();if(preview)preview.innerHTML=url?`<img src="${esc(url)}" alt="Sua foto de perfil">`:'<span>👤</span>';const remove=$('#removeProfilePhotoBtn');if(remove)remove.hidden=!url;}
 function itemName(item){ const l=state.licitacoes.find(x=>x.id===item.licitacao_id); return `${l?.numero||'?'} • Item ${item.numero} • ${item.descricao}`; }
 function toLocalDateTime(v){ if(!v)return {data:'',horario:''}; const d=new Date(v); if(Number.isNaN(d.getTime()))return {data:'',horario:''}; const pad=n=>String(n).padStart(2,'0'); return {data:`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,horario:`${pad(d.getHours())}:${pad(d.getMinutes())}`}; }
 function combineDateTime(data,horario){ if(!data)return null; return new Date(`${data}T${horario||'09:00'}:00`).toISOString(); }
@@ -4038,8 +4042,8 @@ async function refreshAll(){
   else state.pricingMap=pricingResp.data||[];
   state.documentos=state.quotes.filter(q=>q.source_filename).map(q=>({id:q.id,nome_arquivo:q.source_filename,tipo:'cotacao',licitacao_id:q.tender_id,fornecedor_id:q.supplier_id,status:q.status||'enviado',created_at:q.created_at,storage_path:q.storage_path,ai_error:q.ai_error}));
   const memberRows=members.data||[], userIds=memberRows.map(m=>m.user_id);
-  const profiles=userIds.length?await supabase.from('profiles').select('id,name,email,created_at').in('id',userIds):{data:[],error:null};
-  state.equipe=memberRows.map(m=>{const p=(profiles.data||[]).find(x=>x.id===m.user_id);return {id:m.user_id,nome:p?.name||p?.email||`Usuário ${m.user_id.slice(0,6)}`,papel:m.role,created_at:m.created_at};});
+  const profiles=userIds.length?await supabase.from('profiles').select('id,name,email,avatar_url,created_at').in('id',userIds):{data:[],error:null};
+  state.equipe=memberRows.map(m=>{const p=(profiles.data||[]).find(x=>x.id===m.user_id);return {id:m.user_id,nome:p?.name||p?.email||`Usuário ${m.user_id.slice(0,6)}`,avatar_url:p?.avatar_url||'',papel:m.role,created_at:m.created_at};});
   renderAll();
 }
 
@@ -9681,7 +9685,7 @@ function ensureChatStyles(){
     .global-chat-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;background:#0c202b;border-bottom:1px solid #2d4653}.global-chat-head strong{color:#f2b52a}.global-chat-head small{display:block;color:#9caeb7;margin-top:2px;font-size:.72rem}.global-chat-head-actions{display:flex;align-items:center;gap:4px}.global-chat-clear,.global-chat-close{border:0;background:transparent;color:#b9c6cc;padding:2px 6px}.global-chat-clear{font-size:1.05rem}.global-chat-clear:hover{color:#ef7169}.global-chat-close{font-size:1.35rem}
     .global-chat-list{flex:1;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:9px}.global-chat-empty{text-align:center;color:#8fa0a9;font-size:.82rem;margin:auto 12px}.global-chat-msg{max-width:86%;align-self:flex-start;background:#102b38;border:1px solid #234554;border-radius:11px 11px 11px 3px;padding:8px 10px}.global-chat-msg.mine{align-self:flex-end;background:#4e3c13;border-color:#886a21;border-radius:11px 11px 3px 11px}.global-chat-msg small{display:block;color:#9fb0b8;font-size:.66rem;margin-bottom:3px}.global-chat-msg p{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.82rem;line-height:1.35}.global-chat-typing{padding:0 13px 7px;color:#e6aa34;font-size:.72rem;font-style:italic}.global-chat-compose{display:flex;gap:7px;padding:10px;border-top:1px solid #2d4653;background:#08151c}.global-chat-compose input{flex:1;min-width:0;border:1px solid #2d4653;border-radius:9px;background:#07131a;color:#fff;padding:9px 10px}.global-chat-compose button{border:0;border-radius:9px;background:#e6aa34;color:#081117;font-weight:800;padding:0 13px}.global-chat[hidden]{display:none}
     @media(max-width:560px){.global-chat{right:14px;bottom:14px}.global-chat-panel{height:min(440px,calc(100vh - 100px))}}
-  `;document.head.appendChild(style);
+  `;style.textContent+=`.global-chat-msg{display:flex;gap:7px;align-items:flex-start}.chat-avatar{width:27px;height:27px;flex:0 0 27px;border-radius:50%;object-fit:cover;background:#1b3542;color:#f2b52a;display:grid;place-items:center;font-size:.72rem;font-weight:800}.chat-avatar-msg{margin-top:1px}.profile-photo-box{display:flex;align-items:center;gap:14px;margin:18px 0;padding:14px;border:1px solid #2d4653;border-radius:12px;background:#0a1820}.profile-photo-preview{width:64px;height:64px;border-radius:50%;overflow:hidden;background:#17303d;color:#e6aa34;display:grid;place-items:center;font-size:1.5rem}.profile-photo-preview img{width:100%;height:100%;object-fit:cover}.team-member-cell{display:flex;align-items:center;gap:9px}.global-chat-head-actions{display:flex;align-items:center;gap:4px}`;document.head.appendChild(style);
 }
 
 function chatDisplayName(id){
@@ -9707,7 +9711,7 @@ function renderGlobalChat(){
   const keepFocus=document.activeElement?.id==='globalChatInput';
   const selectionStart=keepFocus?document.activeElement.selectionStart:null;
   const typing=Object.entries(state.chatTypingUsers||{}).filter(([id,until])=>String(id)!==String(state.user?.id)&&Number(until)>Date.now()).map(([id])=>chatDisplayName(id));
-  root.innerHTML=`<div class="global-chat-panel"><header class="global-chat-head"><div><strong>Chat geral</strong><small>Equipe INOVA</small></div><div class="global-chat-head-actions"><button type="button" class="global-chat-clear" id="globalChatClear" aria-label="Apagar conversa" title="Apagar conversa">⌫</button><button type="button" class="global-chat-close" id="globalChatClose" aria-label="Minimizar chat" title="Minimizar">−</button></div></header><div class="global-chat-list" id="globalChatList">${messages.length?messages.map(message=>`<article class="global-chat-msg ${String(message.sender_id)===String(state.user?.id)?'mine':''}"><small>${esc(chatDisplayName(message.sender_id))} · ${esc(new Date(message.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))}</small><p>${esc(message.body)}</p></article>`).join(''):'<p class="global-chat-empty">Nenhuma mensagem ainda. Envie uma mensagem para sua equipe.</p>'}</div>${typing.length?`<div class="global-chat-typing" id="globalChatTyping">${esc(typing.join(', '))} ${typing.length>1?'estão':'está'} digitando...</div>`:''}<form class="global-chat-compose" id="globalChatForm"><input id="globalChatInput" maxlength="2000" autocomplete="off" placeholder="Escreva uma mensagem..."><button type="submit">Enviar</button></form></div>`;
+  root.innerHTML=`<div class="global-chat-panel"><header class="global-chat-head"><div><strong>Chat geral</strong><small>Equipe INOVA</small></div><div class="global-chat-head-actions"><button type="button" class="global-chat-clear" id="globalChatClear" aria-label="Apagar conversa" title="Apagar conversa">⌫</button><button type="button" class="global-chat-close" id="globalChatClose" aria-label="Minimizar chat" title="Minimizar">−</button></div></header><div class="global-chat-list" id="globalChatList">${messages.length?messages.map(message=>{const member=String(message.sender_id)===String(state.user?.id)?{nome:'Você',avatar_url:profileAvatar()}:(state.equipe||[]).find(x=>String(x.id)===String(message.sender_id))||{nome:chatDisplayName(message.sender_id)};return `<article class="global-chat-msg ${String(message.sender_id)===String(state.user?.id)?'mine':''}">${avatarMarkup(member,'chat-avatar-msg')}<div><small>${esc(chatDisplayName(message.sender_id))} · ${esc(new Date(message.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))}</small><p>${esc(message.body)}</p></div></article>`;}).join(''):'<p class="global-chat-empty">Nenhuma mensagem ainda. Envie uma mensagem para sua equipe.</p>'}</div>${typing.length?`<div class="global-chat-typing" id="globalChatTyping">${esc(typing.join(', '))} ${typing.length>1?'estão':'está'} digitando...</div>`:''}<form class="global-chat-compose" id="globalChatForm"><input id="globalChatInput" maxlength="2000" autocomplete="off" placeholder="Escreva uma mensagem..."><button type="submit">Enviar</button></form></div>`;
   const input=$('#globalChatInput');
   if(input){input.value=state.chatDraft||'';if(keepFocus){input.focus();if(selectionStart!==null)input.setSelectionRange(selectionStart,selectionStart);}}
   const list=$('#globalChatList');if(list)list.scrollTop=list.scrollHeight;
@@ -9802,14 +9806,15 @@ function renderAll(){
   renderQuotesWorkspace();
   renderPricingByTender();
   renderDocumentation();
-  $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
+  $('#equipeLista').innerHTML=table(['Membro','Papel','Desde'],state.equipe.map(p=>[`<div class="team-member-cell">${avatarMarkup(p)}<span>${esc(p.nome)}</span></div>`,esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
+  renderProfilePhoto();
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
   renderGlobalChat();
   loadChatMessages().catch(error=>console.warn('Carregamento do chat:',error?.message||error));
 }
 
 function demoSeed(){
-  state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
+  state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração',avatar_url:localStorage.getItem('inova-demo-avatar')||''};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
   try{state.config={...state.config,...JSON.parse(localStorage.getItem('inova_demo_pricing_config')||'{}')}}catch{}
   state.pricingTargetsLoadedFor='';loadPricingTargets();
   state.pricingItemResultsLoadedFor='';loadLocalPricingItemResults();
@@ -10147,6 +10152,8 @@ $('#quoteDocumentEditForm')?.addEventListener('submit',async event=>{
 });
 
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
+$('#profilePhotoInput')?.addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){toast('Escolha uma imagem de até 5 MB.','error');event.target.value='';return;}try{const avatar=await resizeProfilePhoto(file);if(state.demo){state.profile={...(state.profile||{}),avatar_url:avatar};localStorage.setItem('inova-demo-avatar',avatar);}else{const {error}=await supabase.from('profiles').update({avatar_url:avatar,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:avatar};}renderProfilePhoto();await refreshAll();toast('Foto de perfil atualizada.','success');}catch(error){toast(`Não foi possível salvar a foto: ${error.message||error}`,'error');}event.target.value='';});
+$('#removeProfilePhotoBtn')?.addEventListener('click',async()=>{if(!confirm('Remover sua foto de perfil?'))return;try{if(state.demo){state.profile={...(state.profile||{}),avatar_url:''};localStorage.removeItem('inova-demo-avatar');}else{const {error}=await supabase.from('profiles').update({avatar_url:null,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:''};}renderProfilePhoto();await refreshAll();toast('Foto removida.','success');}catch(error){toast(`Não foi possível remover a foto: ${error.message||error}`,'error');}});
 document.addEventListener('click',async e=>{
   const directSync=e.target.closest('[data-direct-pncp-sync]');
   if(directSync){

@@ -1,1 +1,1 @@
-36.48.0 - Adiciona minimização e limpeza segura do histórico do chat.
+36.49.0 - Adiciona fotos de perfil da equipe no aplicativo e no chat.
