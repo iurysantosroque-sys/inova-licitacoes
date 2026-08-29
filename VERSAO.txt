@@ -1,1 +1,1 @@
-36.14.0 - Precificação por licitação em tabela direta baseada na planilha modelo, com novo item e valor ganho persistente.
+36.14.1 - Precificação em tabela com leitura em lotes para licitações com muitos itens.

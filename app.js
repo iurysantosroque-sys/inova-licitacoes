@@ -6646,18 +6646,31 @@ function pricingResultsTableIsMissing(error){
 async function loadPricingItemResults(itemIds=[]){
   loadLocalPricingItemResults();
   if(state.demo||!configured||!supabase||!itemIds.length||state.pricingItemResultsTableAvailable===false)return;
-  const {data,error}=await supabase
-    .from('pricing_item_results')
-    .select('tender_item_id,winning_unit_price')
-    .in('tender_item_id',itemIds);
-  if(error){
-    state.pricingItemResultsTableAvailable=false;
-    if(pricingResultsTableIsMissing(error))console.info('pricing_item_results indisponível; usando armazenamento local.');
-    else console.warn('Resultados de precificação:',error.message);
-    return;
+
+  const ids=[...new Set(itemIds.map(id=>String(id||'').trim()).filter(Boolean))];
+  const rows=[];
+  const batchSize=100;
+
+  for(let start=0;start<ids.length;start+=batchSize){
+    const batch=ids.slice(start,start+batchSize);
+    const {data,error}=await supabase
+      .from('pricing_item_results')
+      .select('tender_item_id,winning_unit_price')
+      .in('tender_item_id',batch);
+    if(error){
+      state.pricingItemResultsTableAvailable=false;
+      if(pricingResultsTableIsMissing(error)){
+        console.info('pricing_item_results indisponível; usando armazenamento local.');
+      }else{
+        console.warn(`Resultados de precificação (lote ${Math.floor(start/batchSize)+1}):`,error.message);
+      }
+      return;
+    }
+    rows.push(...(data||[]));
   }
+
   state.pricingItemResultsTableAvailable=true;
-  (data||[]).forEach(row=>{
+  rows.forEach(row=>{
     const value=row.winning_unit_price;
     if(value!=null&&Number.isFinite(Number(value))&&Number(value)>=0){
       state.pricingItemResults[String(row.tender_item_id)]=Number(value);
