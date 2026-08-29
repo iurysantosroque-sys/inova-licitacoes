@@ -7559,9 +7559,9 @@ function ensureTenderExactStyles(){
       min-height:680px;
     }
     .tx-head{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
+      display:grid;
+      grid-template-columns:minmax(250px,.7fr) minmax(520px,1.8fr) auto;
+      align-items:center;
       gap:18px;
       padding:24px 24px 20px;
       border-bottom:1px solid #243541;
@@ -7586,20 +7586,20 @@ function ensureTenderExactStyles(){
     .tx-primary:hover{filter:brightness(1.05)}
     .tx-stats{
       display:grid;
-      grid-template-columns:repeat(5,minmax(0,1fr));
-      gap:14px;
-      padding:20px 24px;
-      border-bottom:1px solid #243541;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+      padding:0;
+      border:0;
     }
     .tx-stat{
       display:flex;
       align-items:center;
       gap:14px;
-      min-height:88px;
+      min-height:76px;
       background:linear-gradient(145deg,#0c1a23,#0d1921);
       border:1px solid #1d2d38;
       border-radius:10px;
-      padding:14px 16px;
+      padding:11px 13px;
     }
     .tx-stat-icon{
       width:46px;height:46px;border-radius:50%;
@@ -7780,12 +7780,14 @@ function ensureTenderExactStyles(){
     .tx-dot.good{background:#45cf69}.tx-dot.warn{background:#f7bd2d}
     .tx-dot.neutral{background:#b8c2c9}.tx-dot.bad{background:#ff514b}
     @media(max-width:1100px){
-      .tx-stats{grid-template-columns:repeat(2,1fr)}
+      .tx-head{grid-template-columns:1fr auto}.tx-head .tx-stats{grid-column:1/-1;grid-row:2}
+      .tx-stats{grid-template-columns:repeat(3,1fr)}
       .tx-toolbar{grid-template-columns:1fr 1fr}
       .tx-info{grid-template-columns:1fr}
     }
     @media(max-width:680px){
-      .tx-head{padding:18px 14px}.tx-stats,.tx-toolbar,.tx-table-wrap{padding-left:14px;padding-right:14px}
+      .tx-head{grid-template-columns:1fr;padding:18px 14px}.tx-head .tx-stats{grid-column:auto;grid-row:auto}
+      .tx-stats,.tx-toolbar,.tx-table-wrap{padding-left:0;padding-right:0}
       .tx-stats{grid-template-columns:1fr}.tx-toolbar{grid-template-columns:1fr}.tx-info{margin-left:14px;margin-right:14px}
     }
   `;
@@ -7890,6 +7892,20 @@ function renderTenderManagement(){
         <h2>Editais / Licitações</h2>
         <p>Gerencie os editais cadastrados no sistema.</p>
       </div>
+      <div class="tx-stats">
+        <div class="tx-stat">
+          <div class="tx-stat-icon blue">▣</div>
+          <div><small>Total de editais</small><strong>${total}</strong><span>cadastrados</span></div>
+        </div>
+        <div class="tx-stat">
+          <div class="tx-stat-icon red">◷</div>
+          <div><small>Próximos fechamentos</small><strong>${soon}</strong><span>edital fecha em breve</span></div>
+        </div>
+        <div class="tx-stat">
+          <div class="tx-stat-icon green">✓</div>
+          <div><small>Editais ativos</small><strong>${active}</strong><span>ativos</span></div>
+        </div>
+      </div>
       <button type="button" class="tx-primary" id="txNewTender">＋ Novo edital</button>
     </div>
 
@@ -7918,21 +7934,6 @@ function renderTenderManagement(){
       <div id="pncpSearchStatus" class="pncp-status" hidden></div>
       <div id="pncpSearchResults"></div>
       <div id="pncpPreview" hidden></div>
-    </div>
-
-    <div class="tx-stats">
-      <div class="tx-stat">
-        <div class="tx-stat-icon blue">▣</div>
-        <div><small>Total de editais</small><strong>${total}</strong><span>cadastrados</span></div>
-      </div>
-      <div class="tx-stat">
-        <div class="tx-stat-icon red">◷</div>
-        <div><small>Próximos fechamentos</small><strong>${soon}</strong><span>edital fecha em breve</span></div>
-      </div>
-      <div class="tx-stat">
-        <div class="tx-stat-icon green">✓</div>
-        <div><small>Editais ativos</small><strong>${active}</strong><span>ativos</span></div>
-      </div>
     </div>
 
     <div class="tx-toolbar">

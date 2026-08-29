@@ -1,1 +1,1 @@
-36.36.0 - Mantém as declarações junto da tabela da proposta quando houver espaço.
+36.37.0 - Reorganiza o cabeçalho de Editais com quadros informativos uniformes.
