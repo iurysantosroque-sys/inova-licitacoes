@@ -1,1 +1,1 @@
-36.44.0 - Reutiliza o endereço PNCP salvo em editais já abertos.
+36.45.0 - Adiciona chat geral fixo com notificações para a equipe.

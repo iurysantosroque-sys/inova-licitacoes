@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -9671,6 +9671,57 @@ function renderFinance(){
   detail.innerHTML=selected?`<div class="finance-detail-head"><strong>${esc(selected.t.numero)}</strong><span>${money(selected.profit)}</span></div>${table(['Item','Descrição','Lucro'],state.itens.filter(i=>String(i.licitacao_id)===String(selected.t.id)).map(i=>{const p=pricing(i);return [String(i.numero),esc(i.descricao),money(Number(p?.profit||0))]}))}`:'';
 }
 
+function ensureChatStyles(){
+  if(document.getElementById('globalChatStyles'))return;
+  const style=document.createElement('style');style.id='globalChatStyles';style.textContent=`
+    .global-chat{position:fixed;right:22px;bottom:20px;z-index:120;font-family:inherit;color:#eef3f5}
+    .global-chat-bubble{width:54px;height:54px;border:0;border-radius:50%;background:#e6aa34;color:#081117;font-size:1.35rem;font-weight:900;box-shadow:0 8px 24px #0008;position:relative}
+    .global-chat-badge{position:absolute;right:-2px;top:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#ef493f;color:#fff;font-size:.7rem;display:grid;place-items:center}
+    .global-chat-panel{width:min(360px,calc(100vw - 28px));height:440px;background:#091820;border:1px solid #2d4653;border-radius:15px;box-shadow:0 16px 50px #0009;display:flex;flex-direction:column;overflow:hidden}
+    .global-chat-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;background:#0c202b;border-bottom:1px solid #2d4653}.global-chat-head strong{color:#f2b52a}.global-chat-head small{display:block;color:#9caeb7;margin-top:2px;font-size:.72rem}.global-chat-close{border:0;background:transparent;color:#b9c6cc;font-size:1.35rem;padding:2px 6px}
+    .global-chat-list{flex:1;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:9px}.global-chat-empty{text-align:center;color:#8fa0a9;font-size:.82rem;margin:auto 12px}.global-chat-msg{max-width:86%;align-self:flex-start;background:#102b38;border:1px solid #234554;border-radius:11px 11px 11px 3px;padding:8px 10px}.global-chat-msg.mine{align-self:flex-end;background:#4e3c13;border-color:#886a21;border-radius:11px 11px 3px 11px}.global-chat-msg small{display:block;color:#9fb0b8;font-size:.66rem;margin-bottom:3px}.global-chat-msg p{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.82rem;line-height:1.35}.global-chat-compose{display:flex;gap:7px;padding:10px;border-top:1px solid #2d4653;background:#08151c}.global-chat-compose input{flex:1;min-width:0;border:1px solid #2d4653;border-radius:9px;background:#07131a;color:#fff;padding:9px 10px}.global-chat-compose button{border:0;border-radius:9px;background:#e6aa34;color:#081117;font-weight:800;padding:0 13px}.global-chat[hidden]{display:none}
+    @media(max-width:560px){.global-chat{right:14px;bottom:14px}.global-chat-panel{height:min(440px,calc(100vh - 100px))}}
+  `;document.head.appendChild(style);
+}
+
+function chatDisplayName(id){
+  if(String(id)===String(state.user?.id))return 'Você';
+  return state.equipe.find(member=>String(member.id)===String(id))?.nome||'Membro da equipe';
+}
+
+function chatBeep(){
+  try{const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;const ctx=new AudioContext(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=880;gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.01);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.18);osc.connect(gain).connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.2);setTimeout(()=>ctx.close?.(),300);}catch{}
+}
+
+function renderGlobalChat(){
+  ensureChatStyles();
+  let root=$('#globalChat');
+  if(!root){root=document.createElement('aside');root.id='globalChat';root.className='global-chat';document.body.appendChild(root);}
+  if(!state.user&&!state.demo){root.hidden=true;return;}
+  root.hidden=false;
+  const messages=state.chatMessages||[];
+  if(!state.chatOpen){root.innerHTML=`<button type="button" class="global-chat-bubble" id="globalChatOpen" aria-label="Abrir chat geral">◌<span class="global-chat-badge" ${state.chatUnread?'':'hidden'}>${state.chatUnread>99?'99+':state.chatUnread}</span></button>`;return;}
+  root.innerHTML=`<div class="global-chat-panel"><header class="global-chat-head"><div><strong>Chat geral</strong><small>Equipe INOVA</small></div><button type="button" class="global-chat-close" id="globalChatClose" aria-label="Minimizar chat">−</button></header><div class="global-chat-list" id="globalChatList">${messages.length?messages.map(message=>`<article class="global-chat-msg ${String(message.sender_id)===String(state.user?.id)?'mine':''}"><small>${esc(chatDisplayName(message.sender_id))} · ${esc(new Date(message.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))}</small><p>${esc(message.body)}</p></article>`).join(''):'<p class="global-chat-empty">Nenhuma mensagem ainda. Envie uma mensagem para sua equipe.</p>'}</div><form class="global-chat-compose" id="globalChatForm"><input id="globalChatInput" maxlength="2000" autocomplete="off" placeholder="Escreva uma mensagem..."><button type="submit">Enviar</button></form></div>`;
+  const list=$('#globalChatList');if(list)list.scrollTop=list.scrollHeight;
+}
+
+async function loadChatMessages(){
+  const cid=currentCompanyId();if(!cid||(!state.user&&!state.demo))return;
+  if(state.chatLoadedFor===String(cid))return;
+  state.chatLoadedFor=String(cid);
+  if(state.demo){state.chatMessages=[];renderGlobalChat();return;}
+  const {data,error}=await supabase.from('company_chat_messages').select('id,company_id,sender_id,body,created_at').eq('company_id',cid).order('created_at',{ascending:true}).limit(100);
+  if(error){console.warn('Chat geral:',error.message);return;}
+  state.chatMessages=data||[];renderGlobalChat();
+  state.chatChannel?.unsubscribe?.();
+  state.chatChannel=supabase.channel(`company-chat-${cid}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'company_chat_messages',filter:`company_id=eq.${cid}`},payload=>{
+    const message=payload.new;if(!message||String(message.company_id)!==String(cid))return;state.chatMessages=[...(state.chatMessages||[]),message].slice(-100);if(String(message.sender_id)!==String(state.user?.id)){state.chatUnread=(state.chatUnread||0)+1;chatBeep();}renderGlobalChat();
+  }).subscribe();
+}
+
+document.addEventListener('click',event=>{if(event.target.closest('#globalChatOpen')){state.chatOpen=true;state.chatUnread=0;renderGlobalChat();$('#globalChatInput')?.focus();}if(event.target.closest('#globalChatClose')){state.chatOpen=false;renderGlobalChat();}});
+document.addEventListener('submit',async event=>{if(!event.target.matches('#globalChatForm'))return;event.preventDefault();const input=$('#globalChatInput'),body=String(input?.value||'').trim();if(!body)return;const cid=currentCompanyId();if(state.demo){state.chatMessages=[...(state.chatMessages||[]),{id:crypto.randomUUID(),company_id:cid||'demo',sender_id:state.user?.id||'demo-user',body,created_at:new Date().toISOString()}];input.value='';renderGlobalChat();return;}if(!cid||!state.user)return;const button=event.target.querySelector('button');if(button)button.disabled=true;const {error}=await supabase.from('company_chat_messages').insert({company_id:cid,sender_id:state.user.id,body});if(error)toast('Não foi possível enviar a mensagem.','error');else input.value='';if(button)button.disabled=false;});
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -9742,6 +9793,8 @@ function renderAll(){
   renderDocumentation();
   $('#equipeLista').innerHTML=table(['Nome','Papel','Desde'],state.equipe.map(p=>[esc(p.nome),esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
+  renderGlobalChat();
+  loadChatMessages().catch(error=>console.warn('Carregamento do chat:',error?.message||error));
 }
 
 function demoSeed(){
