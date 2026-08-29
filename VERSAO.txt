@@ -1,1 +1,1 @@
-36.18.2 - UF retroativa calculada pelo DDD nos fornecedores existentes.
+36.18.3 - Correção da UF exibida e atualização dos fornecedores antigos.
