@@ -212,6 +212,12 @@ function supplierPhoneLabel(value){
   if(digits.length===10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
   return value||'-';
 }
+function supplierContactInput(value){
+  const digits=String(value||'').replace(/\D/g,'');
+  if(digits.length===11)return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+  if(digits.length===10)return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+  return value||'';
+}
 function supplierWhatsappUrl(value){
   const digits=String(value||'').replace(/\D/g,'');
   if(!digits)return '';
@@ -9244,9 +9250,9 @@ $('#novoFornecedor')?.addEventListener('click',()=>{const form=$('#fornecedorFor
 let supplierCnpjLookupTimer;
 async function lookupSupplierCnpj(digits){
   const sources=[
+    `https://publica.cnpj.ws/cnpj/${digits}`,
     `https://brasilapi.com.br/api/cnpj/v1/${digits}`,
-    `https://www.receitaws.com.br/v1/cnpj/${digits}`,
-    `https://publica.cnpj.ws/cnpj/${digits}`
+    `https://www.receitaws.com.br/v1/cnpj/${digits}`
   ];
   for(const url of sources){
     try{
@@ -9259,7 +9265,7 @@ async function lookupSupplierCnpj(digits){
       const partners=Array.isArray(data.qsa)?data.qsa:Array.isArray(data.socios)?data.socios:[];
       const contact=data.contato||data.nome_contato||data.responsavel||data.representante_legal||partners[0]?.nome||partners[0]?.nome_socio||'';
       const companyName=data.razao_social||data.nome||data.razaoSocial||establishment.razao_social||'';
-      if(companyName||emails[0]||phones[0]||contact)return {data:{...data,razao_social:companyName,email:emails[0]||'',telefone:phones[0]||'',contato:contact},source:url};
+      if(companyName||emails[0]||phones[0]||contact)return {data:{...data,razao_social:companyName,email:emails[0]||'',telefone:supplierContactInput(phones[0]||''),contato:contact},source:url};
     }catch{}
   }
   throw new Error('CNPJ não encontrado');

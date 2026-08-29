@@ -1,1 +1,1 @@
-36.17.6 - Consulta de fornecedores com três fontes públicas e normalização de contato.
+36.17.8 - Telefone de contato normalizado no padrão brasileiro.
