@@ -33,7 +33,7 @@ create table public.pricing_settings (
 create table public.tenders (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   number text not null, process_number text, agency text, city text, state text, platform text, object text,
-  dispute_at timestamptz, status text not null default 'preparacao', pncp_control text, source_url text,
+  dispute_at timestamptz, status text not null default 'preparacao', is_quoted boolean not null default false, pncp_control text, source_url text,
   publication_at timestamptz, proposal_open_at timestamptz, proposal_end_at timestamptz,
   created_by uuid not null references auth.users(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   unique(id,company_id)
@@ -311,4 +311,3 @@ revoke all on function private.enforce_quote_company(),private.enforce_quote_ite
 revoke all on function private.is_company_member(uuid),private.is_company_admin(uuid,uuid),private.users_share_company(uuid) from public,anon;
 revoke all on function public.create_company_with_owner(text),public.join_company_by_invite(text),public.get_pricing_map() from public,anon;
 grant execute on function public.create_company_with_owner(text),public.join_company_by_invite(text),public.get_pricing_map(),private.is_company_member(uuid),private.is_company_admin(uuid,uuid),private.users_share_company(uuid) to authenticated;
-

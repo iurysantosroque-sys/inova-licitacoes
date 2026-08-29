@@ -1,1 +1,1 @@
-36.14.6 - Remove o imposto duplicado da tabela; configuração fica somente em Custos e margens.
+36.14.7 - Controle manual “Cotado” em cada licitação, salvo para toda a equipe.

@@ -3890,6 +3890,7 @@ async function refreshAll(){
       createdAt:t.created_at||null,
       proposalOpenAt:t.proposal_open_at||null,
       proposalEndAt:t.proposal_end_at||null,
+      is_quoted:Boolean(t.is_quoted),
       raw:t
     };
   });
@@ -7437,6 +7438,9 @@ function ensureTenderExactStyles(){
     .tx-platform strong{display:block;color:#fff}
     .tx-platform small{display:block;color:#95a2ac;margin-top:4px}
     .tx-items{display:flex;align-items:center;gap:7px;white-space:nowrap}
+    .tx-quoted-toggle{display:inline-flex;align-items:center;gap:7px;color:#aebbc4;font-size:.78rem;font-weight:750;white-space:nowrap;cursor:pointer}
+    .tx-quoted-toggle input{width:16px;height:16px;accent-color:#efb426;cursor:pointer}
+    .tx-quoted-toggle input:disabled{cursor:wait}
     .tx-edital-link{
       display:inline-flex;align-items:center;justify-content:center;min-height:44px;
       padding:0 13px;border:1px solid #f0b429;border-radius:7px;
@@ -7503,7 +7507,7 @@ function csvEscape(v){
 }
 
 function exportTendersCsv(tenders){
-  const headers=['Número','Órgão','Cidade/UF','Abertura para propostas','Data limite para propostas','Plataforma','Itens','Status'];
+  const headers=['Número','Órgão','Cidade/UF','Abertura para propostas','Data limite para propostas','Plataforma','Itens','Cotado','Status'];
   const lines=[headers.map(csvEscape).join(';')];
   for(const l of tenders){
     const status=tenderStatusInfo(l);
@@ -7515,6 +7519,7 @@ function exportTendersCsv(tenders){
       l.proposalEndAt?dateBR(l.proposalEndAt,true):'',
       l.plataforma,
       state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length,
+      l.is_quoted?'Sim':'Não',
       status.label
     ].map(csvEscape).join(';'));
   }
@@ -7674,6 +7679,7 @@ function renderTenderManagement(){
             <th>Data limite para propostas<br><small style="color:#efb426">(Fecha propostas)</small></th>
             <th>Plataforma</th>
             <th>Itens</th>
+            <th>Cotado</th>
             <th>Edital</th>
             <th>Status</th>
             <th>Ações</th>
@@ -7750,6 +7756,13 @@ function renderTenderManagement(){
           </td>
 
           <td>
+            <label class="tx-quoted-toggle" title="Marcar esta licitação como cotada">
+              <input type="checkbox" data-tender-quoted="${esc(l.id)}" ${l.is_quoted?'checked':''}>
+              <span>Cotado</span>
+            </label>
+          </td>
+
+          <td>
             ${officialUrl
               ? `<a class="tx-edital-link" href="${esc(officialUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir edital ${esc(l.numero||'')} no PNCP em nova aba">Abrir no PNCP</a>`
               : '<span class="tx-edital-missing">Sem link</span>'}
@@ -7775,6 +7788,29 @@ function renderTenderManagement(){
 
     const count=shell.querySelector('#txCount');
     if(count)count.textContent=`Exibindo ${rows.length?1:0} a ${rows.length} de ${rows.length} editais`;
+
+    tbody.querySelectorAll('[data-tender-quoted]').forEach(input=>input.addEventListener('change',async event=>{
+      const checkbox=event.currentTarget;
+      const tender=state.licitacoes.find(row=>String(row.id)===String(checkbox.dataset.tenderQuoted));
+      if(!tender)return;
+      const checked=Boolean(checkbox.checked);
+      checkbox.disabled=true;
+      if(state.demo){
+        tender.is_quoted=checked;
+        renderRows();
+        toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
+        return;
+      }
+      const {error}=await supabase.from('tenders').update({is_quoted:checked,updated_at:new Date().toISOString()}).eq('id',tender.id);
+      if(error){
+        checkbox.checked=!checked;
+        checkbox.disabled=false;
+        return toast(`Não foi possível atualizar a marcação: ${error.message}`,'error');
+      }
+      tender.is_quoted=checked;
+      renderRows();
+      toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
+    }));
   };
 
   shell.querySelector('#txSearch')?.addEventListener('input',renderRows);
