@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -2427,6 +2427,22 @@ function ensureQuoteWorkspaceStyles(){
     #cotacoes .quote-table-actions{display:flex;gap:6px;flex-wrap:wrap;min-width:150px}
     #cotacoes .quote-table-actions button{white-space:nowrap}
     #cotacoes .quote-empty-list{padding:28px 18px;text-align:center;color:var(--qw-muted)}
+    #cotacoes .quote-sheet-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;color:var(--qw-muted);font-size:.76rem}
+    #cotacoes .quote-sheet-actions{display:flex;gap:6px;align-items:center}
+    #cotacoes .quote-sheet-actions button{min-width:36px;padding-inline:10px}
+    #cotacoes .quote-sheet-scroll{overflow:auto;border:1px solid var(--qw-line);border-radius:10px}
+    #cotacoes .quote-sheet-table{width:100%;min-width:680px;border-collapse:collapse;table-layout:fixed}
+    #cotacoes .quote-sheet-table th{background:#07151d;color:#f7c74f;font-size:.72rem;text-align:left;font-weight:800}
+    #cotacoes .quote-sheet-table td{background:#091a23;color:var(--qw-text);vertical-align:top}
+    #cotacoes .quote-sheet-table th,#cotacoes .quote-sheet-table td{padding:11px 12px;border-bottom:1px solid #203640}
+    #cotacoes .quote-sheet-table tr:last-child td{border-bottom:0}
+    #cotacoes .quote-sheet-table th:first-child,#cotacoes .quote-sheet-table td:first-child{width:70%}
+    #cotacoes .quote-sheet-table th:nth-child(2),#cotacoes .quote-sheet-table td:nth-child(2){width:15%}
+    #cotacoes .quote-sheet-table th:nth-child(3),#cotacoes .quote-sheet-table td:nth-child(3){width:15%}
+    #cotacoes .quote-sheet-item{display:flex;align-items:flex-start;gap:8px;line-height:1.4}
+    #cotacoes .quote-sheet-item span{overflow-wrap:anywhere}
+    #cotacoes .quote-sheet-remove{flex:0 0 auto;width:24px;height:24px;padding:0;border:1px solid #6f302d;border-radius:5px;background:#211315;color:#ff766e;font-weight:900;line-height:1;cursor:pointer}
+    #cotacoes .quote-sheet-remove:hover{background:#351719}
     #cotacoes :is(button,input,select,summary):focus-visible{outline:3px solid #68afff!important;outline-offset:2px!important}
     #cotacoes .quote-import-warning{margin:0 18px 12px;padding:10px 12px;border:1px solid #805d18;border-radius:8px;background:#251e0c;color:#ffda70;font-size:.76rem}
     #cotacoes .quote-origin-line{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
@@ -4093,8 +4109,13 @@ function renderQuoteTenderComparison(){
 function renderQuoteSheet(){
   const panel=$('#quoteSheetPanel');if(!panel)return;const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));
   if(!tender){panel.innerHTML='<p class="hint">Selecione um edital para criar uma nova cotação.</p>';return;}
-  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)).sort((a,b)=>Number(a.numero)-Number(b.numero));
-  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ Baixar PDF</button></div>${items.length?table(['Nome do item','Unidade','Quantidade'],items.map(i=>[esc(i.descricao),esc(i.unidade||'-'),String(i.quantidade??'-')])):'<p class="hint">Este edital ainda não possui itens.</p>'}`;
+  const allItems=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)).sort((a,b)=>Number(a.numero)-Number(b.numero));
+  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const items=allItems.filter(i=>!excluded.has(String(i.id)));
+  const canUndo=state.quoteUndoStack?.some(action=>String(action.tenderId)===String(tender.id));
+  const canRedo=state.quoteRedoStack?.some(action=>String(action.tenderId)===String(tender.id));
+  const rowMarkup=items.map(i=>`<tr><td><div class="quote-sheet-item"><button type="button" class="quote-sheet-remove" data-quote-delete-item="${esc(i.id)}" title="Excluir item da cotação" aria-label="Excluir item ${esc(i.numero)}">×</button><span>${esc(i.descricao||'-')}</span></div></td><td>${esc(i.unidade||'-')}</td><td>${esc(i.quantidade??'-')}</td></tr>`).join('');
+  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ Baixar PDF</button></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
 }
 
 async function exportQuotePdf(){
@@ -9684,6 +9705,43 @@ $('#financePeriod')?.addEventListener('change',e=>{state.financePeriod=e.target.
 document.addEventListener('click',e=>{const close=e.target.closest('[data-close-finance-edital]');if(close){state.financeEditalId='';renderFinance();return;}const edital=e.target.closest('[data-finance-edital]');if(edital){state.financeEditalId=edital.dataset.financeEdital;renderFinance();}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-finance-tender]');if(!button)return;state.financeTenderId=button.dataset.financeTender;renderFinance();});
 document.addEventListener('click',async e=>{const refresh=e.target.closest('[data-refresh-pricing-items]');if(refresh){await refreshAll();toast('Itens atualizados.');return;}const undo=e.target.closest('[data-pricing-undo]');if(undo&&state.pricingUndoStack?.length){const action=state.pricingUndoStack.pop();state.pricingRedoStack=state.pricingRedoStack||[];state.pricingRedoStack.push(action);if(state.demo){state.itens.push(action.item);state.cotacoes.push(...action.quotes);}else{await supabase.from('tender_items').insert(action.item.raw||action.item);await refreshAll();}renderAll();toast('Exclusão desfeita.');return;}const redo=e.target.closest('[data-pricing-redo]');if(redo&&state.pricingRedoStack?.length){const action=state.pricingRedoStack.pop();state.pricingUndoStack=state.pricingUndoStack||[];state.pricingUndoStack.push(action);if(state.demo){state.itens=state.itens.filter(item=>String(item.id)!==String(action.item.id));state.cotacoes=state.cotacoes.filter(q=>String(q.item_id)!==String(action.item.id));}else{await supabase.from('tender_items').delete().eq('id',action.item.id);await refreshAll();}renderAll();toast('Exclusão refeita.');return;}const button=e.target.closest('[data-delete-pricing-item]');if(!button)return;if(!confirm('Excluir este item da licitação?'))return;const id=button.dataset.deletePricingItem;const item=state.itens.find(x=>String(x.id)===String(id));const quotes=state.cotacoes.filter(q=>String(q.item_id)===String(id));state.pricingUndoStack=state.pricingUndoStack||[];state.pricingRedoStack=[];state.pricingUndoStack.push({item,quotes});if(state.demo){state.itens=state.itens.filter(item=>String(item.id)!==String(id));state.cotacoes=state.cotacoes.filter(quote=>String(quote.item_id)!==String(id));renderAll();toast('Item excluído.');return;}const {error}=await supabase.from('tender_items').delete().eq('id',id);if(error)return toast(error.message,'error');await refreshAll();toast('Item excluído.');});
+
+document.addEventListener('click',async e=>{
+  const refresh=e.target.closest('[data-refresh-quote-items]');
+  if(refresh){
+    const tenderId=String(state.quoteViewTenderId||'');
+    if(tenderId)delete state.quoteExcludedItems[tenderId];
+    state.quoteUndoStack=[];state.quoteRedoStack=[];
+    await refreshAll();
+    toast('Itens originais da cotação restaurados.');
+    return;
+  }
+  const undo=e.target.closest('[data-quote-undo]');
+  if(undo&&state.quoteUndoStack?.length){
+    const currentTender=String(state.quoteViewTenderId||'');const index=state.quoteUndoStack.map(action=>String(action.tenderId)).lastIndexOf(currentTender);if(index<0)return;
+    const action=state.quoteUndoStack.splice(index,1)[0];
+    const key=String(action.tenderId);const list=state.quoteExcludedItems[key]||[];
+    state.quoteExcludedItems[key]=list.filter(id=>String(id)!==String(action.itemId));
+    state.quoteRedoStack=state.quoteRedoStack||[];state.quoteRedoStack.push(action);
+    renderQuotesWorkspace();toast('Exclusão desfeita.');return;
+  }
+  const redo=e.target.closest('[data-quote-redo]');
+  if(redo&&state.quoteRedoStack?.length){
+    const currentTender=String(state.quoteViewTenderId||'');const index=state.quoteRedoStack.map(action=>String(action.tenderId)).lastIndexOf(currentTender);if(index<0)return;
+    const action=state.quoteRedoStack.splice(index,1)[0];const key=String(action.tenderId);
+    state.quoteExcludedItems[key]=Array.from(new Set([...(state.quoteExcludedItems[key]||[]),String(action.itemId)]));
+    state.quoteUndoStack=state.quoteUndoStack||[];state.quoteUndoStack.push(action);
+    renderQuotesWorkspace();toast('Exclusão refeita.');return;
+  }
+  const remove=e.target.closest('[data-quote-delete-item]');
+  if(!remove)return;
+  if(!confirm('Excluir este item somente da cotação?'))return;
+  const tenderId=String(state.quoteViewTenderId||'');const itemId=String(remove.dataset.quoteDeleteItem||'');
+  if(!tenderId||!itemId)return;
+  state.quoteExcludedItems[tenderId]=Array.from(new Set([...(state.quoteExcludedItems[tenderId]||[]),itemId]));
+  state.quoteUndoStack=state.quoteUndoStack||[];state.quoteRedoStack=[];state.quoteUndoStack.push({tenderId,itemId});
+  renderQuotesWorkspace();toast('Item removido desta cotação.');
+});
 document.querySelectorAll('[data-document-tab]').forEach(button=>{
   button.addEventListener('click',()=>activateDocumentTab(button.dataset.documentTab));
   button.addEventListener('keydown',event=>{
