@@ -1109,6 +1109,19 @@ async function searchPncp(query){
 async function openPncpResult(btn){
   const control=btn.dataset.pncpControl;
   clearPncpPreview();
+  const requestedUrl=control&&pncpControlParts(control)
+    ?`https://pncp.gov.br/app/editais/${pncpControlParts(control).cnpj}/${pncpControlParts(control).ano}/${pncpControlParts(control).sequencial}`
+    :(btn.dataset.pncpCnpj&&btn.dataset.pncpYear&&btn.dataset.pncpSeq
+      ?`https://pncp.gov.br/app/editais/${btn.dataset.pncpCnpj}/${btn.dataset.pncpYear}/${btn.dataset.pncpSeq}`:'');
+  const saved=state.licitacoes.find(row=>{
+    if(control&&String(row.pncp_control||'')===String(control))return true;
+    return requestedUrl&&String(row.source_url||'').replace(/\/$/,'')===requestedUrl;
+  });
+  if(saved?.source_url){
+    setPncpStatus('Este edital já está salvo. Abrindo o endereço armazenado sem consultar o PNCP novamente.','success');
+    window.open(saved.source_url,'_blank','noopener,noreferrer');
+    return;
+  }
   if(state.demo || !configured || !supabase || !state.user){
     setPncpStatus('A abertura de editais do PNCP está disponível somente com sessão online.','warn');
     return;

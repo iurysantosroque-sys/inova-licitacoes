@@ -1,1 +1,1 @@
-36.43.0 - Aplica dourado ao título e data do Dashboard com hora e minutos.
+36.44.0 - Reutiliza o endereço PNCP salvo em editais já abertos.
