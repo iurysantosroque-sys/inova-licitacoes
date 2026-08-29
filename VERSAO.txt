@@ -1,1 +1,1 @@
-36.22.0 - Exportação de cotações em Word timbrado e Excel.
+36.22.1 - Importação PNCP busca todas as páginas de itens.

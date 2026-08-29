@@ -185,7 +185,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   ]
   for(const source of itemSourceWorked?[]:itemSources){
     let sourceFailed=false
-    for(let page=1;page<=10;page++){
+    for(let page=1;page<=100;page++){
       if(Date.now()>deadline-900){partial=true;break}
       try{
         const url=new URL(source.url)
@@ -195,16 +195,21 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
         }
         const payload=await getJson(url.toString(),deadline,metrics)
         const rows=rowsFromPayload(payload)
-        itemSourceWorked=true
+        if(rows.length)itemSourceWorked=true
         for(const row of rows){
           const key=String(row?.numeroItem??`${page}-${items.length}`)
           if(seen.has(key))continue
           seen.add(key);items.push(row)
         }
         if(!source.paginated)break
-        const totalPages=Number(payload?.totalPaginas??payload?.totalPages??page)
-        if(!rows.length||page>=totalPages||rows.length<500)break
-        if(page===10)partial=true
+        const totalPagesRaw=payload?.totalPaginas??payload?.totalPages??payload?.pagination?.totalPages
+        const totalPages=Number(totalPagesRaw)
+        if(!rows.length)break
+        if(Number.isFinite(totalPages)&&totalPages>0&&page>=totalPages)break
+        // Alguns endpoints do PNCP ignoram tamanhoPagina=500 e devolvem 10, 50
+        // ou 100 linhas. Nesses casos, continue até a página vazia em vez de
+        // interpretar uma página curta como o fim da contratação.
+        if(page===100)partial=true
       }catch{sourceFailed=true;break}
     }
     if(itemSourceWorked&&!sourceFailed)break
