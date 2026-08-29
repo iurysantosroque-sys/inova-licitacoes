@@ -1,1 +1,1 @@
-36.19.3 - Ver edital sobreposto no Financeiro com dados e itens da licitação.
+36.20.0 - Exclusão de itens diretamente pelo X na célula Código.

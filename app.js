@@ -6867,7 +6867,7 @@ function renderPricingExactModel(){
             <tbody>
               ${pricingRows.length?pricingRows.map(row=>`
                 <tr data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
-                  <th class="pricing-sheet-code" scope="row">${esc(row.item.numero)}</th>
+                  <th class="pricing-sheet-code" scope="row"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
                   <td>${esc(row.item.unidade||'Pendente')}</td>
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -9672,6 +9672,7 @@ document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('cli
 $('#financePeriod')?.addEventListener('change',e=>{state.financePeriod=e.target.value;state.financeTenderId='';renderFinance();});
 document.addEventListener('click',e=>{const close=e.target.closest('[data-close-finance-edital]');if(close){state.financeEditalId='';renderFinance();return;}const edital=e.target.closest('[data-finance-edital]');if(edital){state.financeEditalId=edital.dataset.financeEdital;renderFinance();}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-finance-tender]');if(!button)return;state.financeTenderId=button.dataset.financeTender;renderFinance();});
+document.addEventListener('click',async e=>{const button=e.target.closest('[data-delete-pricing-item]');if(!button)return;if(!confirm('Excluir este item da licitação?'))return;const id=button.dataset.deletePricingItem;if(state.demo){state.itens=state.itens.filter(item=>String(item.id)!==String(id));state.cotacoes=state.cotacoes.filter(quote=>String(quote.item_id)!==String(id));renderAll();toast('Item excluído.');return;}const {error}=await supabase.from('tender_items').delete().eq('id',id);if(error)return toast(error.message,'error');await refreshAll();toast('Item excluído.');});
 document.querySelectorAll('[data-document-tab]').forEach(button=>{
   button.addEventListener('click',()=>activateDocumentTab(button.dataset.documentTab));
   button.addEventListener('keydown',event=>{
