@@ -8470,7 +8470,7 @@ function renderDashboardModel(){
         ${events.map(event=>{
           const meta=dashboardDeadlineMeta(event);
           return `<button class="db-cal-event ${meta?.cls||''}" data-db-tender="${event.id}" title="Abrir edital ${esc(event.numero)}">
-            Edital ${esc(event.numero)}${event.orgao?`<br><small>${esc(event.orgao)}</small>`:''}
+            Edital ${esc(event.numero)}
           </button>`;
         }).join('')}
       </div>

@@ -1,1 +1,1 @@
-36.16.1 - Calendário do Dashboard sem horários e com todas as licitações visíveis por dia.
+36.16.2 - Calendário mostra somente o número do edital.
