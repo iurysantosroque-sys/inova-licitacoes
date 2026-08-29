@@ -1,1 +1,1 @@
-36.18.0 - Edição de fornecedores, UF automática e nome fantasia manual.
+36.18.1 - UF calculada pelo DDD e botão de salvar edição.
