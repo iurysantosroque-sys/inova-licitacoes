@@ -1,4 +1,4 @@
-INOVA V36.21.6
+INOVA V36.21.7
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.

@@ -4120,7 +4120,8 @@ function renderQuoteSheet(){
 
 async function exportQuotePdf(){
   const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
-  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id));if(!items.length)return toast('Não há itens para exportar.','error');
+  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
   const {PDFDocument,rgb,StandardFonts}=window.PDFLib;const base=await fetch('assets/papel-timbrado.pdf').then(r=>r.arrayBuffer());const pdf=await PDFDocument.load(base);const templatePdf=await PDFDocument.load(base);let page=pdf.getPages()[0];const font=await pdf.embedFont(StandardFonts.Helvetica);const bold=await pdf.embedFont(StandardFonts.HelveticaBold);const ink=rgb(.12,.12,.12),line=rgb(.72,.72,.72);const x0=60,x1=90,x2=390,x3=455,x4=535,rowFont=8.5,rowGap=11;
   const wrap=(value,maxWidth)=>{const words=String(value||'-').split(/\s+/);const lines=[];let current='';for(const word of words){const next=current?`${current} ${word}`:word;if(font.widthOfTextAtSize(next,rowFont)<=maxWidth)current=next;else{if(current)lines.push(current);current=word;}}if(current)lines.push(current);return lines.length?lines:['-'];};
