@@ -4133,7 +4133,7 @@ function renderQuoteSheet(){
   const canUndo=state.quoteUndoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const canRedo=state.quoteRedoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const rowMarkup=items.map(i=>`<tr><td><div class="quote-sheet-item"><button type="button" class="quote-sheet-remove" data-quote-delete-item="${esc(i.id)}" title="Excluir item da cotação" aria-label="Excluir item ${esc(i.numero)}">×</button><span>${esc(i.descricao||'-')}</span></div></td><td>${esc(i.unidade||'-')}</td><td>${esc(i.quantidade??'-')}</td></tr>`).join('');
-  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><div class="quote-export-actions"><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ PDF</button><button type="button" class="action-btn quote-export-btn" id="quoteExportWord" ${items.length?'':'disabled'}>⇩ Word</button><button type="button" class="action-btn quote-export-btn" id="quoteExportExcel" ${items.length?'':'disabled'}>⇩ Excel</button></div></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
+  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><div class="quote-export-actions"><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ PDF</button><button type="button" class="action-btn quote-export-btn" id="quoteExportWord" ${items.length?'':'disabled'}>⇩ Word</button></div></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
 }
 
 function quoteExportSafePart(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';}
@@ -4146,7 +4146,13 @@ function quoteExportItems(tender){
 async function exportQuoteWord(){
   const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
   const items=quoteExportItems(tender);if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
-  if(!window.docx)return toast('O gerador de Word ainda está carregando. Tente novamente.','error');
+  // O gerador principal usa docx, mas o arquivo também precisa funcionar
+  // quando a rede/CDN estiver indisponível (por exemplo, no primeiro acesso).
+  // Nesse caso geramos um .doc compatível com Word, sem bloquear o download.
+  if(!window.docx){
+    try{return await exportQuoteWordFallback(tender,items)}
+    catch(error){console.error('Exportação Word (fallback):',error);return toast('Não foi possível gerar o arquivo Word. Tente novamente.','error')}
+  }
   try{
     const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType,ImageRun,Header,BorderStyle}=window.docx;
     const sourceBlob=await fetch('assets/papel-timbrado.png').then(r=>r.blob());
@@ -4158,6 +4164,23 @@ async function exportQuoteWord(){
     const doc=new Document({sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},headers:{default:new Header({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:imageBytes,transformation:{width:550,height:190}})]})]})},children:[new Paragraph({spacing:{before:160,after:60},children:[new TextRun({text:'TABELA DE COTAÇÃO',bold:true,size:30,font:'Arial'})]}),new Paragraph({spacing:{after:40},children:[new TextRun({text:`${tender.cidade||''} • Edital ${tender.numero||'-'}`,bold:true,size:20,font:'Arial'})]}),new Paragraph({spacing:{after:140},children:[new TextRun({text:String(tender.orgao||'Órgão comprador'),size:18,font:'Arial'})]}),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders,rows})]}]});
     const blob=await Packer.toBlob(doc);const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`cotacao-${quoteExportSafePart(tender.cidade)}-edital-${quoteExportSafePart(tender.numero)}.docx`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
   }catch(error){console.error('Exportação Word:',error);toast('Não foi possível gerar o arquivo Word. Tente novamente.','error');}
+}
+
+async function exportQuoteWordFallback(tender,items){
+  const image=await fetch('assets/papel-timbrado.png').then(response=>response.ok?response.blob():null).catch(()=>null);
+  const imageData=image?await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(image)}):'';
+  const esc=value=>String(value??'-').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const rows=items.map(item=>`<tr><td>${esc(item.descricao)}</td><td>${esc(item.unidade)}</td><td>${esc(item.quantidade)}</td></tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    @page{margin:1.2cm}body{font-family:Arial,sans-serif;color:#1d2328;margin:0;padding:0}
+    .cabecalho{text-align:center;margin-bottom:18px}.cabecalho img{width:550px;max-width:100%;height:auto;max-height:190px;object-fit:contain}
+    h1{font-size:20pt;margin:8px 0 4px}.meta{font-size:11pt;margin:2px 0 14px}table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border:1px solid #aaa;padding:6px 7px;vertical-align:top;font-size:10pt;line-height:1.25;word-wrap:break-word}th{font-weight:bold;background:#f1f1f1;text-align:left}
+    th:first-child,td:first-child{width:70%}th:nth-child(2),td:nth-child(2){width:16%}th:nth-child(3),td:nth-child(3){width:14%;text-align:center}
+  </style></head><body><div class="cabecalho">${imageData?`<img src="${imageData}" alt="Papel timbrado">`:''}</div>
+  <h1>TABELA DE COTAÇÃO</h1><div class="meta"><strong>${esc(tender.cidade||'')}</strong> • Edital ${esc(tender.numero||'-')}</div>
+  <div class="meta">${esc(tender.orgao||'Órgão comprador')}</div><table><thead><tr><th>NOME DO ITEM</th><th>UNIDADE</th><th>QUANTIDADE</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  const blob=new Blob([html],{type:'application/msword;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`cotacao-${quoteExportSafePart(tender.cidade)}-edital-${quoteExportSafePart(tender.numero)}.doc`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
 }
 
 function exportQuoteExcel(){
@@ -9938,7 +9961,7 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   startAutomaticQuoteImport();
 });
 $('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
-document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();if(e.target.closest('#quoteExportWord'))exportQuoteWord();if(e.target.closest('#quoteExportExcel'))exportQuoteExcel();});
+document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();if(e.target.closest('#quoteExportWord'))exportQuoteWord();});
 document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
   setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
 }));
