@@ -7889,8 +7889,7 @@ function renderTenderManagement(){
   shell.innerHTML=`
     <div class="tx-head">
       <div class="tx-title">
-        <h2>Editais / Licitações</h2>
-        <p>Gerencie os editais cadastrados no sistema.</p>
+        <h2>Editais e Licitações</h2>
       </div>
       <div class="tx-stats">
         <div class="tx-stat">

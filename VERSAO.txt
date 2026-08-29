@@ -1,1 +1,1 @@
-36.37.0 - Reorganiza o cabeçalho de Editais com quadros informativos uniformes.
+36.38.0 - Simplifica o título da área de editais e remove o subtítulo.
