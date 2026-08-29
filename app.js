@@ -9004,7 +9004,7 @@ function currentMemberIsAdmin(){
 }
 
 function activateDocumentTab(tab='editais',focus=false){
-  const selected=['editais','habilitacao','cotacoes'].includes(tab)?tab:'editais';
+  const selected=['editais','habilitacao','propostas','cotacoes'].includes(tab)?tab:'editais';
   state.documentTab=selected;
   document.querySelectorAll('[data-document-tab]').forEach(button=>{
     const active=button.dataset.documentTab===selected;
@@ -9014,9 +9014,11 @@ function activateDocumentTab(tab='editais',focus=false){
   });
   const editais=$('#documentPanelEditais');
   const habilitacao=$('#documentPanelHabilitacao');
+  const propostas=$('#documentPanelPropostas');
   const cotacoes=$('#documentPanelCotacoes');
   if(editais)editais.hidden=selected!=='editais';
   if(habilitacao)habilitacao.hidden=selected!=='habilitacao';
+  if(propostas)propostas.hidden=selected!=='propostas';
   if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
 }
 
