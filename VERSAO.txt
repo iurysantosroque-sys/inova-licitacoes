@@ -1,1 +1,1 @@
-36.45.0 - Adiciona chat geral fixo com notificações para a equipe.
+36.46.0 - Preserva rascunhos e exibe indicador de digitação no chat geral.
