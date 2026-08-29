@@ -4261,6 +4261,37 @@ function renderQuotesWorkspace(){
 }
 
 
+async function exportPricingPdf(tenderId){
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
+  if(!tender)return;
+  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));
+  if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
+  if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
+  try{
+    const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
+    const base=await fetch('assets/papel-timbrado-paisagem.pdf').then(r=>r.arrayBuffer());
+    const pdf=await PDFDocument.load(base),template=await PDFDocument.load(base);
+    let page=pdf.getPages()[0];
+    const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+    const ink=rgb(.12,.12,.12),line=rgb(.72,.72,.72),x0=24,x4=768,rowFont=6.1,rowGap=8;
+    const cols=[x0,48,190,228,260,300,340,380,420,460,500,540,580,620,660,710,x4];
+    const labels=['Nº','DESCRIÇÃO','UN','QTD','GOV. UNIT','GOV. TOTAL','FORNECEDOR','FORN. UNIT','FORN. TOTAL','CUSTO','25%','15%','10%','GANHO','LUCRO',''];
+    const wrap=(value,max)=>{const words=String(value||'-').split(/\s+/),lines=[];let current='';for(const word of words){const next=current?`${current} ${word}`:word;if(font.widthOfTextAtSize(next,rowFont)<=max)current=next;else{if(current)lines.push(current);current=word;}}if(current)lines.push(current);return lines.length?lines:['-'];};
+    const moneyText=value=>value==null||!Number.isFinite(Number(value))?'-':Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const rows=items.map(item=>{const q=bestQuote(item.id),qty=Number(item.quantidade)||0,gu=Number(item.valor_estimado)>0?Number(item.valor_estimado):null,su=q&&Number(q.custoEq)>0?Number(q.custoEq):null,cost=su==null?null:su*(1+Number(state.config?.imposto??6)/100),win=state.pricingItemResults?.[String(item.id)]!=null?Number(state.pricingItemResults[String(item.id)]):null;return {item,vals:[item.numero,item.descricao,item.unidade||'-',qty||'-',moneyText(gu),moneyText(gu==null?null:gu*qty),q?state.fornecedores.find(s=>String(s.id)===String(q.fornecedor_id))?.nome||'Fornecedor':'-',moneyText(su),moneyText(su==null?null:su*qty),moneyText(cost),moneyText(cost==null?null:cost*1.25),moneyText(cost==null?null:cost*1.15),moneyText(cost==null?null:cost*1.10),moneyText(win),moneyText(win==null||cost==null?null:(win-cost)*qty)]};});
+    const drawIntro=()=>{page.drawText('TABELA DE PRECIFICAÇÃO',{x:x0,y,size:16,font:bold,color:ink});page.drawText(`${tender.cidade||''} • Edital ${tender.numero||'-'}`,{x:x0,y:y-24,size:9.5,font:bold,color:ink});page.drawText(`${tender.orgao||'Órgão comprador'}`,{x:x0,y:y-39,size:9.5,font,color:ink});y-=68;};
+    const drawHeader=()=>{const top=y;page.drawRectangle({x:x0,y:top-22,width:x4-x0,height:22,borderColor:line,borderWidth:.7,color:rgb(.96,.96,.96)});labels.forEach((text,i)=>page.drawText(text,{x:cols[i]+3,y:top-14,size:5.4,font:bold,color:ink}));cols.slice(1,-1).forEach(x=>page.drawLine({start:{x,y:top-22},end:{x,y:top},thickness:.5,color:line}));y=top-22;};
+    let y=495;drawIntro();drawHeader();
+    for(const row of rows){
+      const lines=wrap(row.vals[1],cols[2]-cols[1]-6),height=Math.max(20,lines.length*rowGap+6);
+      if(y-height<58){const [templatePage]=await pdf.copyPages(template,[0]);page=pdf.addPage(templatePage);y=495;drawIntro();drawHeader();}
+      page.drawRectangle({x:x0,y:y-height,width:x4-x0,height,borderColor:line,borderWidth:.5});cols.slice(1,-1).forEach(x=>page.drawLine({start:{x,y:y-height},end:{x,y},thickness:.5,color:line}));row.vals.forEach((value,i)=>{if(i===1)lines.forEach((text,lineIndex)=>page.drawText(String(text),{x:cols[i]+3,y:y-10-lineIndex*rowGap,size:rowFont,font,color:ink}));else page.drawText(String(value),{x:cols[i]+3,y:y-10,size:rowFont,font,color:ink});});y-=height;
+    }
+    const bytes=await pdf.save(),blob=new Blob([bytes],{type:'application/pdf'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);const safe=value=>String(value||'edital').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';link.download=`precificacao-${safe(tender.cidade)}-edital-${safe(tender.numero)}.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+  }catch(error){console.error('Exportação PDF de precificação:',error);toast('Não foi possível gerar o PDF. Tente novamente.','error');}
+}
+
 function ensurePricingTenderViewer(){
   const list=$('#precificacaoLista');
   if(!list)return;
@@ -7054,7 +7085,7 @@ function renderPricingExactModel(){
     renderPricingExactModel();
   });
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
-  shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportQuotePdf(tenderId));
+  shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
 
   const dialog=shell.querySelector('#pricingItemDialog');

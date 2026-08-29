@@ -1,1 +1,1 @@
-36.23.2 - Adiciona download PDF da lista de precificação no mesmo formato das cotações.
+36.23.3 - Exporta a tabela completa da precificação em PDF paisagem, com todos os itens.
