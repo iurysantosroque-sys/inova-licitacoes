@@ -4089,6 +4089,19 @@ function renderQuoteTenderComparison(){
   `;
 }
 
+function renderQuoteSheet(){
+  const panel=$('#quoteSheetPanel');if(!panel)return;const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));
+  if(!tender){panel.innerHTML='<p class="hint">Selecione um edital para criar uma nova cotação.</p>';return;}
+  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)).sort((a,b)=>Number(a.numero)-Number(b.numero));
+  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ Baixar PDF</button></div>${items.length?table(['Nome do item','Unidade','Quantidade'],items.map(i=>[esc(i.descricao),esc(i.unidade||'-'),String(i.quantidade??'-')])):'<p class="hint">Este edital ainda não possui itens.</p>'}`;
+}
+
+async function exportQuotePdf(){
+  const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
+  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id));if(!items.length)return toast('Não há itens para exportar.','error');
+  if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
+  const {PDFDocument,rgb,StandardFonts}=window.PDFLib;const base=await fetch('assets/papel-timbrado.pdf').then(r=>r.arrayBuffer());const pdf=await PDFDocument.load(base);let page=pdf.getPages()[0];const font=await pdf.embedFont(StandardFonts.Helvetica);let y=680;page.drawText('TABELA DE COTAÇÃO',{x:70,y,size:16,font,color:rgb(.15,.15,.15)});page.drawText(`${tender.orgao||'Órgão comprador'} - ${tender.cidade||''}`,{x:70,y:y-24,size:10,font,color:rgb(.25,.25,.25)});y-=60;page.drawText('ITEM',{x:70,y,size:10,font});page.drawText('UNIDADE',{x:350,y,size:10,font});page.drawText('QUANTIDADE',{x:450,y,size:10,font});y-=20;items.forEach((item,index)=>{if(y<100){page=pdf.addPage([595.5,842.25]);y=760;}page.drawText(`${index+1}. ${String(item.descricao||'').slice(0,58)}`,{x:70,y,size:9,font});page.drawText(String(item.unidade||'-'),{x:350,y,size:9,font});page.drawText(String(item.quantidade??'-'),{x:450,y,size:9,font});y-=18;});const bytes=await pdf.save();const blob=new Blob([bytes],{type:'application/pdf'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`cotacao-${tender.numero||'edital'}.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}
+
 function renderQuotesWorkspace(){
   ensureQuoteWorkspaceStyles();
   const exists=state.licitacoes.some(l=>String(l.id)===String(state.quoteViewTenderId));
@@ -4125,6 +4138,7 @@ function renderQuotesWorkspace(){
   setQuoteWorkspaceSection(state.quoteWorkspaceSection||'import',false);
   renderQuoteImportPreview();
   renderQuoteTenderComparison();
+  renderQuoteSheet();
 }
 
 
@@ -9782,6 +9796,8 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   renderQuotesWorkspace();
   startAutomaticQuoteImport();
 });
+$('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
+document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();});
 document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
   setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
 }));

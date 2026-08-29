@@ -1,1 +1,1 @@
-36.20.3 - Remove card de Oportunidades do Dashboard.
+36.21.0 - Nova cotação com tabela simplificada e exportação em PDF timbrado.
