@@ -7406,6 +7406,9 @@ function ensureTenderExactStyles(){
       height:42px;border-radius:8px;border:1px solid #31434f;
       background:#09161e;color:#e8edf2;padding:0 15px;font-weight:700;cursor:pointer;
     }
+    .tx-list-tabs{display:flex;gap:8px;padding:0 24px 14px}
+    .tx-list-tabs button{border:1px solid #31434f;border-radius:7px;background:#09161e;color:#aebbc4;padding:9px 14px;font-weight:750;cursor:pointer}
+    .tx-list-tabs button.active{background:#f0b429;border-color:#f0b429;color:#07131a}
     .tx-table-wrap{padding:0 24px;overflow:auto}
     .tx-table{
       width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;
@@ -7553,11 +7556,15 @@ function renderTenderManagement(){
   }
 
   const getFiltered=()=>{
+    const tenderView=shell.dataset.tenderView||'active';
     const query=quoteNormalize(shell.querySelector('#txSearch')?.value||'');
     const statusFilter=shell.querySelector('#txStatus')?.value||'all';
     const sort=shell.querySelector('#txSort')?.value||'deadline';
 
     let rows=[...state.licitacoes].filter(l=>{
+      const isClosed=tenderStatusInfo(l).label==='Encerrado';
+      if(tenderView==='closed'&&!isClosed)return false;
+      if(tenderView!=='closed'&&isClosed)return false;
       if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
       if(statusFilter!=='all'){
         const s=tenderStatusInfo(l);
@@ -7667,6 +7674,11 @@ function renderTenderManagement(){
       </select>
       <div></div>
       <button type="button" class="tx-export" id="txExport">⇩ Exportar</button>
+    </div>
+
+    <div class="tx-list-tabs" role="tablist" aria-label="Filtrar licitações por situação">
+      <button type="button" class="active" data-tender-view="active" role="tab" aria-selected="true">Em andamento</button>
+      <button type="button" data-tender-view="closed" role="tab" aria-selected="false">Encerradas</button>
     </div>
 
     <div class="tx-table-wrap">
@@ -7816,6 +7828,18 @@ function renderTenderManagement(){
   shell.querySelector('#txSearch')?.addEventListener('input',renderRows);
   shell.querySelector('#txStatus')?.addEventListener('change',renderRows);
   shell.querySelector('#txSort')?.addEventListener('change',renderRows);
+  shell.querySelectorAll('[data-tender-view]').forEach(button=>button.addEventListener('click',()=>{
+    const view=button.dataset.tenderView||'active';
+    shell.dataset.tenderView=view;
+    shell.querySelectorAll('[data-tender-view]').forEach(tab=>{
+      const active=tab.dataset.tenderView===view;
+      tab.classList.toggle('active',active);
+      tab.setAttribute('aria-selected',String(active));
+    });
+    const statusSelect=shell.querySelector('#txStatus');
+    if(statusSelect)statusSelect.value='all';
+    renderRows();
+  }));
 
   shell.querySelector('#txExport')?.addEventListener('click',()=>{
     exportTendersCsv(getFiltered());

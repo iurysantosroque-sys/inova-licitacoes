@@ -1,1 +1,1 @@
-36.14.9 - Faixa de 10% da precificação ajustada para laranja.
+36.15.0 - Licitações encerradas separadas em aba própria; lista principal mostra apenas as em andamento.
