@@ -3904,6 +3904,9 @@ async function loadMembershipAndData(){
   const {data:company,error:companyError}=await supabase.from('companies').select('*').eq('id',membership.company_id).single();
   if(companyError)return toast(companyError.message,'error');
   state.company=company; await refreshAll(); showOnly('appShell');
+  // Depois do carregamento inicial, atualiza todos os editais vinculados ao
+  // PNCP para completar itens que tenham sido importados de forma parcial.
+  autoSyncPncpTenders().catch(error=>console.warn('Sincronização inicial PNCP:',error));
 }
 
 async function refreshAll(){
@@ -7302,7 +7305,7 @@ async function autoSyncPncpTenders(force=false){
   if(window.__pncpAutoSyncRunning)return;
   if(window.__pncpAutoSyncDone && !force)return;
 
-  const pncpTenders=state.licitacoes.filter(l=>l.pncp_control);
+  const pncpTenders=state.licitacoes.filter(l=>l.pncp_control||pncpLinkParts(l.source_url));
   if(!pncpTenders.length)return;
 
   window.__pncpAutoSyncRunning=true;
@@ -7313,7 +7316,7 @@ async function autoSyncPncpTenders(force=false){
     for(const l of pncpTenders){
       try{
         const {data,error}=await supabase.functions.invoke('pncp-import',{
-          body:{query:l.pncp_control}
+          body:{query:l.pncp_control||l.source_url}
         });
         if(error || data?.error || data?.mode!=='detail' || !data?.tender)continue;
 

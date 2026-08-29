@@ -1,1 +1,1 @@
-36.22.2 - Complementa listas parciais com todos os itens oficiais do PNCP.
+36.22.3 - Atualiza automaticamente todos os editais vinculados ao PNCP.
