@@ -1,1 +1,1 @@
-36.23.3 - Exporta a tabela completa da precificação em PDF paisagem, com todos os itens.
+36.23.4 - Centraliza o PDF paisagem e destaca as colunas de margem com cores.
