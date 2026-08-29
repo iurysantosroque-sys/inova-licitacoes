@@ -1,1 +1,1 @@
-36.19.1 - Financeiro exibe órgão comprador e cidade na licitação.
+36.19.2 - Financeiro sem número de edital ou processo na lista.
