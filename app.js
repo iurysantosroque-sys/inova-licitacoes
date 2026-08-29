@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -9098,6 +9098,19 @@ function proposalRows(tenderId){
     .sort((a,b)=>Number(a.item.numero)-Number(b.item.numero));
 }
 
+function proposalValidityWords(value){
+  const n=Math.max(0,Math.floor(Number(value)||0));
+  const units=['zero','um','dois','tres','quatro','cinco','seis','sete','oito','nove'];
+  const teens=['dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  const tens=['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  const hundreds=['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+  const under100=x=>x<10?units[x]:x<20?teens[x-10]:`${tens[Math.floor(x/10)]}${x%10?' e '+units[x%10]:''}`;
+  const under1000=x=>x<100?under100(x):x===100?'cem':`${hundreds[Math.floor(x/100)]}${x%100?' e '+under100(x%100):''}`;
+  if(n<1000)return under1000(n);
+  if(n<10000)return `${n<2000?'mil':units[Math.floor(n/1000)]+' mil'}${n%1000?' e '+under1000(n%1000):''}`;
+  return String(n);
+}
+
 function renderProposalWorkspace(){
   const tenderSelect=$('#proposalTenderSelect');
   const issueDate=$('#proposalIssueDate');
@@ -9111,6 +9124,8 @@ function renderProposalWorkspace(){
   tenderSelect.innerHTML='<option value="">Selecione a licitação</option>'+state.licitacoes.map(tender=>`<option value="${esc(tender.id)}">${esc(tender.numero)} • ${esc(tender.orgao||tender.cidade||'Órgão não informado')}</option>`).join('');
   tenderSelect.value=state.proposalTenderId;
   issueDate.value=state.proposalIssueDate;
+  const validityInput=$('#proposalValidityDays');
+  if(validityInput)validityInput.value=state.proposalValidityDays||'60';
 
   const tender=state.licitacoes.find(row=>String(row.id)===String(state.proposalTenderId));
   if(!tender){
@@ -9142,6 +9157,8 @@ async function exportProposalPdf(){
   if(!tender)return toast('Selecione a licitação da proposta.','error');
   if(!rows.length)return toast('Preencha o VALOR GANHO dos itens antes de gerar a proposta.','error');
   if(!state.proposalIssueDate)return toast('Informe a data de emissão da proposta.','error');
+  const validityDays=Math.floor(Number(state.proposalValidityDays));
+  if(!Number.isFinite(validityDays)||validityDays<=0)return toast('Informe a validade da proposta em dias.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
 
   const button=$('#proposalPdfButton');
@@ -9199,7 +9216,7 @@ async function exportProposalPdf(){
 
     // Seção de itens: o cabeçalho é repetido em todas as páginas e o total só aparece ao final.
     const cols=[36,69,106,144,357,437,501,559];
-    const rowFont=7.15,rowGap=8.7,bottomY=82;
+    const rowFont=7.15,rowGap=8.7,bottomY=125;
     const drawTablePage=()=>{
       page=addPage();
       let headerY=700;
@@ -9255,6 +9272,9 @@ async function exportProposalPdf(){
     drawText(page,'VALOR TOTAL DA PROPOSTA:',{x:cols[6]-145,y:tableY-18,size:8.3,font:bold,color:ink});
     const totalText=moneyPdf(proposalTotal);
     drawText(page,totalText,{x:cols[6]+Math.max(3,(cols[7]-cols[6]-textWidth(totalText,7.2,bold))/2),y:tableY-18,size:7.2,font:bold,color:ink});
+    const validityText=`Declaro que o prazo de validade da presente proposta de preços é de ${validityDays} (${proposalValidityWords(validityDays)}) dias a contar da data de abertura da proposta.`;
+    const validityLines=wrap(validityText,cols[7]-cols[0]-12,8.2,font);
+    drawLines(page,validityLines,cols[0]+5,tableY-43,8.2,10,font);
 
     const bytes=await pdf.save();
     const blob=new Blob([bytes],{type:'application/pdf'});
@@ -10248,6 +10268,9 @@ $('#proposalTenderSelect')?.addEventListener('change',event=>{
 $('#proposalIssueDate')?.addEventListener('change',event=>{
   state.proposalIssueDate=event.target.value||localTodayString();
   renderProposalWorkspace();
+});
+$('#proposalValidityDays')?.addEventListener('input',event=>{
+  state.proposalValidityDays=event.target.value||'';
 });
 $('#proposalPdfButton')?.addEventListener('click',exportProposalPdf);
 let deferredInstallPrompt=null;
