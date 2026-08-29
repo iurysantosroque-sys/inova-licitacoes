@@ -7586,13 +7586,6 @@ function renderTenderManagement(){
   };
 
   const total=state.licitacoes.length;
-  const totalItems=state.itens.length;
-  const platformCounts={};
-  state.licitacoes.forEach(l=>{
-    const p=String(l.plataforma||'Não informado').split('•')[0].trim()||'Não informado';
-    platformCounts[p]=(platformCounts[p]||0)+1;
-  });
-  const mainPlatform=Object.entries(platformCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'-';
   const active=state.licitacoes.filter(l=>tenderStatusInfo(l).label!=='Encerrado').length;
   const soon=state.licitacoes.filter(l=>{
     if(!l.proposalEndAt)return false;
@@ -7640,14 +7633,6 @@ function renderTenderManagement(){
       <div class="tx-stat">
         <div class="tx-stat-icon blue">▣</div>
         <div><small>Total de editais</small><strong>${total}</strong><span>cadastrados</span></div>
-      </div>
-      <div class="tx-stat">
-        <div class="tx-stat-icon yellow">◆</div>
-        <div><small>Itens totais</small><strong>${totalItems}</strong><span>itens cadastrados</span></div>
-      </div>
-      <div class="tx-stat">
-        <div class="tx-stat-icon yellow">⚒</div>
-        <div><small>Plataforma principal</small><strong>${esc(mainPlatform)}</strong><span>Pregão - Eletrônico</span></div>
       </div>
       <div class="tx-stat">
         <div class="tx-stat-icon red">◷</div>
