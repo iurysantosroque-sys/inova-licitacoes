@@ -1,1 +1,1 @@
-36.20.0 - Exclusão de itens diretamente pelo X na célula Código.
+36.20.1 - Controles de atualizar, desfazer e refazer itens na precificação.
