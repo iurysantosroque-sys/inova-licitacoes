@@ -1,1 +1,1 @@
-36.16.5 - Marcação independente “Cotado” acima do número de cada licitação.
+36.17.0 - Aba de fornecedores com telefone, WhatsApp e indicadores de contatos.

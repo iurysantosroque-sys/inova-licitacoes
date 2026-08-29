@@ -203,6 +203,21 @@ function table(headers,rows){
   if(!rows.length) return '<p class="hint">Nenhum registro ainda.</p>';
   return `<table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
+function supplierPhone(supplier){ return String(supplier?.telefone||supplier?.raw?.phone||'').trim(); }
+function supplierPhoneLabel(value){
+  const digits=String(value||'').replace(/\D/g,'');
+  if(digits.length===13 && digits.startsWith('55')) return `+55 (${digits.slice(2,4)}) ${digits.slice(4,9)}-${digits.slice(9)}`;
+  if(digits.length===12 && digits.startsWith('55')) return `+55 (${digits.slice(2,4)}) ${digits.slice(4,8)}-${digits.slice(8)}`;
+  if(digits.length===11) return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+  if(digits.length===10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+  return value||'-';
+}
+function supplierWhatsappUrl(value){
+  const digits=String(value||'').replace(/\D/g,'');
+  if(!digits)return '';
+  const phone=digits.startsWith('55')?digits:`55${digits}`;
+  return `https://wa.me/${phone}`;
+}
 function currentCompanyId(){ return state.company?.id || null; }
 function profileName(){ return state.profile?.name || state.user?.user_metadata?.nome || state.user?.email || 'Usuário'; }
 function itemName(item){ const l=state.licitacoes.find(x=>x.id===item.licitacao_id); return `${l?.numero||'?'} • Item ${item.numero} • ${item.descricao}`; }
@@ -3906,7 +3921,7 @@ async function refreshAll(){
       raw:t
     };
   });
-  state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,cnpj:f.cnpj,contato:f.contact_name,frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
+  state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,cnpj:f.cnpj,contato:f.contact_name,telefone:f.phone||'',email:f.email||'',frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
   state.quotes=quotes.data||[];
   const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
   if(tenderDocumentsResp.error){
@@ -9167,7 +9182,15 @@ function renderAll(){
     toast('O novo Dashboard encontrou um erro e o sistema voltou ao Dashboard padrão.','error');
   }
   renderTenderManagement();
-  $('#fornecedoresLista').innerHTML=table(['Fornecedor','CNPJ','Contato','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>[esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${f.id}">Excluir</button>`]));
+  const supplierWithPhone=state.fornecedores.filter(f=>supplierPhone(f)).length;
+  const supplierWhatsapp=state.fornecedores.filter(f=>supplierWhatsappUrl(supplierPhone(f))).length;
+  const supplierList=state.fornecedores.length
+    ? table(['Fornecedor','CNPJ','Contato','Telefone / WhatsApp','Frete','Pedido mín.','Prazo',''],state.fornecedores.map(f=>{
+      const phone=supplierPhone(f); const whatsapp=supplierWhatsappUrl(phone);
+      return [esc(f.nome),esc(f.cnpj||'-'),esc(f.contato||'-'),phone?`<span class="supplier-phone">${esc(supplierPhoneLabel(phone))}</span>`:'<span class="muted">Não informado</span>',money(f.frete_padrao),money(f.pedido_minimo),f.prazo_dias?`${f.prazo_dias} dias`:'-',`<div class="supplier-actions">${whatsapp?`<a class="action-btn supplier-whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:'<span class="supplier-no-contact">Sem telefone</span>'}<button class="action-btn danger-btn" data-delete="fornecedor" data-id="${esc(f.id)}">Excluir</button></div>`];
+    }))
+    : '<p class="hint">Nenhum fornecedor cadastrado ainda.</p>';
+  $('#fornecedoresLista').innerHTML=`<div class="supplier-kpis"><article class="supplier-kpi"><span>Total de fornecedores</span><strong>${state.fornecedores.length}</strong><small>cadastrados</small></article><article class="supplier-kpi"><span>Com telefone</span><strong>${supplierWithPhone}</strong><small>contatos registrados</small></article><article class="supplier-kpi"><span>WhatsApp disponível</span><strong>${supplierWhatsapp}</strong><small>acesso em um clique</small></article></div><div class="supplier-list">${supplierList}</div>`;
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   $('#itemLicitacao').innerHTML=licOpts; $('#arquivoLicitacao').innerHTML=licOpts;
   if($('#pncpSyncTender'))$('#pncpSyncTender').innerHTML='<option value="">Selecione a licitação PNCP</option>'+state.licitacoes.filter(l=>l.pncp_control||l.source_url).map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
@@ -9216,7 +9239,7 @@ async function logout(){if(state.demo){location.reload();return;}await supabase.
 
 $('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const linkText=String(f.link_pncp||'').trim();const linkParts=linkText?pncpLinkParts(linkText):null;if(linkText&&!linkParts)return toast('Informe um link válido de edital do PNCP.','error');const sourceUrl=linkParts?`https://pncp.gov.br/app/editais/${linkParts.cnpj}/${linkParts.ano}/${linkParts.sequencial}`:'';if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',source_url:sourceUrl,proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,source_url:sourceUrl||null,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});renderAll();return;}const {error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)});if(error)return toast(error.message,'error');e.target.reset();toast('Item adicionado.');await refreshAll();});
-$('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
+$('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,cnpj:f.cnpj||'',contato:f.contato||'',telefone:f.telefone||'',frete_padrao:Number(f.frete_padrao||0),pedido_minimo:Number(f.pedido_minimo||0),prazo_dias:f.prazo_dias?Number(f.prazo_dias):null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,cnpj:f.cnpj||null,contact_name:f.contato||null,phone:f.telefone||null,default_freight_amount:Number(f.frete_padrao||0),minimum_order:Number(f.pedido_minimo||0),delivery_days:f.prazo_dias?Number(f.prazo_dias):null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
 $('#cotacaoForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const f=Object.fromEntries(new FormData(e.target));
