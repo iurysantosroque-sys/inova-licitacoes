@@ -1,1 +1,1 @@
-36.16.4 - Licitações encerradas mudam para a aba da situação manual escolhida.
+36.16.5 - Marcação independente “Cotado” acima do número de cada licitação.

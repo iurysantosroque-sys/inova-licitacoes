@@ -7440,6 +7440,9 @@ function ensureTenderExactStyles(){
     .tx-table tbody tr:last-child td{border-bottom:0!important}
     .tx-table tbody tr:hover td{background:#0d1c25}
     .tx-number{font-size:1.08rem;font-weight:800;color:#fff}
+    .tx-number-quoted{display:flex;align-items:center;gap:5px;margin-bottom:7px;color:#aebbc4;font-size:.68rem;font-weight:750;white-space:nowrap;cursor:pointer}
+    .tx-number-quoted input{width:14px;height:14px;margin:0;accent-color:#efb426;cursor:pointer}
+    .tx-number-quoted input:disabled{cursor:wait}
     .tx-agency{font-weight:700;color:#fff;line-height:1.35}
     .tx-city{line-height:1.35}
     .tx-date-main{display:flex;align-items:center;gap:7px;font-weight:700;color:#fff;white-space:nowrap}
@@ -7758,7 +7761,13 @@ function renderTenderManagement(){
 
       return `
         <tr>
-          <td><span class="tx-number">${esc(l.numero)}</span></td>
+          <td>
+            <label class="tx-number-quoted" title="Marcar licitação como cotada">
+              <input type="checkbox" data-tender-quoted="${esc(l.id)}" ${l.is_quoted?'checked':''}>
+              <span>Cotado</span>
+            </label>
+            <span class="tx-number">${esc(l.numero)}</span>
+          </td>
           <td><div class="tx-agency">${esc(l.orgao||'-')}</div></td>
           <td><div class="tx-city">${esc(l.cidade||'-')}</div></td>
 
@@ -7853,6 +7862,29 @@ function renderTenderManagement(){
       tender.situation=situation;
       renderRows();
       toast(`Situação alterada para ${tenderSituationInfo(situation).label}.`);
+    }));
+
+    tbody.querySelectorAll('[data-tender-quoted]').forEach(input=>input.addEventListener('change',async event=>{
+      const checkbox=event.currentTarget;
+      const tender=state.licitacoes.find(row=>String(row.id)===String(checkbox.dataset.tenderQuoted));
+      if(!tender)return;
+      const checked=Boolean(checkbox.checked);
+      checkbox.disabled=true;
+      if(state.demo){
+        tender.is_quoted=checked;
+        checkbox.disabled=false;
+        toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
+        return;
+      }
+      const {error}=await supabase.from('tenders').update({is_quoted:checked,updated_at:new Date().toISOString()}).eq('id',tender.id);
+      if(error){
+        checkbox.checked=!checked;
+        checkbox.disabled=false;
+        return toast(`Não foi possível atualizar a marcação: ${error.message}`,'error');
+      }
+      tender.is_quoted=checked;
+      checkbox.disabled=false;
+      toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
     }));
   };
 
