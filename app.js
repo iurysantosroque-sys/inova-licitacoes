@@ -9272,9 +9272,32 @@ async function exportProposalPdf(){
     drawText(page,'VALOR TOTAL DA PROPOSTA:',{x:cols[6]-145,y:tableY-18,size:8.3,font:bold,color:ink});
     const totalText=moneyPdf(proposalTotal);
     drawText(page,totalText,{x:cols[6]+Math.max(3,(cols[7]-cols[6]-textWidth(totalText,7.2,bold))/2),y:tableY-18,size:7.2,font:bold,color:ink});
+    // A última página reproduz as declarações do novo modelo. O marcador
+    // “( Validade )” do arquivo de referência é sempre substituído pelo
+    // número informado no formulário, incluindo sua forma por extenso.
+    page=addPage();
+    centered(page,'DECLARAÇÕES',735,13,bold);
     const validityText=`Declaro que o prazo de validade da presente proposta de preços é de ${validityDays} (${proposalValidityWords(validityDays)}) dias a contar da data de abertura da proposta.`;
-    const validityLines=wrap(validityText,cols[7]-cols[0]-12,8.2,font);
-    drawLines(page,validityLines,cols[0]+5,tableY-43,8.2,10,font);
+    const declarations=[
+      validityText,
+      'Declaro que o prazo de entrega da presente proposta é conforme estabelecido no termo de referência.',
+      'Declaro que nos preços propostos encontram-se incluídos todos os tributos, encargos sociais, trabalhistas e financeiros, taxas, seguros, montagem e frete até o destino e quaisquer outros ônus que porventura possam recair sobre o fornecimento do objeto da presente licitação e que estou de acordo com todas as normas da solicitação de propostas e seus anexos, que garantiremos a entrega dos equipamentos que nos for adjudicado, em suas respectivas quantidades e nos prazos estipulados.',
+      'Declaro que esta proposta foi elaborada de forma independente.',
+      'Declaro que garantimos a qualidade dos itens, bem como a entrega dos mesmos no prazo e na quantidade estabelecidas no termo de referência.',
+      'Declaro prazo de garantia dos itens conforme exigido no edital e no termo de referência.',
+      'Os preços mantidos na proposta escrita e naqueles que por ventura vierem a ser ofertados através de lances verbais, estão incluídos todos os encargos trabalhistas previdenciários, fiscais, comerciais, de transporte, entrega (frete) e outros de qualquer natureza que se fizerem indispensáveis à perfeita contratação do objeto da licitação.'
+    ];
+    let declarationY=700;
+    declarations.forEach(text=>{
+      const lines=wrap(text,470,8.6,font);
+      drawText(page,'-',{x:48,y:declarationY,size:8.6,font:bold,color:ink});
+      drawLines(page,lines,60,declarationY,8.6,10,font);
+      declarationY-=Math.max(20,lines.length*10+5);
+    });
+    page.drawLine({start:{x:48,y:declarationY-22},end:{x:547,y:declarationY-22},thickness:.8,color:line});
+    centered(page,'Iury Santos Roque',declarationY-43,9.5,bold);
+    centered(page,'CPF: 056.747.694-43',declarationY-56,9,font);
+    centered(page,'RG: 3960714',declarationY-69,9,font);
 
     const bytes=await pdf.save();
     const blob=new Blob([bytes],{type:'application/pdf'});
