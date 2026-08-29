@@ -7463,6 +7463,15 @@ function ensureTenderExactStyles(){
     .tx-situation-option.dispute{background:#8c7116}.tx-situation-option.won{background:#28704e}
     .tx-situation-option.lost{background:#913b3b}.tx-situation-option.delivery{background:#76428a}
     .tx-situation-option.finished{background:#666862}.tx-situation-option input:disabled{cursor:wait}
+    .tx-situation-menu{position:relative;min-width:165px}
+    .tx-situation-button{width:100%;border:1px solid #31434f;border-radius:7px;padding:8px 9px;background:#09161e;color:#fff;text-align:left;font-size:.72rem;font-weight:800;cursor:pointer}
+    .tx-situation-button.awaiting{background:#2e638f}.tx-situation-button.qualification{background:#9a5b2f}.tx-situation-button.dispute{background:#8c7116}
+    .tx-situation-button.won{background:#28704e}.tx-situation-button.lost{background:#913b3b}.tx-situation-button.delivery{background:#76428a}.tx-situation-button.finished{background:#666862}
+    .tx-situation-options{position:absolute;top:calc(100% + 5px);left:0;z-index:20;display:grid;gap:4px;width:100%;padding:6px;border:1px solid #31434f;border-radius:8px;background:#08151d;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+    .tx-situation-options[hidden]{display:none}
+    .tx-situation-options .tx-situation-option{border:0;text-align:left;width:100%}
+    .tx-situation-options .tx-situation-option[aria-current="true"]{outline:2px solid rgba(255,255,255,.75)}
+    .tx-situation-options .tx-situation-option:disabled{opacity:.6;cursor:wait}
     .tx-edital-link{
       display:inline-flex;align-items:center;justify-content:center;min-height:44px;
       padding:0 13px;border:1px solid #f0b429;border-radius:7px;
@@ -7581,7 +7590,10 @@ function renderTenderManagement(){
     const sort=shell.querySelector('#txSort')?.value||'deadline';
 
     let rows=[...state.licitacoes].filter(l=>{
-      if(tenderView!=='all'&&String(l.situation||'aguardando_disputa')!==tenderView)return false;
+      const isClosed=tenderStatusInfo(l).label==='Encerrado';
+      if(tenderView==='closed'&&!isClosed)return false;
+      if(tenderView!=='closed'&&isClosed)return false;
+      if(tenderView!=='all'&&tenderView!=='closed'&&String(l.situation||'aguardando_disputa')!==tenderView)return false;
       if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
       if(statusFilter!=='all'){
         const s=tenderStatusInfo(l);
@@ -7681,6 +7693,7 @@ function renderTenderManagement(){
     <div class="tx-list-tabs" role="tablist" aria-label="Filtrar licitações por situação">
       <button type="button" class="active" data-tender-view="all" role="tab" aria-selected="true">Todas</button>
       ${TENDER_SITUATIONS.map(item=>`<button type="button" data-tender-view="${item.value}" role="tab" aria-selected="false">${item.label}</button>`).join('')}
+      <button type="button" data-tender-view="closed" role="tab" aria-selected="false">Encerradas</button>
     </div>
 
     <div class="tx-table-wrap">
@@ -7770,8 +7783,11 @@ function renderTenderManagement(){
           </td>
 
           <td>
-            <div class="tx-situation-checks" aria-label="Situação da licitação ${esc(l.numero||'')}">
-              ${TENDER_SITUATIONS.map(item=>`<label class="tx-situation-option ${item.className}"><input type="checkbox" data-tender-situation="${esc(l.id)}" data-situation-value="${item.value}" ${String(l.situation||'aguardando_disputa')===item.value?'checked':''}><span>${item.label}</span></label>`).join('')}
+            <div class="tx-situation-menu">
+              <button type="button" class="tx-situation-button ${tenderSituationInfo(l.situation).className}" data-situation-menu="${esc(l.id)}" aria-expanded="false">${tenderSituationInfo(l.situation).label} ▾</button>
+              <div class="tx-situation-options" data-situation-options="${esc(l.id)}" hidden>
+                ${TENDER_SITUATIONS.map(item=>`<button type="button" class="tx-situation-option ${item.className}" data-tender-situation-option="${esc(l.id)}" data-situation-value="${item.value}" ${String(l.situation||'aguardando_disputa')===item.value?'aria-current="true"':''}>${item.label}</button>`).join('')}
+              </div>
             </div>
           </td>
 
@@ -7802,14 +7818,24 @@ function renderTenderManagement(){
     const count=shell.querySelector('#txCount');
     if(count)count.textContent=`Exibindo ${rows.length?1:0} a ${rows.length} de ${rows.length} editais`;
 
-    tbody.querySelectorAll('[data-tender-situation]').forEach(input=>input.addEventListener('change',async event=>{
-      const checkbox=event.currentTarget;
-      const tender=state.licitacoes.find(row=>String(row.id)===String(checkbox.dataset.tenderSituation));
+    tbody.querySelectorAll('[data-situation-menu]').forEach(button=>button.addEventListener('click',event=>{
+      const id=event.currentTarget.dataset.situationMenu;
+      const options=tbody.querySelector(`[data-situation-options="${id}"]`);
+      if(!options)return;
+      const open=options.hidden;
+      tbody.querySelectorAll('[data-situation-options]').forEach(menu=>{menu.hidden=true;});
+      tbody.querySelectorAll('[data-situation-menu]').forEach(toggle=>toggle.setAttribute('aria-expanded','false'));
+      options.hidden=!open;
+      event.currentTarget.setAttribute('aria-expanded',String(open));
+    }));
+
+    tbody.querySelectorAll('[data-tender-situation-option]').forEach(option=>option.addEventListener('click',async event=>{
+      const selected=event.currentTarget;
+      const tender=state.licitacoes.find(row=>String(row.id)===String(selected.dataset.tenderSituationOption));
       if(!tender)return;
-      const situation=checkbox.dataset.situationValue||'aguardando_disputa';
-      checkbox.checked=true;
+      const situation=selected.dataset.situationValue||'aguardando_disputa';
       const previous=tender.situation||'aguardando_disputa';
-      tbody.querySelectorAll(`[data-tender-situation="${tender.id}"]`).forEach(option=>{option.checked=option===checkbox;option.disabled=true;});
+      tbody.querySelectorAll(`[data-tender-situation-option="${tender.id}"]`).forEach(item=>item.disabled=true);
       if(state.demo){
         tender.situation=situation;
         renderRows();
@@ -7819,7 +7845,7 @@ function renderTenderManagement(){
       const {error}=await supabase.from('tenders').update({tender_situation:situation,updated_at:new Date().toISOString()}).eq('id',tender.id);
       if(error){
         tender.situation=previous;
-        tbody.querySelectorAll(`[data-tender-situation="${tender.id}"]`).forEach(option=>{option.checked=option.dataset.situationValue===previous;option.disabled=false;});
+        tbody.querySelectorAll(`[data-tender-situation-option="${tender.id}"]`).forEach(item=>item.disabled=false);
         return toast(`Não foi possível atualizar a situação: ${error.message}`,'error');
       }
       tender.situation=situation;
