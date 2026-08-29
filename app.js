@@ -9107,7 +9107,31 @@ function cancelQualificationRenewal(){
   const cancel=$('#qualificationRenewCancel');
   if(cancel)cancel.hidden=true;
   setQualificationDocumentStatus('');
+  const modal=$('#qualificationDocumentModal');
+  if(modal)modal.hidden=true;
 }
+
+function openQualificationDocumentModal(){
+  const modal=$('#qualificationDocumentModal');
+  const form=$('#qualificationDocumentForm');
+  if(!modal||!form)return;
+  state.qualificationRenewSeriesId='';
+  form.reset();
+  $('#qualificationDocumentSeries').value='';
+  $('#qualificationDocumentType').value='';
+  form.elements.issuer.value='Empresa';
+  form.elements.issued_on.value=new Date().toISOString().slice(0,10);
+  form.elements.expires_on.disabled=false;
+  form.elements.expires_on.required=true;
+  $('#qualificationDocumentSubmit').textContent='Cadastrar documento';
+  $('#qualificationRenewCancel').hidden=true;
+  setQualificationDocumentStatus('');
+  modal.hidden=false;
+  form.elements.name.focus();
+}
+
+$('#qualificationNewDocument')?.addEventListener('click',openQualificationDocumentModal);
+$('#qualificationModalClose')?.addEventListener('click',()=>{ cancelQualificationRenewal(); });
 
 function renderQualification(){
   const pending=$('#qualificationPending');
@@ -9807,7 +9831,7 @@ document.addEventListener('click',async e=>{
     form.elements.document_number.value=document.document_number||'';
     form.elements.coverage.value=document.coverage||'';
     form.elements.notes.value=document.notes||'';
-    form.elements.issued_on.value='';
+    form.elements.issued_on.value=new Date().toISOString().slice(0,10);
     form.elements.expires_on.value='';
     form.elements.has_no_expiry.checked=false;
     form.elements.expires_on.disabled=false;
@@ -9815,8 +9839,9 @@ document.addEventListener('click',async e=>{
     $('#qualificationDocumentSubmit').textContent='Salvar renovação';
     $('#qualificationRenewCancel').hidden=false;
     setQualificationDocumentStatus(`Renovando ${document.name}. Selecione o novo PDF e informe as novas datas.`);
-    form.scrollIntoView({behavior:'smooth',block:'start'});
-    form.elements.issued_on.focus();
+    const modal=$('#qualificationDocumentModal');
+    if(modal)modal.hidden=false;
+    form.elements.name.focus();
     return;
   }
 

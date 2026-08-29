@@ -584,3 +584,12 @@ tr:hover td{background:#0a141a}
 .qualification-table tbody tr:hover td{background:#0d1c24}
 .qualification-table .document-action-group{min-width:145px}
 .qualification-table .qualification-history{margin-top:9px;padding-top:8px}
+.qualification-modal{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:rgba(2,8,12,.78)}
+.qualification-modal[hidden]{display:none}
+.qualification-modal-card{width:min(680px,100%);max-height:calc(100vh - 40px);overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0a171e;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.qualification-modal-title{margin-bottom:16px}
+.qualification-modal-title h2{margin:0;color:var(--gold)}
+.qualification-modal .icon-btn{border:0;background:transparent;color:#f4f5f6;font-size:1.7rem;line-height:1;cursor:pointer}
+.qualification-modal .qualification-document-form{margin-top:0}
+.qualification-modal .qualification-form-actions{grid-column:1/-1;flex-direction:row;align-items:stretch}
+.qualification-modal .qualification-form-actions button{width:auto;min-width:150px}

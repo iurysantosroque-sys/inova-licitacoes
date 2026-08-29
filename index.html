@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.25.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.25.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.25.0" />
-  <link rel="stylesheet" href="styles.css?v=36.25.0" />
-  <script src="./app-config.js?v=36.25.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.26.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.26.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.26.0" />
+  <link rel="stylesheet" href="styles.css?v=36.26.0" />
+  <script src="./app-config.js?v=36.26.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -327,45 +327,36 @@
               <div class="panel-title">
                 <div>
                   <h2>Biblioteca fiscal da empresa</h2>
-                  <p class="hint">Cadastre cada PDF uma vez e reutilize sua versão em vários pregões. Renovações preservam o histórico.</p>
+                  <p class="hint">Consulte suas certidões e acompanhe a data de vencimento.</p>
                 </div>
-                <span class="badge neutral">PDF • até 25 MB</span>
+                <button type="button" id="qualificationNewDocument" class="primary-action">+ Novo Documento</button>
               </div>
+              <div id="qualificationDocumentModal" class="qualification-modal" hidden>
+                <div class="qualification-modal-card" role="dialog" aria-modal="true" aria-labelledby="qualificationModalTitle">
+                  <div class="panel-title qualification-modal-title"><div><h2 id="qualificationModalTitle">Novo documento</h2><p class="hint">Informe o nome, a validade e anexe o PDF.</p></div><button type="button" id="qualificationModalClose" class="icon-btn" aria-label="Fechar">×</button></div>
               <form id="qualificationDocumentForm" class="grid-form qualification-document-form">
                 <input type="hidden" name="document_series_id" id="qualificationDocumentSeries" />
-                <label>Uso do documento
-                  <select name="tender_id" id="qualificationDocumentTender"><option value="">Geral da empresa</option></select>
+                <input type="hidden" name="tender_id" id="qualificationDocumentTender" value="" />
+                <label>Tipo de documento
+                  <input name="document_type" id="qualificationDocumentType" list="qualificationDocumentTypes" maxlength="120" placeholder="Ex.: FGTS, Federal, Estadual" required />
                 </label>
-                <label>Tipo do documento
-                  <input name="document_type" id="qualificationDocumentType" list="qualificationDocumentTypes" maxlength="120" placeholder="Ex.: FGTS/CRF" required />
+                <input type="hidden" name="issuer" value="Empresa" />
+                <input type="hidden" name="document_number" value="" />
+                <input type="hidden" name="issued_on" value="" />
+                <input type="hidden" name="coverage" value="" />
+                <input type="hidden" name="notes" value="" />
+                <label>Nome da documentação
+                  <input name="name" maxlength="180" placeholder="Ex.: Certidão negativa de débitos" required />
                 </label>
-                <label>Nome do documento
-                  <input name="name" maxlength="180" placeholder="Ex.: Certificado de Regularidade do FGTS" required />
-                </label>
-                <label>Órgão emissor
-                  <input name="issuer" maxlength="160" placeholder="Ex.: Caixa Econômica Federal" required />
-                </label>
-                <label>Número (opcional)
-                  <input name="document_number" maxlength="100" />
-                </label>
-                <label>Data de emissão
-                  <input name="issued_on" type="date" required />
-                </label>
-                <label>Data de validade
+                <label>Data de vencimento
                   <input name="expires_on" id="qualificationExpiresOn" type="date" required />
-                </label>
-                <label class="toggle-line qualification-no-expiry">
-                  <input name="has_no_expiry" id="qualificationNoExpiry" type="checkbox" />
-                  Documento sem validade definida
-                </label>
-                <label>Abrangência
-                  <input name="coverage" maxlength="180" placeholder="Ex.: nacional, estadual ou municipal" />
-                </label>
-                <label class="qualification-notes">Observações
-                  <textarea name="notes" maxlength="1200" rows="2"></textarea>
                 </label>
                 <label>Arquivo PDF
                   <input name="file" type="file" accept=".pdf,application/pdf" required />
+                </label>
+                <label class="toggle-line qualification-no-expiry">
+                  <input name="has_no_expiry" id="qualificationNoExpiry" type="checkbox" />
+                  Documento sem vencimento
                 </label>
                 <div class="qualification-form-actions">
                   <button type="submit" id="qualificationDocumentSubmit">Cadastrar documento</button>
@@ -374,6 +365,8 @@
               </form>
               <div id="qualificationDocumentPermission" class="notice compact" aria-live="polite"></div>
               <div id="qualificationDocumentStatus" class="document-status" role="status" aria-live="polite" hidden></div>
+                </div>
+              </div>
             </div>
 
             <div class="panel">
@@ -516,7 +509,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-              <div class="footer-status"><span>Versão 36.25.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+              <div class="footer-status"><span>Versão 36.26.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -532,6 +525,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.25.0"></script>
+  <script type="module" src="./app.js?v=36.26.0"></script>
 </body>
 </html>

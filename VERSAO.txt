@@ -1,1 +1,1 @@
-36.25.0 - Habilitação fiscal agora é exibida em planilha com status e ações na mesma linha.
+36.26.0 - Simplifica o cadastro fiscal com botão Novo Documento e janela de inclusão.
