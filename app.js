@@ -2428,6 +2428,7 @@ function ensureQuoteWorkspaceStyles(){
     #cotacoes .quote-table-actions button{white-space:nowrap}
     #cotacoes .quote-empty-list{padding:28px 18px;text-align:center;color:var(--qw-muted)}
     #cotacoes .quote-sheet-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;color:var(--qw-muted);font-size:.76rem}
+    #cotacoes .quote-export-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
     #cotacoes .quote-sheet-actions{display:flex;gap:6px;align-items:center}
     #cotacoes .quote-sheet-actions button{min-width:36px;padding-inline:10px}
     #cotacoes .quote-sheet-scroll{overflow:auto;border:1px solid var(--qw-line);border-radius:10px}
@@ -4115,7 +4116,42 @@ function renderQuoteSheet(){
   const canUndo=state.quoteUndoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const canRedo=state.quoteRedoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const rowMarkup=items.map(i=>`<tr><td><div class="quote-sheet-item"><button type="button" class="quote-sheet-remove" data-quote-delete-item="${esc(i.id)}" title="Excluir item da cotação" aria-label="Excluir item ${esc(i.numero)}">×</button><span>${esc(i.descricao||'-')}</span></div></td><td>${esc(i.unidade||'-')}</td><td>${esc(i.quantidade??'-')}</td></tr>`).join('');
-  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ Baixar PDF</button></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
+  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div><div class="quote-export-actions"><button type="button" class="action-btn quote-export-btn" id="quoteExportPdf" ${items.length?'':'disabled'}>⇩ PDF</button><button type="button" class="action-btn quote-export-btn" id="quoteExportWord" ${items.length?'':'disabled'}>⇩ Word</button><button type="button" class="action-btn quote-export-btn" id="quoteExportExcel" ${items.length?'':'disabled'}>⇩ Excel</button></div></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
+}
+
+function quoteExportSafePart(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';}
+
+function quoteExportItems(tender){
+  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  return state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));
+}
+
+async function exportQuoteWord(){
+  const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
+  const items=quoteExportItems(tender);if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
+  if(!window.docx)return toast('O gerador de Word ainda está carregando. Tente novamente.','error');
+  try{
+    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType,ImageRun,Header,BorderStyle}=window.docx;
+    const sourceBlob=await fetch('assets/papel-timbrado.png').then(r=>r.blob());
+    const bitmap=await createImageBitmap(sourceBlob);const canvas=document.createElement('canvas');const cropHeight=Math.min(bitmap.height,430);canvas.width=bitmap.width;canvas.height=cropHeight;canvas.getContext('2d').drawImage(bitmap,0,0,bitmap.width,cropHeight,0,0,canvas.width,cropHeight);bitmap.close();
+    const imageBytes=new Uint8Array(await (await fetch(canvas.toDataURL('image/png'))).arrayBuffer());
+    const borders={top:{style:BorderStyle.SINGLE,size:4,color:'B9B9B9'},bottom:{style:BorderStyle.SINGLE,size:4,color:'B9B9B9'},left:{style:BorderStyle.SINGLE,size:4,color:'B9B9B9'},right:{style:BorderStyle.SINGLE,size:4,color:'B9B9B9'},insideHorizontal:{style:BorderStyle.SINGLE,size:4,color:'D6D6D6'},insideVertical:{style:BorderStyle.SINGLE,size:4,color:'D6D6D6'}};
+    const cell=(value,bold=false)=>new TableCell({children:[new Paragraph({children:[new TextRun({text:String(value??'-'),bold,size:18,font:'Arial'})]})]});
+    const rows=[new TableRow({children:[cell('NOME DO ITEM',true),cell('UNIDADE',true),cell('QUANTIDADE',true)]}),...items.map(item=>new TableRow({children:[cell(item.descricao||'-'),cell(item.unidade||'-'),cell(item.quantidade??'-')]}))];
+    const doc=new Document({sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},headers:{default:new Header({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:imageBytes,transformation:{width:550,height:190}})]})]})},children:[new Paragraph({spacing:{before:160,after:60},children:[new TextRun({text:'TABELA DE COTAÇÃO',bold:true,size:30,font:'Arial'})]}),new Paragraph({spacing:{after:40},children:[new TextRun({text:`${tender.cidade||''} • Edital ${tender.numero||'-'}`,bold:true,size:20,font:'Arial'})]}),new Paragraph({spacing:{after:140},children:[new TextRun({text:String(tender.orgao||'Órgão comprador'),size:18,font:'Arial'})]}),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders,rows})]}]});
+    const blob=await Packer.toBlob(doc);const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`cotacao-${quoteExportSafePart(tender.cidade)}-edital-${quoteExportSafePart(tender.numero)}.docx`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+  }catch(error){console.error('Exportação Word:',error);toast('Não foi possível gerar o arquivo Word. Tente novamente.','error');}
+}
+
+function exportQuoteExcel(){
+  const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
+  const items=quoteExportItems(tender);if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
+  if(!window.XLSX)return toast('O gerador de Excel ainda está carregando. Tente novamente.','error');
+  const rows=[['TABELA DE COTAÇÃO'],[`${tender.cidade||''} • Edital ${tender.numero||'-'}`],[String(tender.orgao||'Órgão comprador')],[],['NOME DO ITEM','UNIDADE','QUANTIDADE'],...items.map(item=>[String(item.descricao||'-'),String(item.unidade||'-'),item.quantidade??'-'])];
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}},{s:{r:2,c:0},e:{r:2,c:2}}];ws['!cols']=[{wch:70},{wch:18},{wch:16}];
+  const style=(r,c,fill,bold)=>{const cellRef=XLSX.utils.encode_cell({r,c});if(!ws[cellRef])return;ws[cellRef].s={font:{name:'Arial',sz:11,bold:!!bold,color:{rgb:'1F1F1F'}},fill:fill?{patternType:'solid',fgColor:{rgb:fill}}:undefined,alignment:{vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:'B9B9B9'}},bottom:{style:'thin',color:{rgb:'B9B9B9'}},left:{style:'thin',color:{rgb:'B9B9B9'}},right:{style:'thin',color:{rgb:'B9B9B9'}}}};};
+  style(0,0,'FFFFFF',true);style(1,0,'FFFFFF',true);style(2,0,'FFFFFF',false);for(let c=0;c<3;c++)style(4,c,'E6B94A',true);for(let r=5;r<rows.length;r++)for(let c=0;c<3;c++)style(r,c,'FFFFFF',false);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cotação');XLSX.writeFile(wb,`cotacao-${quoteExportSafePart(tender.cidade)}-edital-${quoteExportSafePart(tender.numero)}.xlsx`);
 }
 
 async function exportQuotePdf(){
@@ -9885,7 +9921,7 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   startAutomaticQuoteImport();
 });
 $('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
-document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();});
+document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();if(e.target.closest('#quoteExportWord'))exportQuoteWord();if(e.target.closest('#quoteExportExcel'))exportQuoteExcel();});
 document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
   setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
 }));

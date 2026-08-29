@@ -1,1 +1,1 @@
-36.21.12 - Linha da cotação mostra somente a quantidade de itens.
+36.22.0 - Exportação de cotações em Word timbrado e Excel.
