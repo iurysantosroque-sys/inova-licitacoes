@@ -1,1 +1,1 @@
-36.21.2 - PDF de cotação com numeração separada e títulos em negrito.
+36.21.3 - Papel timbrado aplicado em todas as páginas do PDF de cotação.
