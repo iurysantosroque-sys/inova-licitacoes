@@ -1,1 +1,1 @@
-36.22.6 - Ajusta o papel timbrado no Word e evita página em branco antes da tabela.
+36.22.7 - Usa o papel timbrado Word fornecido na exportação de cotações.
