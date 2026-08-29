@@ -7024,17 +7024,15 @@ function renderPricingExactModel(){
 
     <dialog id="pricingItemDialog" class="pricing-item-dialog" aria-labelledby="pricingItemDialogTitle">
       <form id="pricingItemForm" method="dialog">
-        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar cotação</h2><p>${esc(tender?.numero||'Selecione uma licitação')}</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
+        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar cotação por PDF</h2><p>${esc(tender?.numero||'Selecione uma licitação')} • o sistema lerá os valores do fornecedor</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
         <div class="pricing-item-form-grid">
-          <label class="pricing-item-description-field">Item do edital<select name="item_id" required>${items.map(item=>`<option value="${esc(item.id)}">${esc(item.numero)} • ${esc(item.descricao)}</option>`).join('')}</select></label>
-          <label>Fornecedor<select name="fornecedor_id" required>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="">Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label>Preço unitário<input name="preco" type="number" min="0.0001" step="0.0001" required placeholder="0,00"></label>
-          <label>Qtd. por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required></label>
-          <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.0001" value="0"></label>
-          <label>Marca <small>(opcional)</small><input name="marca" maxlength="180"></label>
-          <label class="pricing-item-description-field">Apresentação <small>(opcional)</small><input name="apresentacao" maxlength="180" placeholder="Ex.: caixa com 12 unidades"></label>
+          <input type="hidden" id="quoteImportTender" value="${esc(tenderId)}">
+          <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="">Nenhum fornecedor cadastrado</option>'}</select></label>
+          <label class="pricing-item-description-field">PDF da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,application/pdf" required></label>
         </div>
-        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button type="submit">Salvar cotação</button></div>
+        <div id="quoteImportStatus" class="hint" role="status" aria-live="polite">Selecione o PDF enviado pelo fornecedor. A leitura começará automaticamente.</div>
+        <div id="quoteImportProgress" class="hint" hidden></div><div id="quoteImportPreview" hidden></div><button id="quoteRetryBtn" type="button" hidden>Tentar novamente</button>
+        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button></div>
       </form>
     </dialog>`;
 
@@ -7059,18 +7057,16 @@ function renderPricingExactModel(){
   const dialog=shell.querySelector('#pricingItemDialog');
   shell.querySelector('#pricingAddItemButton')?.addEventListener('click',()=>{
     if(!tender)return;
-    // As cotações são recebidas em PDF do fornecedor e lidas pela aba Cotações.
-    // O botão da precificação apenas abre esse fluxo já apontando para o edital.
     state.quoteViewTenderId=tenderId;
-    state.quoteWorkspaceSection='import';
-    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
-    setTimeout(()=>{
-      const importTender=$('#quoteImportTender');
-      if(importTender)importTender.value=tenderId;
-      renderQuotesWorkspace();
-      $('#quoteImportSupplier')?.focus();
-    },0);
+    state.quoteImportContext=null;
+    state.quoteImportRows=[];
+    state.quoteImportLastError=false;
+    if(typeof dialog.showModal==='function')dialog.showModal();
+    else dialog.setAttribute('open','');
+    dialog.querySelector('#quoteImportSupplier')?.focus();
   });
+  shell.querySelector('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());
+  shell.querySelector('#quoteImportFile')?.addEventListener('change',()=>startAutomaticQuoteImport());
   shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
   dialog?.addEventListener('click',event=>{
     if(event.target===dialog)dialog.close?.();

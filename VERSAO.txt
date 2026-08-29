@@ -1,1 +1,1 @@
-36.23.0 - Abre a importação de PDF do fornecedor diretamente pela precificação.
+36.23.1 - Abre uma janela sobreposta para enviar e ler o PDF do fornecedor.
