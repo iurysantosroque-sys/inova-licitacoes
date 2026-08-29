@@ -1,1 +1,1 @@
-36.22.9 - Renomeia e transforma o botão de item em cadastro de cotação por licitação.
+36.23.0 - Abre a importação de PDF do fornecedor diretamente pela precificação.

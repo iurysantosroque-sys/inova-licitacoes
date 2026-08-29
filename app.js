@@ -7016,7 +7016,7 @@ function renderPricingExactModel(){
                   <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.10)}</td>
                   <td class="pricing-sheet-winning"><input type="number" min="0" step="0.01" inputmode="decimal" value="${row.winningUnit??''}" data-winning-input="${esc(row.item.id)}" aria-label="Valor ganho unitário do item ${esc(row.item.numero)}"><small data-winning-status></small></td>
                   <td class="pricing-sheet-profit" data-profit-output>${pricingSheetMoney(row.profit)}</td>
-                </tr>`).join(''):'<tr><td colspan="17" class="pricing-sheet-empty">Esta licitação ainda não possui itens. Use “Adicionar novo item”.</td></tr>'}
+                </tr>`).join(''):'<tr><td colspan="17" class="pricing-sheet-empty">Esta licitação ainda não possui itens. Cadastre os itens na aba Licitações antes de importar uma cotação.</td></tr>'}
             </tbody>
           </table>
         </div>`:'<div class="pricing-sheet-empty">Cadastre uma licitação para criar sua tabela de precificação automaticamente.</div>'}
@@ -7059,9 +7059,17 @@ function renderPricingExactModel(){
   const dialog=shell.querySelector('#pricingItemDialog');
   shell.querySelector('#pricingAddItemButton')?.addEventListener('click',()=>{
     if(!tender)return;
-    if(typeof dialog.showModal==='function')dialog.showModal();
-    else dialog.setAttribute('open','');
-    dialog.querySelector('[name="descricao"]')?.focus();
+    // As cotações são recebidas em PDF do fornecedor e lidas pela aba Cotações.
+    // O botão da precificação apenas abre esse fluxo já apontando para o edital.
+    state.quoteViewTenderId=tenderId;
+    state.quoteWorkspaceSection='import';
+    document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+    setTimeout(()=>{
+      const importTender=$('#quoteImportTender');
+      if(importTender)importTender.value=tenderId;
+      renderQuotesWorkspace();
+      $('#quoteImportSupplier')?.focus();
+    },0);
   });
   shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
   dialog?.addEventListener('click',event=>{
