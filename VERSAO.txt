@@ -1,1 +1,1 @@
-36.22.7 - Usa o papel timbrado Word fornecido na exportação de cotações.
+36.22.8 - Mantém somente a exportação PDF nas cotações.
