@@ -1,1 +1,1 @@
-36.21.3 - Papel timbrado aplicado em todas as páginas do PDF de cotação.
+36.21.4 - Seletor de cotação mostra apenas licitações não cotadas.

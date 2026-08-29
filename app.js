@@ -3969,7 +3969,8 @@ async function refreshAll(){
 
 
 function quoteTenderOptions(selectedId=''){
-  return '<option value="">Nenhum edital disponível</option>'+state.licitacoes.map(l=>
+  const available=state.licitacoes.filter(l=>!l.is_quoted);
+  return (available.length?'':'<option value="">Nenhum edital disponível</option>')+available.map(l=>
     `<option value="${l.id}" ${String(l.id)===String(selectedId)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`
   ).join('');
 }
@@ -4108,8 +4109,9 @@ async function exportQuotePdf(){
 
 function renderQuotesWorkspace(){
   ensureQuoteWorkspaceStyles();
-  const exists=state.licitacoes.some(l=>String(l.id)===String(state.quoteViewTenderId));
-  if(!exists)state.quoteViewTenderId=state.licitacoes[0]?.id||'';
+  const availableTenders=state.licitacoes.filter(l=>!l.is_quoted);
+  const exists=availableTenders.some(l=>String(l.id)===String(state.quoteViewTenderId));
+  if(!exists)state.quoteViewTenderId=availableTenders[0]?.id||'';
   const tenderId=state.quoteViewTenderId||'';
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   restoreQuoteReviewDraft(tenderId);
