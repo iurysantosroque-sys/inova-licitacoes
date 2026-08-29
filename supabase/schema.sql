@@ -46,7 +46,7 @@ create table public.tender_items (
 );
 create table public.suppliers (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
-  name text not null, cnpj text, contact_name text, phone text, email text, freight_notes text,
+  name text not null, trade_name text, cnpj text, state_uf text, contact_name text, phone text, email text, freight_notes text,
   minimum_order numeric not null default 0 check(minimum_order>=0), default_freight_amount numeric not null default 0 check(default_freight_amount>=0),
   delivery_days integer check(delivery_days is null or delivery_days>=0), created_at timestamptz not null default now()
 );

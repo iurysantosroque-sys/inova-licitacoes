@@ -1,1 +1,1 @@
-36.17.9 - Cadastro simplificado com vendedor e WhatsApp manual.
+36.18.0 - Edição de fornecedores, UF automática e nome fantasia manual.
