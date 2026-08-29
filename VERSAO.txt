@@ -1,1 +1,1 @@
-36.19.2 - Financeiro sem número de edital ou processo na lista.
+36.19.3 - Ver edital sobreposto no Financeiro com dados e itens da licitação.
