@@ -6802,11 +6802,6 @@ function renderPricingExactModel(){
 
     <section class="pricing-sheet-meta" aria-label="Dados da licitação selecionada">
       <dl><div><dt>MUNICÍPIO</dt><dd>${esc(municipality)}</dd></div><div><dt>EDITAL</dt><dd>${esc(tender?.numero||'Pendente')}</dd></div><div><dt>DATA FINAL</dt><dd>${esc(deadline)}</dd></div></dl>
-      <div class="pricing-sheet-tax">
-        <label for="pricingTaxInput">Imposto (%)</label>
-        <input id="pricingTaxInput" type="number" min="0" max="99.99" step="0.01" inputmode="decimal" value="${esc(tax)}">
-        <button id="pricingTaxSave" type="button">Aplicar</button>
-      </div>
     </section>
 
     <section class="pricing-sheet-table-card" aria-labelledby="pricingItemsTitle">

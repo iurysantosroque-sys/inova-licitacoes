@@ -1,1 +1,1 @@
-36.14.5 - Configuração de custos em aba própria e visual da precificação simplificado.
+36.14.6 - Remove o imposto duplicado da tabela; configuração fica somente em Custos e margens.
