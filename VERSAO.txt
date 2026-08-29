@@ -1,1 +1,1 @@
-36.21.1 - PDF de cotação com texto quebrado e grades de tabela.
+36.21.2 - PDF de cotação com numeração separada e títulos em negrito.
