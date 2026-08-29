@@ -1,1 +1,1 @@
-36.27.0 - Ajusta o botão Novo Documento ao padrão visual das ações principais.
+36.28.0 - Alinha a barra de ações da aba Cotações ao padrão visual do aplicativo.

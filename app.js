@@ -2385,8 +2385,13 @@ function ensureQuoteWorkspaceStyles(){
     #cotacoes .quote-workspace-header{display:flex;justify-content:space-between;align-items:end;gap:24px;margin:0 0 14px;padding:20px;border:1px solid var(--qw-line);border-radius:14px;background:linear-gradient(135deg,#0b1c26,#081720)}
     #cotacoes .quote-workspace-header h1{margin:0;color:var(--qw-text);font-size:1.55rem}
     #cotacoes .quote-workspace-header p{margin:6px 0 0;color:var(--qw-muted)}
+    #cotacoes .quote-workspace-actions{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
     #cotacoes .quote-tender-field{display:grid;gap:7px;min-width:min(390px,44vw);color:#c9d4da;font-size:.78rem;font-weight:800}
     #cotacoes .quote-tender-field select{width:100%;min-height:44px}
+    #cotacoes .quote-toolbar-button{min-height:44px;border:1px solid var(--gold);border-radius:10px;padding:0 15px;background:var(--gold);color:#090d10;font-weight:800;white-space:nowrap}
+    #cotacoes .quote-toolbar-button:hover{filter:brightness(1.06)}
+    #cotacoes .quote-toolbar-button.quote-toolbar-outline{background:transparent;color:var(--gold)}
+    #cotacoes .quote-toolbar-button:disabled{opacity:.45;cursor:not-allowed;filter:none}
     #cotacoes .quote-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
     #cotacoes .quote-summary-card{padding:14px 16px;border:1px solid var(--qw-line);border-radius:11px;background:var(--qw-card)}
     #cotacoes .quote-summary-card span{display:block;color:var(--qw-muted);font-size:.72rem}
@@ -2459,6 +2464,8 @@ function ensureQuoteWorkspaceStyles(){
     @media(max-width:760px){
       #cotacoes .quote-workspace-header{align-items:stretch;flex-direction:column;padding:16px}
       #cotacoes .quote-tender-field{min-width:0;width:100%}
+      #cotacoes .quote-workspace-actions{align-items:stretch}
+      #cotacoes .quote-toolbar-button{flex:1}
       #cotacoes .quote-summary{grid-template-columns:1fr}
       #cotacoes .quote-manual-form{grid-template-columns:1fr}
       #cotacoes .quote-manual-form>*{grid-column:1!important}
@@ -4237,6 +4244,8 @@ function renderQuotesWorkspace(){
     globalSelect.value=tenderId;
     globalSelect.disabled=!state.licitacoes.length;
   }
+  $('#quoteHeaderPdf')?.toggleAttribute('disabled',!tenderItems.length);
+  $('#quoteHeaderAdd')?.toggleAttribute('disabled',!tender);
   const importTender=$('#quoteImportTender');
   if(importTender){
     importTender.innerHTML=quoteTenderOptions(tenderId);
@@ -10044,6 +10053,14 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   state.quoteWorkspaceSection='import';
   renderQuotesWorkspace();
   startAutomaticQuoteImport();
+});
+$('#quoteHeaderCosts')?.addEventListener('click',()=>renderCostSettings());
+$('#quoteHeaderPdf')?.addEventListener('click',()=>exportQuotePdf());
+$('#quoteHeaderAdd')?.addEventListener('click',()=>{
+  if(!state.quoteViewTenderId)return toast('Selecione uma licitação primeiro.','error');
+  const pricingTab=document.querySelector('[data-tab="precificacao"]');
+  if(pricingTab)pricingTab.click();
+  setTimeout(()=>document.querySelector('#pricingAddItemButton')?.click(),0);
 });
 $('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
 document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();});
