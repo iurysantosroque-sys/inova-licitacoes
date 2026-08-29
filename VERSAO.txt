@@ -1,1 +1,1 @@
-36.26.0 - Simplifica o cadastro fiscal com botão Novo Documento e janela de inclusão.
+36.27.0 - Ajusta o botão Novo Documento ao padrão visual das ações principais.

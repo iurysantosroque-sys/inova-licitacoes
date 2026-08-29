@@ -593,3 +593,5 @@ tr:hover td{background:#0a141a}
 .qualification-modal .qualification-document-form{margin-top:0}
 .qualification-modal .qualification-form-actions{grid-column:1/-1;flex-direction:row;align-items:stretch}
 .qualification-modal .qualification-form-actions button{width:auto;min-width:150px}
+.qualification-new-button{border:1px solid var(--gold);border-radius:10px;padding:12px 16px;background:var(--gold);color:#090d10;font-weight:800;white-space:nowrap}
+.qualification-new-button:hover{filter:brightness(1.06)}
