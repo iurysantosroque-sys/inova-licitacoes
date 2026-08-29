@@ -1,1 +1,1 @@
-36.14.1 - Precificação em tabela com leitura em lotes para licitações com muitos itens.
+36.14.2 - Consultas ao PNCP com até 3 tentativas automáticas, mantendo a precificação em lotes para muitos itens.

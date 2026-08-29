@@ -907,6 +907,24 @@ function setPncpStatus(message,type='loading'){
   el.textContent=message||'';
 }
 
+async function invokePncpWithRetry(body,onAttempt,maxAttempts=3,delayMs=700){
+  let lastResponse={data:null,error:null};
+  for(let attempt=1;attempt<=maxAttempts;attempt++){
+    onAttempt?.(attempt,maxAttempts);
+    try{
+      lastResponse=await supabase.functions.invoke('pncp-import',{body});
+    }catch(error){
+      lastResponse={data:null,error};
+    }
+
+    if(!lastResponse?.error&&!lastResponse?.data?.error)return lastResponse;
+    if(attempt<maxAttempts){
+      await new Promise(resolve=>setTimeout(resolve,delayMs));
+    }
+  }
+  return lastResponse;
+}
+
 function clearPncpPreview(){
   state.pncpPreview=null;
   const el=$('#pncpPreview');
@@ -1026,21 +1044,15 @@ async function searchPncp(query){
     return;
   }
 
-  setPncpStatus('Consultando o PNCP…','loading');
   if(state.demo || !configured || !supabase || !state.user){
     setPncpStatus('A consulta ao PNCP exige uma sessão online. No modo demonstração, use os editais fictícios já carregados.','warn');
     return;
   }
 
-  let data,error;
-  try{
-    ({data,error}=await supabase.functions.invoke('pncp-import',{
-      body:{query}
-    }));
-  }catch(err){
-    setPncpStatus(`Não foi possível consultar o PNCP: ${err?.message||err}`,'error');
-    return;
-  }
+  const {data,error}=await invokePncpWithRetry(
+    {query},
+    (attempt,total)=>setPncpStatus(`Consultando o PNCP… tentativa ${attempt} de ${total}`,'loading')
+  );
 
   if(error){
     setPncpStatus(`Não foi possível consultar o PNCP: ${error.message}`,'error');
@@ -1062,7 +1074,6 @@ async function searchPncp(query){
 
 async function openPncpResult(btn){
   const control=btn.dataset.pncpControl;
-  setPncpStatus('Carregando dados e itens do edital…','loading');
   clearPncpPreview();
   if(state.demo || !configured || !supabase || !state.user){
     setPncpStatus('A abertura de editais do PNCP está disponível somente com sessão online.','warn');
@@ -1073,13 +1084,20 @@ async function openPncpResult(btn){
     ? {query:control}
     : {query:'detalhe',cnpj:btn.dataset.pncpCnpj,ano:Number(btn.dataset.pncpYear),sequencial:Number(btn.dataset.pncpSeq)};
 
-  const {data,error}=await supabase.functions.invoke('pncp-import',{body:payload});
+  const {data,error}=await invokePncpWithRetry(
+    payload,
+    (attempt,total)=>setPncpStatus(`Carregando dados e itens do edital… tentativa ${attempt} de ${total}`,'loading')
+  );
   if(error){
     setPncpStatus(`Erro ao abrir edital: ${error.message}`,'error');
     return;
   }
   if(data?.error){
     setPncpStatus(data.error,'error');
+    return;
+  }
+  if(data?.mode!=='detail'){
+    setPncpStatus('O PNCP não retornou os detalhes desse edital. Tente novamente em instantes.','error');
     return;
   }
   setPncpStatus(`Dados carregados. Revise e importe quando estiver pronto.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');
@@ -1211,10 +1229,11 @@ async function syncPncpItems(){
 
   const btn=$('#pncpSyncBtn');
   if(btn){btn.disabled=true;btn.textContent='Atualizando…';}
-  setPncpSyncStatus('Consultando itens no PNCP…','loading');
-
   try{
-    const {data,error}=await supabase.functions.invoke('pncp-import',{body:{query}});
+    const {data,error}=await invokePncpWithRetry(
+      {query},
+      (attempt,total)=>setPncpSyncStatus(`Consultando itens no PNCP… tentativa ${attempt} de ${total}`,'loading')
+    );
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
     const rows=Array.isArray(data?.items)?data.items:[];

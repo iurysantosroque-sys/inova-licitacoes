@@ -1,10 +1,11 @@
-INOVA V36.14.1
+INOVA V36.14.2
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.
 - O PDF completo é conferido pela IA; leituras parciais não descartam produtos.
 - Precificação por licitação em tabela direta, com fórmulas da planilha modelo e inclusão de novos itens.
 - Leitura dos resultados em lotes para licitações com muitos itens.
+- Consultas ao PNCP com até 3 tentativas automáticas antes de informar falha.
 - Associação por IA com validação e revisão humana.
 - Upload privado validado e PWA com cache atualizável.
 - Schema, hardening e Edge Functions atuais versionados.
