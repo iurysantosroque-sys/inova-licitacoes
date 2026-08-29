@@ -2132,6 +2132,27 @@ function offerStoredAiQuoteRetry(tenderId,supplierId){
   return true;
 }
 
+async function archiveQuoteFile(tenderId,supplierId,file){
+  if(!tenderId||!supplierId)throw new Error('Selecione a licitação e o fornecedor.');
+  if(state.demo || !configured || !supabase)throw new Error('O arquivamento privado funciona somente no modo online.');
+  const ext=file?.name?.toLowerCase().split('.').pop()||'';
+  if(!QUOTE_FILE_EXTENSIONS.has(ext))throw new Error('Formato não suportado. Use PDF, Excel ou CSV.');
+  if(file.size>MAX_QUOTE_FILE_SIZE)throw new Error('O arquivo excede o limite de 25 MB.');
+  if(file.type && !QUOTE_FILE_MIME_TYPES.has(String(file.type).toLowerCase()))throw new Error('O tipo do arquivo não corresponde a PDF, Excel ou CSV.');
+  const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const inferredMime={pdf:'application/pdf',csv:'text/csv',xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}[ext];
+  const {data:q,error:qErr}=await supabase.from('quotes').insert({company_id:currentCompanyId(),tender_id:tenderId,supplier_id:supplierId,source_filename:file.name,source_type:ext,status:'uploaded',created_by:state.user.id}).select().single();
+  if(qErr)throw qErr;
+  const path=`${currentCompanyId()}/${q.id}/${Date.now()}-${safe}`;
+  const contentType=!file.type||file.type==='application/octet-stream'?inferredMime:file.type;
+  const {error:upErr}=await supabase.storage.from('quote-files').upload(path,file,{upsert:false,contentType});
+  if(upErr){await supabase.from('quotes').delete().eq('id',q.id);throw upErr;}
+  const {error:uErr}=await supabase.from('quotes').update({storage_path:path}).eq('id',q.id);
+  if(uErr){await supabase.storage.from('quote-files').remove([path]);await supabase.from('quotes').delete().eq('id',q.id);throw uErr;}
+  await refreshAll();
+  return q;
+}
+
 async function startAutomaticQuoteImport(force=false){
   const tenderId=$('#quoteImportTender')?.value||'';
   const supplierId=$('#quoteImportSupplier')?.value||'';
@@ -7066,15 +7087,16 @@ function renderPricingExactModel(){
 
     <dialog id="pricingItemDialog" class="pricing-item-dialog" aria-labelledby="pricingItemDialogTitle">
       <form id="pricingItemForm" method="dialog">
-        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar cotação por PDF</h2><p>${esc(tender?.numero||'Selecione uma licitação')} • o sistema lerá os valores do fornecedor</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
+        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Arquivar cotação do fornecedor</h2><p>PDF, Excel ou CSV. O arquivo fica salvo na área privada da empresa; para ler e relacionar os produtos, use a aba Cotações.</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
         <div class="pricing-item-form-grid">
+          <label>Licitação<select id="quoteImportTenderSelect" required>${state.licitacoes.length?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao||row.cidade||'Órgão não informado')}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}</select></label>
           <input type="hidden" id="quoteImportTender" value="${esc(tenderId)}">
           <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="">Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label class="pricing-item-description-field">PDF da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,application/pdf" required></label>
+          <label class="pricing-item-description-field">Arquivo da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required></label>
         </div>
-        <div id="quoteImportStatus" class="hint" role="status" aria-live="polite">Selecione o PDF enviado pelo fornecedor. A leitura começará automaticamente.</div>
+        <div id="quoteImportStatus" class="hint" role="status" aria-live="polite">Selecione o arquivo enviado pelo fornecedor e clique em Enviar arquivo.</div>
         <div id="quoteImportProgress" class="hint" hidden></div><div id="quoteImportPreview" hidden></div><button id="quoteRetryBtn" type="button" hidden>Tentar novamente</button>
-        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button></div>
+        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button id="quoteImportSubmit" type="button">Enviar arquivo</button></div>
       </form>
     </dialog>`;
 
@@ -7108,8 +7130,33 @@ function renderPricingExactModel(){
     else dialog.setAttribute('open','');
     dialog.querySelector('#quoteImportSupplier')?.focus();
   });
-  shell.querySelector('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());
-  shell.querySelector('#quoteImportFile')?.addEventListener('change',()=>startAutomaticQuoteImport());
+  shell.querySelector('#quoteImportTenderSelect')?.addEventListener('change',event=>{
+    const value=event.target.value||'';
+    $('#quoteImportTender').value=value;
+    state.quoteViewTenderId=value;
+    state.quoteImportContext=null;
+    clearQuoteImportPreview('O edital mudou. Selecione o arquivo e envie novamente.');
+  });
+  shell.querySelector('#quoteImportSubmit')?.addEventListener('click',async()=>{
+    const file=shell.querySelector('#quoteImportFile')?.files?.[0];
+    const tenderValue=shell.querySelector('#quoteImportTender')?.value||'';
+    const supplierValue=shell.querySelector('#quoteImportSupplier')?.value||'';
+    if(!tenderValue||!supplierValue)return toast('Selecione a licitação e o fornecedor.','error');
+    if(!file)return toast('Selecione o arquivo da cotação.','error');
+    const ext=file.name.toLowerCase().split('.').pop()||'';
+    if(ext!=='pdf'){
+      const button=shell.querySelector('#quoteImportSubmit');
+      if(button)button.disabled=true;
+      try{
+        await archiveQuoteFile(tenderValue,supplierValue,file);
+        toast('Cotação arquivada com segurança. Use a aba Cotações para consultar o arquivo.');
+        dialog.close?.();
+      }catch(error){console.warn('Arquivamento da cotação:',error?.message||error);toast(error?.message||'Não foi possível arquivar a cotação.','error');}
+      finally{if(button)button.disabled=false;}
+      return;
+    }
+    await startAutomaticQuoteImport();
+  });
   shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
   dialog?.addEventListener('click',event=>{
     if(event.target===dialog)dialog.close?.();
@@ -10343,8 +10390,6 @@ document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEven
   setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
 }));
 $('#quoteImportTender')?.addEventListener('change',()=>clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente.'));
-$('#quoteImportSupplier')?.addEventListener('change',()=>startAutomaticQuoteImport());
-$('#quoteImportFile')?.addEventListener('change',()=>startAutomaticQuoteImport());
 $('#quoteRetryBtn')?.addEventListener('click',()=>startAutomaticQuoteImport(true));
 $('#quoteWorkspaceSearch')?.addEventListener('input',e=>{
   state.quoteWorkspaceSearch=e.target.value||'';
