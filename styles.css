@@ -570,3 +570,5 @@ tr:hover td{background:#0a141a}
   #precificacao .pricing-item-form-grid{grid-template-columns:1fr}
   #precificacao .pricing-item-description-field{grid-column:auto}
 }
+/* A biblioteca fiscal exibe o status como coluna própria ao lado da certidão. */
+.qualification-library-main{grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(120px,.65fr)) auto}

@@ -1,1 +1,1 @@
-36.24.0 - Reorganiza Documentação com abas Editais, Habilitação fiscal, Propostas e Cotações.
+36.24.1 - Exibe o status das certidões fiscais em coluna própria.
