@@ -4157,7 +4157,7 @@ function renderQuotesWorkspace(){
   const reviewCount=quotePendingReviewRows().length;
   const summary=$('#quoteWorkspaceSummary');
   if(summary)summary.innerHTML=tender
-    ?`<strong>${esc(tender.numero)} • ${esc(tender.orgao)}</strong> — ${tenderItems.length} itens • ${quoted} cotados • ${reviewCount} dúvida${reviewCount===1?'':'s'} para revisar`
+    ?`<strong>${tenderItems.length} ${tenderItems.length===1?'item':'itens'}</strong>`
     :'Selecione um edital para começar.';
   const reviewBadge=$('#quoteReviewCount');
   if(reviewBadge)reviewBadge.textContent=String(reviewCount);
