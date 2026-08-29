@@ -6965,7 +6965,7 @@ function renderPricingExactModel(){
           </select>
         </label>
         <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
-        <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar novo item</button>
+        <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar cotação</button>
       </div>
     </header>
 
@@ -6997,7 +6997,7 @@ function renderPricingExactModel(){
               </tr>
             </thead>
             <tbody>
-              ${pricingRows.length?pricingRows.map(row=>`
+            ${pricingRows.length?pricingRows.map(row=>`
                 <tr data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
                   <th class="pricing-sheet-code" scope="row"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
@@ -7024,15 +7024,17 @@ function renderPricingExactModel(){
 
     <dialog id="pricingItemDialog" class="pricing-item-dialog" aria-labelledby="pricingItemDialogTitle">
       <form id="pricingItemForm" method="dialog">
-        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar novo item</h2><p>${esc(tender?.numero||'Selecione uma licitação')}</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
+        <div class="pricing-item-dialog-head"><div><h2 id="pricingItemDialogTitle">Adicionar cotação</h2><p>${esc(tender?.numero||'Selecione uma licitação')}</p></div><button type="button" data-close-pricing-dialog aria-label="Fechar">×</button></div>
         <div class="pricing-item-form-grid">
-          <label>Número<input name="numero" type="number" min="1" step="1" required value="${nextItemNumber}"></label>
-          <label>Unidade<input name="unidade" maxlength="30" required placeholder="Ex.: UN"></label>
-          <label class="pricing-item-description-field">Descrição<input name="descricao" maxlength="1000" required></label>
-          <label>Quantidade<input name="quantidade" type="number" min="0.0001" step="0.0001" required></label>
-          <label>Preço estimado <small>(opcional)</small><input name="valor_estimado" type="number" min="0" step="0.0001"></label>
+          <label class="pricing-item-description-field">Item do edital<select name="item_id" required>${items.map(item=>`<option value="${esc(item.id)}">${esc(item.numero)} • ${esc(item.descricao)}</option>`).join('')}</select></label>
+          <label>Fornecedor<select name="fornecedor_id" required>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="">Nenhum fornecedor cadastrado</option>'}</select></label>
+          <label>Preço unitário<input name="preco" type="number" min="0.0001" step="0.0001" required placeholder="0,00"></label>
+          <label>Qtd. por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required></label>
+          <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.0001" value="0"></label>
+          <label>Marca <small>(opcional)</small><input name="marca" maxlength="180"></label>
+          <label class="pricing-item-description-field">Apresentação <small>(opcional)</small><input name="apresentacao" maxlength="180" placeholder="Ex.: caixa com 12 unidades"></label>
         </div>
-        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button type="submit">Salvar item</button></div>
+        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button type="submit">Salvar cotação</button></div>
       </form>
     </dialog>`;
 
@@ -7069,32 +7071,37 @@ function renderPricingExactModel(){
     event.preventDefault();
     if(!tender)return toast('Selecione uma licitação.','error');
     const values=Object.fromEntries(new FormData(event.currentTarget));
-    const number=Number(values.numero);
-    const description=String(values.descricao||'').trim();
-    const unit=String(values.unidade||'').trim().toUpperCase();
-    const quantity=Number(values.quantidade);
-    const estimatedText=String(values.valor_estimado??'').trim();
-    const estimated=estimatedText===''?null:Number(estimatedText);
-    if(!Number.isInteger(number)||number<=0)return toast('Informe um número de item inteiro e maior que zero.','error');
-    if(items.some(item=>Number(item.numero)===number))return toast(`O item ${number} já existe nesta licitação.`,'error');
-    if(!description)return toast('Informe a descrição do item.','error');
-    if(!unit)return toast('Informe a unidade do item.','error');
-    if(!Number.isFinite(quantity)||quantity<=0)return toast('A quantidade deve ser maior que zero.','error');
-    if(estimated!=null&&(!Number.isFinite(estimated)||estimated<0))return toast('O preço estimado não pode ser negativo.','error');
+    const item=items.find(row=>String(row.id)===String(values.item_id));
+    const supplierId=String(values.fornecedor_id||'');
+    const price=Number(values.preco);
+    const factor=Number(values.fator_equivalencia);
+    const freight=Number(values.frete_rateado||0);
+    if(!item)return toast('Selecione um item do edital.','error');
+    if(!supplierId)return toast('Selecione um fornecedor.','error');
+    if(!Number.isFinite(price)||price<=0)return toast('Informe um preço unitário maior que zero.','error');
+    if(!Number.isFinite(factor)||factor<=0)return toast('A quantidade por embalagem deve ser maior que zero.','error');
+    if(!Number.isFinite(freight)||freight<0)return toast('O frete não pode ser negativo.','error');
     const submit=event.currentTarget.querySelector('[type="submit"]');
     submit.disabled=true;submit.textContent='Salvando…';
     if(state.demo){
-      state.itens.push({id:crypto.randomUUID(),licitacao_id:tenderId,numero:number,descricao:description,quantidade:quantity,unidade:unit,valor_estimado:estimated||0});
+      const existing=state.cotacoes.find(q=>String(q.item_id)===String(item.id)&&String(q.fornecedor_id)===supplierId);
+      const quote={id:existing?.id||crypto.randomUUID(),item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||''),apresentacao:String(values.apresentacao||'')};
+      if(existing)Object.assign(existing,quote);else state.cotacoes.push(quote);
       dialog.close?.();
       renderAll();
-      return toast('Item adicionado à tabela.');
+      return toast(existing?'Cotação atualizada.':'Cotação adicionada à tabela.');
     }
-    const {error}=await supabase.from('tender_items').insert({
-      tender_id:tenderId,item_number:number,description,quantity,unit,estimated_unit_price:estimated
+    const q=await findOrCreateQuote(tenderId,supplierId);
+    if(!q){submit.disabled=false;submit.textContent='Salvar cotação';return;}
+    const {error}=await supabase.from('quote_items').insert({
+      quote_id:q.id,tender_item_id:item.id,supplier_description:item.descricao,
+      brand:String(values.marca||'').trim()||null,
+      package_description:String(values.apresentacao||'').trim()||null,
+      package_base_quantity:factor,unit_price:price,freight_per_package:freight
     });
-    if(error){submit.disabled=false;submit.textContent='Salvar item';return toast(error.message,'error');}
+    if(error){submit.disabled=false;submit.textContent='Salvar cotação';return toast(error.message,'error');}
     dialog.close?.();
-    toast('Item adicionado à tabela.');
+    toast('Cotação salva na licitação selecionada.');
     await refreshAll();
   });
 

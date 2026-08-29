@@ -1,1 +1,1 @@
-36.22.8 - Mantém somente a exportação PDF nas cotações.
+36.22.9 - Renomeia e transforma o botão de item em cadastro de cotação por licitação.
