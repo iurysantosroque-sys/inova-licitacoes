@@ -1,1 +1,1 @@
-36.24.2 - Corrige a abertura do aplicativo restaurando o formulário de Cotações da Documentação.
+36.24.3 - Torna a inicialização tolerante caso alguma seção opcional de documentação não exista.

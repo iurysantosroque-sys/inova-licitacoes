@@ -9389,11 +9389,12 @@ function renderAll(){
     : '<p class="hint">Nenhum fornecedor cadastrado ainda.</p>';
   $('#fornecedoresLista').innerHTML=`<div class="supplier-kpis"><article class="supplier-kpi"><span>Total de fornecedores</span><strong>${state.fornecedores.length}</strong><small>cadastrados</small></article><article class="supplier-kpi"><span>Com telefone</span><strong>${supplierWithPhone}</strong><small>contatos registrados</small></article><article class="supplier-kpi"><span>WhatsApp disponível</span><strong>${supplierWhatsapp}</strong><small>acesso em um clique</small></article></div><div class="supplier-list">${supplierList}</div>`;
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
-  $('#itemLicitacao').innerHTML=licOpts; $('#arquivoLicitacao').innerHTML=licOpts;
+  if($('#itemLicitacao'))$('#itemLicitacao').innerHTML=licOpts;
+  if($('#arquivoLicitacao'))$('#arquivoLicitacao').innerHTML=licOpts;
   if($('#pncpSyncTender'))$('#pncpSyncTender').innerHTML='<option value="">Selecione a licitação PNCP</option>'+state.licitacoes.filter(l=>l.pncp_control||l.source_url).map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   const fornOpts='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join('');
   if($('#cotacaoFornecedor'))$('#cotacaoFornecedor').innerHTML=fornOpts;
-  $('#arquivoFornecedor').innerHTML=fornOpts;
+  if($('#arquivoFornecedor'))$('#arquivoFornecedor').innerHTML=fornOpts;
   const importSupplier=$('#quoteImportSupplier');
   if(importSupplier){
     const selectedSupplier=state.quoteImportContext?.supplierId||importSupplier.value||'';
@@ -9665,7 +9666,7 @@ $('#qualificationDocumentForm')?.addEventListener('submit',async event=>{
   }
 });
 
-$('#arquivoForm').addEventListener('submit',async e=>{
+$('#arquivoForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   const f=new FormData(e.target),file=f.get('arquivo');
   if(!file?.name)return;
