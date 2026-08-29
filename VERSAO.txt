@@ -1,1 +1,1 @@
-36.17.8 - Telefone de contato normalizado no padrão brasileiro.
+36.17.9 - Cadastro simplificado com vendedor e WhatsApp manual.
