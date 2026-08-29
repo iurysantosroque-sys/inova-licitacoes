@@ -9172,24 +9172,21 @@ function renderQualification(){
   });
   const rows=[...groups.values()].map(versions=>versions.sort((a,b)=>Number(b.version||1)-Number(a.version||1))[0]).filter(matches);
   if(!rows.length){library.innerHTML='<div class="qualification-empty">Nenhum documento encontrado neste filtro.</div>';return;}
-  library.innerHTML=rows.map(document=>{
+  library.innerHTML=`<div class="qualification-table-scroll"><table class="qualification-table"><thead><tr><th>Certidão</th><th>Órgão emissor</th><th>Uso</th><th>Emissão</th><th>Validade</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows.map(document=>{
     const versions=(groups.get(document.document_series_id||document.id)||[]).sort((a,b)=>Number(b.version||1)-Number(a.version||1));
     const status=qualificationDocumentStatus(document);
     const tender=state.licitacoes.find(row=>String(row.id)===String(document.tender_id));
     const history=versions.slice(1).map(version=>`<div class="qualification-history-row"><span>Versão ${Number(version.version||1)} • emissão ${qualificationDateBR(version.issued_on)} • validade ${version.has_no_expiry?'sem prazo':qualificationDateBR(version.expires_on)}</span><button type="button" class="action-btn" data-download-qualification-document="${esc(version.id)}">Baixar</button></div>`).join('');
-    return `<article class="qualification-library-card">
-      <div class="qualification-library-main">
-        <div><h3>${esc(document.name)}</h3><p>${esc(document.document_type)} • ${esc(document.issuer)}</p></div>
-        <div class="qualification-library-field"><small>Uso</small><strong>${esc(tender?`Pregão ${tender.numero}`:'Geral da empresa')}</strong></div>
-        <div class="qualification-library-field"><small>Emissão</small><strong>${qualificationDateBR(document.issued_on)}</strong></div>
-        <div class="qualification-library-field"><small>Validade</small><strong>${document.has_no_expiry?'Sem prazo':qualificationDateBR(document.expires_on)}</strong></div>
-        <div class="qualification-library-field"><small>Status</small><span class="badge ${status.tone} qualification-status-label">${esc(status.label)}</span></div>
-        <div class="document-action-group"><button type="button" class="action-btn" data-download-qualification-document="${esc(document.id)}">Baixar</button>${canWrite?`<button type="button" class="action-btn" data-renew-qualification-document="${esc(document.document_series_id||document.id)}">Renovar</button>`:''}</div>
-      </div>
-      ${document.coverage||document.notes?`<p class="hint">${esc([document.coverage,document.notes].filter(Boolean).join(' • '))}</p>`:''}
-      ${history?`<details class="qualification-history"><summary>Histórico (${versions.length-1})</summary><div class="qualification-history-list">${history}</div></details>`:''}
-    </article>`;
-  }).join('');
+    return `<tr>
+      <td><strong>${esc(document.name)}</strong><small>${esc(document.document_type)}</small>${document.coverage||document.notes?`<small>${esc([document.coverage,document.notes].filter(Boolean).join(' • '))}</small>`:''}</td>
+      <td>${esc(document.issuer||'—')}</td>
+      <td>${esc(tender?`Pregão ${tender.numero}`:'Geral da empresa')}</td>
+      <td>${qualificationDateBR(document.issued_on)}</td>
+      <td>${document.has_no_expiry?'Sem prazo':qualificationDateBR(document.expires_on)}</td>
+      <td><span class="badge ${status.tone} qualification-status-label">${esc(status.label)}</span></td>
+      <td><div class="document-action-group"><button type="button" class="action-btn" data-download-qualification-document="${esc(document.id)}">Baixar</button>${canWrite?`<button type="button" class="action-btn" data-renew-qualification-document="${esc(document.document_series_id||document.id)}">Renovar</button>`:''}</div>${history?`<details class="qualification-history"><summary>Histórico (${versions.length-1})</summary><div class="qualification-history-list">${history}</div></details>`:''}</td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function renderDocumentation(){

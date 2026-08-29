@@ -572,3 +572,15 @@ tr:hover td{background:#0a141a}
 }
 /* A biblioteca fiscal exibe o status como coluna própria ao lado da certidão. */
 .qualification-library-main{grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(120px,.65fr)) auto}
+
+/* Habilitação fiscal em formato de planilha, com status na mesma linha da certidão. */
+.qualification-table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#091218}
+.qualification-table{width:100%;min-width:980px;border-collapse:collapse}
+.qualification-table th,.qualification-table td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.qualification-table th{background:#07131a;color:var(--gold);font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.qualification-table td{color:#dbe1e5;font-size:.84rem}
+.qualification-table td small{display:block;color:var(--muted);margin-top:4px;font-size:.76rem}
+.qualification-table tbody tr:last-child td{border-bottom:0}
+.qualification-table tbody tr:hover td{background:#0d1c24}
+.qualification-table .document-action-group{min-width:145px}
+.qualification-table .qualification-history{margin-top:9px;padding-top:8px}
