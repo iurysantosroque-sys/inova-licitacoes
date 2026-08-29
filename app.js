@@ -7591,9 +7591,11 @@ function renderTenderManagement(){
 
     let rows=[...state.licitacoes].filter(l=>{
       const isClosed=tenderStatusInfo(l).label==='Encerrado';
-      if(tenderView==='closed'&&!isClosed)return false;
-      if(tenderView!=='closed'&&isClosed)return false;
-      if(tenderView!=='all'&&tenderView!=='closed'&&String(l.situation||'aguardando_disputa')!==tenderView)return false;
+      const situation=String(l.situation||'aguardando_disputa');
+      if(tenderView==='closed')return isClosed&&situation==='aguardando_disputa';
+      if(tenderView==='all')return !isClosed;
+      if(isClosed&&situation==='aguardando_disputa')return false;
+      if(situation!==tenderView)return false;
       if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
       if(statusFilter!=='all'){
         const s=tenderStatusInfo(l);

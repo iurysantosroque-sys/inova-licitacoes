@@ -1,1 +1,1 @@
-36.16.3 - Situações da licitação em menu compacto; encerradas separadas da aba Todas.
+36.16.4 - Licitações encerradas mudam para a aba da situação manual escolhida.
