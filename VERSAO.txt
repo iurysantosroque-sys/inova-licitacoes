@@ -1,1 +1,1 @@
-36.42.0 - Distribui os quadros informativos do painel por toda a largura.
+36.43.0 - Aplica dourado ao título e data do Dashboard com hora e minutos.

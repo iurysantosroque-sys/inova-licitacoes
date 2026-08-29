@@ -8251,7 +8251,7 @@ function ensureDashboardModelStyles(){
     .db-title h1{
       margin:0;
       font-size:1.72rem;
-      color:#f2f5f7;
+      color:var(--gold);
       letter-spacing:-.02em;
     }
 
@@ -8265,7 +8265,7 @@ function ensureDashboardModelStyles(){
       border:1px solid #27414f;
       border-radius:8px;
       background:#081720;
-      color:#e3e9ed;
+      color:var(--gold);
       padding:10px 13px;
       font-size:.76rem;
       white-space:nowrap;
@@ -8824,7 +8824,10 @@ function renderDashboardModel(){
           ${new Intl.DateTimeFormat('pt-BR',{
             day:'2-digit',
             month:'long',
-            year:'numeric'
+            year:'numeric',
+            hour:'2-digit',
+            minute:'2-digit',
+            hour12:false
           }).format(new Date())}
         </div>
       </div>
