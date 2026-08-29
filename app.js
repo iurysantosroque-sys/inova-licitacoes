@@ -2408,7 +2408,8 @@ function ensureQuoteWorkspaceStyles(){
     #cotacoes .quote-workspace-header p{margin:6px 0 0;color:var(--qw-muted)}
     #cotacoes .quote-workspace-actions{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
     #cotacoes .quote-tender-field{display:grid;gap:7px;min-width:min(390px,44vw);color:#c9d4da;font-size:.78rem;font-weight:800}
-    #cotacoes .quote-tender-field select{width:100%;min-height:44px}
+    #cotacoes .quote-tender-field select{width:100%;min-height:48px;border:1px solid #2d4b5b;border-radius:9px;background:#07151d;color:#f2f6f8;padding:0 14px;font-size:.86rem;font-weight:750;box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
+    #cotacoes .quote-tender-field select:focus{outline:2px solid rgba(102,174,254,.45);outline-offset:1px;border-color:#66aefe}
     #cotacoes .quote-toolbar-button{min-height:44px;border:1px solid var(--gold);border-radius:10px;padding:0 15px;background:var(--gold);color:#090d10;font-weight:800;white-space:nowrap}
     #cotacoes .quote-toolbar-button:hover{filter:brightness(1.06)}
     #cotacoes .quote-toolbar-button.quote-toolbar-outline{background:transparent;color:var(--gold)}
