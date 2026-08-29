@@ -511,7 +511,7 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(n+2){background:#8b6517;color:#fff}
 #precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(5){background:#187447;color:#fff}
 #precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(6){background:#1e5f96;color:#fff}
-#precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(7){background:#a47713;color:#fff}
+#precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(7){background:#c76519;color:#fff}
 #precificacao .pricing-sheet-table th small{display:block;margin-top:2px;color:inherit;font-size:.58rem;font-weight:700}
 #precificacao .pricing-sheet-table tbody tr:hover td,#precificacao .pricing-sheet-table tbody tr:hover th{background:#0d222c}
 #precificacao .pricing-sheet-code{position:sticky;left:0;z-index:2;width:78px;min-width:78px!important;background:#102733!important;color:var(--ps-gold)!important}

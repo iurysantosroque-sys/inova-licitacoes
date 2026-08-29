@@ -1,1 +1,1 @@
-36.14.8 - Cores distintas nas margens de 25%, 15% e 10% da precificação.
+36.14.9 - Faixa de 10% da precificação ajustada para laranja.
