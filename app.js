@@ -3909,6 +3909,20 @@ async function loadMembershipAndData(){
   autoSyncPncpTenders().catch(error=>console.warn('Sincronização inicial PNCP:',error));
 }
 
+async function fetchAllSupabaseRows(table,filterColumn,ids,orderColumns=[]){
+  if(!ids.length)return {data:[],error:null};
+  const pageSize=1000;const rows=[];
+  for(let page=0;page<100;page++){
+    const from=page*pageSize;let query=supabase.from(table).select('*').in(filterColumn,ids);
+    for(const column of orderColumns)query=query.order(column,{ascending:true});
+    const {data,error}=await query.range(from,from+pageSize-1);
+    if(error)return {data:[],error};
+    rows.push(...(data||[]));
+    if((data||[]).length<pageSize)break;
+  }
+  return {data:rows,error:null};
+}
+
 async function refreshAll(){
   if(state.demo){ renderAll(); return; }
   const cid=currentCompanyId(); if(!cid)return;
@@ -3971,8 +3985,8 @@ async function refreshAll(){
     state.qualificationError='';
   }
   const tenderIds=state.licitacoes.map(x=>x.id), quoteIds=state.quotes.map(x=>x.id);
-  const itemResp=tenderIds.length?await supabase.from('tender_items').select('*').in('tender_id',tenderIds).order('item_number'):{data:[],error:null};
-  const qiResp=quoteIds.length?await supabase.from('quote_items').select('*').in('quote_id',quoteIds).order('created_at'):{data:[],error:null};
+  const itemResp=await fetchAllSupabaseRows('tender_items','tender_id',tenderIds,['item_number','id']);
+  const qiResp=await fetchAllSupabaseRows('quote_items','quote_id',quoteIds,['created_at','id']);
   if(itemResp.error)return toast(itemResp.error.message,'error'); if(qiResp.error)return toast(qiResp.error.message,'error');
   state.itens=(itemResp.data||[]).map(i=>({id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,quantidade:Number(i.quantity),unidade:i.unit||'',valor_estimado:Number(i.estimated_unit_price||0),raw:i}));
   await loadPricingItemResults(state.itens.map(item=>item.id));

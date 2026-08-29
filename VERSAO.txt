@@ -1,1 +1,1 @@
-36.22.3 - Atualiza automaticamente todos os editais vinculados ao PNCP.
+36.22.4 - Carrega todos os itens do banco sem limite global de 1.000 linhas.
