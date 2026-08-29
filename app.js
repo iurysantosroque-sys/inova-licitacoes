@@ -8218,6 +8218,8 @@ function ensureDashboardModelStyles(){
 
     .db-cal-event.urgent{background:#9f1e2e}
     .db-cal-event.soon{background:#d6a000;color:#171100}
+    .db-cal-event + .db-cal-event{margin-top:4px}
+    .db-cal-event small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.82}
 
     .db-company{
       padding:8px 14px 13px;
@@ -8462,18 +8464,15 @@ function renderDashboardModel(){
     const events=eventMap.get(key)||[];
     const other=d.getMonth()!==month;
     const today=key===todayKey;
-    const event=events[0];
-    const meta=event?dashboardDeadlineMeta(event):null;
-
     cells.push(`
       <div class="db-cal-day ${other?'other':''} ${today?'today':''}">
         <div class="db-cal-num">${d.getDate()}</div>
-        ${event?`
-          <button class="db-cal-event ${meta?.cls||''}" data-db-tender="${event.id}">
-            ${dateBR(event.proposalEndAt||event.raw?.dispute_at,true).split(' ')[1]||''}<br>
-            Edital ${esc(event.numero)}
-          </button>
-        `:''}
+        ${events.map(event=>{
+          const meta=dashboardDeadlineMeta(event);
+          return `<button class="db-cal-event ${meta?.cls||''}" data-db-tender="${event.id}" title="Abrir edital ${esc(event.numero)}">
+            Edital ${esc(event.numero)}${event.orgao?`<br><small>${esc(event.orgao)}</small>`:''}
+          </button>`;
+        }).join('')}
       </div>
     `);
   }
@@ -8735,7 +8734,7 @@ function renderDashboardModel(){
     btn.addEventListener('click',()=>{
       const l=state.licitacoes.find(x=>String(x.id)===String(btn.dataset.dbTender));
       if(!l)return;
-      toast(`Edital ${l.numero} fecha em ${dateBR(l.proposalEndAt||l.raw?.dispute_at,true)}.`);
+      toast(`Edital ${l.numero} fecha em ${dateBR(l.proposalEndAt||l.raw?.dispute_at,false)}.`);
     });
   });
 

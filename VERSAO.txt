@@ -1,1 +1,1 @@
-36.16.0 - Situações manuais por licitação com abas separadas: disputa, habilitação, entrega e conclusão.
+36.16.1 - Calendário do Dashboard sem horários e com todas as licitações visíveis por dia.
