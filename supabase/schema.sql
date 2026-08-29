@@ -33,7 +33,7 @@ create table public.pricing_settings (
 create table public.tenders (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   number text not null, process_number text, agency text, city text, state text, platform text, object text,
-  dispute_at timestamptz, status text not null default 'preparacao', is_quoted boolean not null default false, pncp_control text, source_url text,
+  dispute_at timestamptz, status text not null default 'preparacao', is_quoted boolean not null default false, tender_situation text not null default 'aguardando_disputa' check(tender_situation in ('aguardando_disputa','aguardando_habilitacao','em_disputa','vencida','perdida','em_entrega','finalizada')), pncp_control text, source_url text,
   publication_at timestamptz, proposal_open_at timestamptz, proposal_end_at timestamptz,
   created_by uuid not null references auth.users(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   unique(id,company_id)

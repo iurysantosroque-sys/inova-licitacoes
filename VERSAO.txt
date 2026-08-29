@@ -1,1 +1,1 @@
-36.15.1 - Remove cartões secundários de itens totais e plataforma principal da aba de licitações.
+36.16.0 - Situações manuais por licitação com abas separadas: disputa, habilitação, entrega e conclusão.

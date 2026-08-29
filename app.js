@@ -152,6 +152,17 @@ let state = {
   licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
+const TENDER_SITUATIONS=[
+  {value:'aguardando_disputa',label:'Aguardando disputa',className:'awaiting'},
+  {value:'aguardando_habilitacao',label:'Aguardando Habilitação',className:'qualification'},
+  {value:'em_disputa',label:'Em disputa',className:'dispute'},
+  {value:'vencida',label:'Vencida',className:'won'},
+  {value:'perdida',label:'Perdida',className:'lost'},
+  {value:'em_entrega',label:'Em entrega',className:'delivery'},
+  {value:'finalizada',label:'Finalizada',className:'finished'}
+];
+const tenderSituationInfo=value=>TENDER_SITUATIONS.find(item=>item.value===value)||TENDER_SITUATIONS[0];
+
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
 const QUOTE_PARSER_VERSION='36.11.2';
 const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
@@ -3891,6 +3902,7 @@ async function refreshAll(){
       proposalOpenAt:t.proposal_open_at||null,
       proposalEndAt:t.proposal_end_at||null,
       is_quoted:Boolean(t.is_quoted),
+      situation:t.tender_situation||(t.is_quoted?'finalizada':'aguardando_disputa'),
       raw:t
     };
   });
@@ -7444,6 +7456,13 @@ function ensureTenderExactStyles(){
     .tx-quoted-toggle{display:inline-flex;align-items:center;gap:7px;color:#aebbc4;font-size:.78rem;font-weight:750;white-space:nowrap;cursor:pointer}
     .tx-quoted-toggle input{width:16px;height:16px;accent-color:#efb426;cursor:pointer}
     .tx-quoted-toggle input:disabled{cursor:wait}
+    .tx-situation-checks{display:grid;gap:5px;min-width:165px}
+    .tx-situation-option{display:flex;align-items:center;gap:6px;border-radius:999px;padding:4px 8px;color:#e8edf2;font-size:.72rem;line-height:1;white-space:nowrap;cursor:pointer}
+    .tx-situation-option input{width:13px;height:13px;margin:0;accent-color:currentColor;cursor:pointer}
+    .tx-situation-option.awaiting{background:#2e638f}.tx-situation-option.qualification{background:#9a5b2f}
+    .tx-situation-option.dispute{background:#8c7116}.tx-situation-option.won{background:#28704e}
+    .tx-situation-option.lost{background:#913b3b}.tx-situation-option.delivery{background:#76428a}
+    .tx-situation-option.finished{background:#666862}.tx-situation-option input:disabled{cursor:wait}
     .tx-edital-link{
       display:inline-flex;align-items:center;justify-content:center;min-height:44px;
       padding:0 13px;border:1px solid #f0b429;border-radius:7px;
@@ -7510,7 +7529,7 @@ function csvEscape(v){
 }
 
 function exportTendersCsv(tenders){
-  const headers=['Número','Órgão','Cidade/UF','Abertura para propostas','Data limite para propostas','Plataforma','Itens','Cotado','Status'];
+  const headers=['Número','Órgão','Cidade/UF','Abertura para propostas','Data limite para propostas','Plataforma','Itens','Situação','Status'];
   const lines=[headers.map(csvEscape).join(';')];
   for(const l of tenders){
     const status=tenderStatusInfo(l);
@@ -7522,7 +7541,7 @@ function exportTendersCsv(tenders){
       l.proposalEndAt?dateBR(l.proposalEndAt,true):'',
       l.plataforma,
       state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length,
-      l.is_quoted?'Sim':'Não',
+      tenderSituationInfo(l.situation).label,
       status.label
     ].map(csvEscape).join(';'));
   }
@@ -7556,15 +7575,13 @@ function renderTenderManagement(){
   }
 
   const getFiltered=()=>{
-    const tenderView=shell.dataset.tenderView||'active';
+    const tenderView=shell.dataset.tenderView||'all';
     const query=quoteNormalize(shell.querySelector('#txSearch')?.value||'');
     const statusFilter=shell.querySelector('#txStatus')?.value||'all';
     const sort=shell.querySelector('#txSort')?.value||'deadline';
 
     let rows=[...state.licitacoes].filter(l=>{
-      const isClosed=tenderStatusInfo(l).label==='Encerrado';
-      if(tenderView==='closed'&&!isClosed)return false;
-      if(tenderView!=='closed'&&isClosed)return false;
+      if(tenderView!=='all'&&String(l.situation||'aguardando_disputa')!==tenderView)return false;
       if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
       if(statusFilter!=='all'){
         const s=tenderStatusInfo(l);
@@ -7662,8 +7679,8 @@ function renderTenderManagement(){
     </div>
 
     <div class="tx-list-tabs" role="tablist" aria-label="Filtrar licitações por situação">
-      <button type="button" class="active" data-tender-view="active" role="tab" aria-selected="true">Em andamento</button>
-      <button type="button" data-tender-view="closed" role="tab" aria-selected="false">Encerradas</button>
+      <button type="button" class="active" data-tender-view="all" role="tab" aria-selected="true">Todas</button>
+      ${TENDER_SITUATIONS.map(item=>`<button type="button" data-tender-view="${item.value}" role="tab" aria-selected="false">${item.label}</button>`).join('')}
     </div>
 
     <div class="tx-table-wrap">
@@ -7676,7 +7693,7 @@ function renderTenderManagement(){
             <th>Data limite para propostas<br><small style="color:#efb426">(Fecha propostas)</small></th>
             <th>Plataforma</th>
             <th>Itens</th>
-            <th>Cotado</th>
+            <th>Situação</th>
             <th>Edital</th>
             <th>Status</th>
             <th>Ações</th>
@@ -7753,10 +7770,9 @@ function renderTenderManagement(){
           </td>
 
           <td>
-            <label class="tx-quoted-toggle" title="Marcar esta licitação como cotada">
-              <input type="checkbox" data-tender-quoted="${esc(l.id)}" ${l.is_quoted?'checked':''}>
-              <span>Cotado</span>
-            </label>
+            <div class="tx-situation-checks" aria-label="Situação da licitação ${esc(l.numero||'')}">
+              ${TENDER_SITUATIONS.map(item=>`<label class="tx-situation-option ${item.className}"><input type="checkbox" data-tender-situation="${esc(l.id)}" data-situation-value="${item.value}" ${String(l.situation||'aguardando_disputa')===item.value?'checked':''}><span>${item.label}</span></label>`).join('')}
+            </div>
           </td>
 
           <td>
@@ -7786,27 +7802,29 @@ function renderTenderManagement(){
     const count=shell.querySelector('#txCount');
     if(count)count.textContent=`Exibindo ${rows.length?1:0} a ${rows.length} de ${rows.length} editais`;
 
-    tbody.querySelectorAll('[data-tender-quoted]').forEach(input=>input.addEventListener('change',async event=>{
+    tbody.querySelectorAll('[data-tender-situation]').forEach(input=>input.addEventListener('change',async event=>{
       const checkbox=event.currentTarget;
-      const tender=state.licitacoes.find(row=>String(row.id)===String(checkbox.dataset.tenderQuoted));
+      const tender=state.licitacoes.find(row=>String(row.id)===String(checkbox.dataset.tenderSituation));
       if(!tender)return;
-      const checked=Boolean(checkbox.checked);
-      checkbox.disabled=true;
+      const situation=checkbox.dataset.situationValue||'aguardando_disputa';
+      checkbox.checked=true;
+      const previous=tender.situation||'aguardando_disputa';
+      tbody.querySelectorAll(`[data-tender-situation="${tender.id}"]`).forEach(option=>{option.checked=option===checkbox;option.disabled=true;});
       if(state.demo){
-        tender.is_quoted=checked;
+        tender.situation=situation;
         renderRows();
-        toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
+        toast(`Situação alterada para ${tenderSituationInfo(situation).label}.`);
         return;
       }
-      const {error}=await supabase.from('tenders').update({is_quoted:checked,updated_at:new Date().toISOString()}).eq('id',tender.id);
+      const {error}=await supabase.from('tenders').update({tender_situation:situation,updated_at:new Date().toISOString()}).eq('id',tender.id);
       if(error){
-        checkbox.checked=!checked;
-        checkbox.disabled=false;
-        return toast(`Não foi possível atualizar a marcação: ${error.message}`,'error');
+        tender.situation=previous;
+        tbody.querySelectorAll(`[data-tender-situation="${tender.id}"]`).forEach(option=>{option.checked=option.dataset.situationValue===previous;option.disabled=false;});
+        return toast(`Não foi possível atualizar a situação: ${error.message}`,'error');
       }
-      tender.is_quoted=checked;
+      tender.situation=situation;
       renderRows();
-      toast(checked?'Licitação marcada como cotada.':'Marcação de cotado removida.');
+      toast(`Situação alterada para ${tenderSituationInfo(situation).label}.`);
     }));
   };
 
