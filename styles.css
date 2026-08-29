@@ -595,3 +595,45 @@ tr:hover td{background:#0a141a}
 .qualification-modal .qualification-form-actions button{width:auto;min-width:150px}
 .qualification-new-button{border:1px solid var(--gold);border-radius:10px;padding:12px 16px;background:var(--gold);color:#090d10;font-weight:800;white-space:nowrap}
 .qualification-new-button:hover{filter:brightness(1.06)}
+
+/* Propostas comerciais: seleção do edital, itens ganhos e total consolidado. */
+.proposal-workspace{display:grid;gap:18px}
+.proposal-workspace-title{margin-bottom:0}
+.proposal-toolbar{display:grid;grid-template-columns:minmax(280px,1fr) minmax(180px,230px) auto;gap:12px;align-items:end}
+.proposal-toolbar label{display:grid;gap:7px;margin:0;color:var(--muted);font-size:.8rem;font-weight:750}
+.proposal-toolbar select,.proposal-toolbar input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:9px;background:#07151d;color:var(--text);padding:0 12px}
+.proposal-toolbar button{min-height:46px;border:1px solid var(--gold);border-radius:9px;background:var(--gold);color:#0a0f12;padding:0 17px;font-weight:850;white-space:nowrap}
+.proposal-toolbar button:disabled{opacity:.5;cursor:not-allowed}
+.proposal-summary{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(150px,.6fr));border:1px solid var(--line);border-radius:11px;background:#07151d;overflow:hidden}
+.proposal-summary>div:not(.proposal-empty){display:grid;gap:5px;padding:13px 15px;border-right:1px solid var(--line)}
+.proposal-summary>div:last-child{border-right:0}
+.proposal-summary span{color:var(--muted);font-size:.76rem}
+.proposal-summary strong{color:var(--text);font-size:.96rem}
+.proposal-summary>div:not(.proposal-empty):last-child strong{color:#67db96}
+.proposal-empty{grid-column:1/-1;display:grid;gap:5px;padding:18px;text-align:center}
+.proposal-empty strong{color:var(--gold)}
+.proposal-table-scroll{max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:11px;background:#08161e;outline:none}
+.proposal-table-scroll:focus-visible{box-shadow:0 0 0 2px rgba(239,177,43,.5)}
+.proposal-table{width:100%;min-width:980px;border-collapse:collapse;font-size:.82rem}
+.proposal-table th,.proposal-table td{padding:11px 10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.proposal-table th:last-child,.proposal-table td:last-child{border-right:0}
+.proposal-table thead th{background:#0c222d;color:var(--gold);font-size:.72rem;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}
+.proposal-table tbody tr:hover td{background:#0d202a}
+.proposal-table .proposal-description{min-width:300px;white-space:normal;line-height:1.4}
+.proposal-table td:nth-child(1),.proposal-table td:nth-child(2),.proposal-table td:nth-child(3),.proposal-table td:nth-child(6),.proposal-table td:nth-child(7){white-space:nowrap}
+.proposal-table tfoot th,.proposal-table tfoot td{border-bottom:0;background:#102732;color:var(--text);font-weight:850}
+.proposal-table tfoot th{text-align:right;text-transform:uppercase}
+.proposal-table tfoot td{color:#67db96;white-space:nowrap}
+@media(max-width:880px){
+  .proposal-toolbar{grid-template-columns:1fr 1fr}
+  .proposal-toolbar label:first-child{grid-column:1/-1}
+  .proposal-toolbar button{width:100%}
+  .proposal-summary{grid-template-columns:1fr 1fr}
+  .proposal-summary>div:first-child{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--line)}
+}
+@media(max-width:580px){
+  .proposal-toolbar,.proposal-summary{grid-template-columns:1fr}
+  .proposal-toolbar label:first-child,.proposal-summary>div:first-child{grid-column:auto}
+  .proposal-summary>div:not(.proposal-empty){border-right:0;border-bottom:1px solid var(--line)}
+  .proposal-summary>div:last-child{border-bottom:0}
+}

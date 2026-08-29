@@ -1,1 +1,1 @@
-36.30.0 - Remove o botão PDF duplicado dentro da tabela de Cotações.
+36.31.0 - Gera propostas comerciais com os itens vencedores e soma total automática.

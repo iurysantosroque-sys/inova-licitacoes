@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -9029,6 +9029,199 @@ function activateDocumentTab(tab='editais',focus=false){
   if(habilitacao)habilitacao.hidden=selected!=='habilitacao';
   if(propostas)propostas.hidden=selected!=='propostas';
   if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
+  if(selected==='propostas')renderProposalWorkspace();
+}
+
+function proposalRows(tenderId){
+  return state.itens
+    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .map(item=>{
+      const winningValue=Number(state.pricingItemResults?.[String(item.id)]);
+      if(!Number.isFinite(winningValue)||winningValue<=0)return null;
+      const quantity=Number(item.quantidade)||0;
+      return {
+        item,
+        quantity,
+        winningValue,
+        total:quantity*winningValue,
+        modelBrand:String(bestQuote(item.id)?.marca||'').trim()||'-'
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b)=>Number(a.item.numero)-Number(b.item.numero));
+}
+
+function renderProposalWorkspace(){
+  const tenderSelect=$('#proposalTenderSelect');
+  const issueDate=$('#proposalIssueDate');
+  const summary=$('#proposalSummary');
+  const tableContainer=$('#proposalTableContainer');
+  const pdfButton=$('#proposalPdfButton');
+  if(!tenderSelect||!issueDate||!summary||!tableContainer||!pdfButton)return;
+
+  if(!state.proposalIssueDate)state.proposalIssueDate=localTodayString();
+  if(state.proposalTenderId&&!state.licitacoes.some(tender=>String(tender.id)===String(state.proposalTenderId)))state.proposalTenderId='';
+  tenderSelect.innerHTML='<option value="">Selecione a licitação</option>'+state.licitacoes.map(tender=>`<option value="${esc(tender.id)}">${esc(tender.numero)} • ${esc(tender.orgao||tender.cidade||'Órgão não informado')}</option>`).join('');
+  tenderSelect.value=state.proposalTenderId;
+  issueDate.value=state.proposalIssueDate;
+
+  const tender=state.licitacoes.find(row=>String(row.id)===String(state.proposalTenderId));
+  if(!tender){
+    pdfButton.disabled=true;
+    summary.innerHTML='<div class="proposal-empty"><strong>Escolha uma licitação para montar a proposta.</strong><span>Serão apresentados somente os itens com VALOR GANHO preenchido na precificação.</span></div>';
+    tableContainer.innerHTML='';
+    return;
+  }
+
+  const rows=proposalRows(tender.id);
+  const total=rows.reduce((sum,row)=>sum+row.total,0);
+  pdfButton.disabled=!rows.length;
+  summary.innerHTML=rows.length
+    ? `<div><span>Órgão comprador</span><strong>${esc(tender.orgao||'Não informado')}</strong></div><div><span>Itens ganhos</span><strong>${rows.length}</strong></div><div><span>Valor da proposta</span><strong>${money(total)}</strong></div>`
+    : '<div class="proposal-empty"><strong>Nenhum item ganho nesta licitação.</strong><span>Preencha a coluna VALOR GANHO na tabela de precificação para incluir os itens na proposta.</span></div>';
+  tableContainer.innerHTML=rows.length?`
+    <div class="proposal-table-scroll" tabindex="0" aria-label="Itens incluídos na proposta">
+      <table class="proposal-table">
+        <thead><tr><th scope="col">Item</th><th scope="col">Unid.</th><th scope="col">Qtde.</th><th scope="col">Descrição</th><th scope="col">Modelo/Marca</th><th scope="col">Valor unit.</th><th scope="col">Valor total</th></tr></thead>
+        <tbody>${rows.map(row=>`<tr><td data-label="Item">${esc(row.item.numero??'-')}</td><td data-label="Unid.">${esc(row.item.unidade||'-')}</td><td data-label="Qtde.">${esc(row.quantity)}</td><td data-label="Descrição" class="proposal-description">${esc(row.item.descricao||'-')}</td><td data-label="Modelo/Marca">${esc(row.modelBrand)}</td><td data-label="Valor unit.">${money(row.winningValue)}</td><td data-label="Valor total"><strong>${money(row.total)}</strong></td></tr>`).join('')}</tbody>
+        <tfoot><tr><th colspan="6" scope="row">Valor total da proposta</th><td><strong>${money(total)}</strong></td></tr></tfoot>
+      </table>
+    </div>`:'';
+}
+
+async function exportProposalPdf(){
+  const tender=state.licitacoes.find(row=>String(row.id)===String(state.proposalTenderId));
+  const rows=tender?proposalRows(tender.id):[];
+  if(!tender)return toast('Selecione a licitação da proposta.','error');
+  if(!rows.length)return toast('Preencha o VALOR GANHO dos itens antes de gerar a proposta.','error');
+  if(!state.proposalIssueDate)return toast('Informe a data de emissão da proposta.','error');
+  if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
+
+  const button=$('#proposalPdfButton');
+  const originalText=button?.textContent||'Baixar proposta em PDF';
+  if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Gerando PDF…';}
+  try{
+    const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
+    const pdf=await PDFDocument.create();
+    const font=await pdf.embedFont(StandardFonts.Helvetica);
+    const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+    const backgroundResponse=await fetch('assets/papel-timbrado.png');
+    if(!backgroundResponse.ok)throw new Error('Papel timbrado indisponível.');
+    const background=await pdf.embedPng(await backgroundResponse.arrayBuffer());
+    const pageWidth=595.28,pageHeight=841.89,ink=rgb(.08,.08,.08),line=rgb(.25,.25,.25),soft=rgb(.965,.965,.965);
+    const safeText=value=>[...String(value??'')].map(character=>{try{font.encodeText(character);return character;}catch{return '?';}}).join('');
+    const drawText=(page,value,options={})=>page.drawText(safeText(value),options);
+    const textWidth=(value,size,useFont=font)=>useFont.widthOfTextAtSize(safeText(value),size);
+    const wrap=(value,maxWidth,size,useFont=font)=>{
+      const words=safeText(value||'-').replace(/\s+/g,' ').trim().split(' '),lines=[];let current='';
+      for(const word of words){
+        const next=current?`${current} ${word}`:word;
+        if(textWidth(next,size,useFont)<=maxWidth){current=next;continue;}
+        if(current)lines.push(current);
+        if(textWidth(word,size,useFont)<=maxWidth){current=word;continue;}
+        let fragment='';
+        for(const character of word){const candidate=fragment+character;if(fragment&&textWidth(candidate,size,useFont)>maxWidth){lines.push(fragment);fragment=character;}else fragment=candidate;}
+        current=fragment;
+      }
+      if(current)lines.push(current);
+      return lines.length?lines:['-'];
+    };
+    const addPage=()=>{const page=pdf.addPage([pageWidth,pageHeight]);page.drawImage(background,{x:0,y:0,width:pageWidth,height:pageHeight});return page;};
+    const centered=(page,value,y,size,useFont=font)=>drawText(page,value,{x:Math.max(38,(pageWidth-textWidth(value,size,useFont))/2),y,size,font:useFont,color:ink});
+    const drawLines=(page,lines,x,y,size,lineGap,useFont=font)=>{lines.forEach((text,index)=>drawText(page,text,{x,y:y-index*lineGap,size,font:useFont,color:ink}));return y-lines.length*lineGap;};
+    const moneyPdf=value=>Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const dateParts=String(state.proposalIssueDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const issueDateText=dateParts?`${dateParts[3]}/${dateParts[2]}/${dateParts[1]}`:state.proposalIssueDate;
+
+    // Seção institucional: preserva os dados e a estrutura do modelo fornecido.
+    let page=addPage();
+    centered(page,'PROPOSTA COMERCIAL',647,17,bold);
+    drawText(page,`A ${tender.orgao||'ÓRGÃO COMPRADOR'},`,{x:48,y:600,size:11,font:bold,color:ink});
+    drawText(page,`${issueDateText}.`,{x:48,y:583,size:11,font,color:ink});
+    const institutional='A empresa INOVA CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA, inscrita no CNPJ (M.F.) sob o nº 62.315.100/0001-64, sediada no endereço Rua Assis Serrão, CEP 58315-000, neste ato representada pelo seu proprietário, Sr. Iury Santos Roque, portador da carteira de identidade nº 3960714 e CPF nº 056.747.694-43, residente e domiciliado na Paraíba, através de seu representante legal que abaixo subscreve, vem apresentar e submeter à apreciação de Vossas Senhorias o orçamento para a possível AQUISIÇÃO de material em atendimento ao '+(tender.orgao||'órgão comprador')+'.';
+    let y=550;
+    y=drawLines(page,wrap(institutional,499,9.6,font),48,y,9.6,12.3,font)-13;
+    const boxX=48,boxW=499,bankH=77,representativeH=177;
+    page.drawRectangle({x:boxX,y:y-bankH,width:boxW,height:bankH,borderColor:line,borderWidth:.8});
+    centered(page,'DADOS BANCÁRIOS',y-16,10.5,bold);
+    drawLines(page,['BANCO: Caixa Econômica Federal','AGÊNCIA: 0729','CONTA CORRENTE: 574513899'],boxX+8,y-35,9.5,12,font);
+    y-=bankH;
+    page.drawRectangle({x:boxX,y:y-representativeH,width:boxW,height:representativeH,borderColor:line,borderWidth:.8});
+    centered(page,'DADOS DO REPRESENTANTE DA EMPRESA',y-16,10.5,bold);
+    drawLines(page,['NOME: Iury Santos Roque','RG: 3960714','CPF: 056.747.694-43','','ESTADO CIVIL: Solteiro(a)','NACIONALIDADE: Brasileiro','ENDEREÇO: Rua Vilas Boas','PROFISSÃO: Administrador','CARGO: Diretor Administrativo','E-MAIL: iurysantosroque@gmail.com'],boxX+8,y-38,9.2,12.2,font);
+
+    // Seção de itens: o cabeçalho é repetido em todas as páginas e o total só aparece ao final.
+    const cols=[36,69,106,144,357,437,501,559];
+    const rowFont=7.15,rowGap=8.7,bottomY=82;
+    const drawTablePage=()=>{
+      page=addPage();
+      let headerY=700;
+      const info=[
+        'LICITANTE: INOVA CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA',
+        'CONTATO: (83) 9866-49751',
+        'END. COMERCIAL: Rua Assis Serrão, SN, Fagundes',
+        'CIDADE: Lucena    UF: PB    CEP: 58315-000',
+        'FONE: (83) 9866-49751    E-MAIL: licita.inovaconstru@gmail.com',
+        'CNPJ: 62.315.100/0001-64    INSCRIÇÃO ESTADUAL: 16.575.207-6'
+      ];
+      info.forEach((text,index)=>{const top=headerY-index*21;page.drawRectangle({x:cols[0],y:top-21,width:cols[7]-cols[0],height:21,borderColor:line,borderWidth:.65});drawText(page,text,{x:cols[0]+5,y:top-14,size:8.1,font:index===0?bold:font,color:ink});});
+      headerY-=info.length*21;
+      const agencyLines=wrap(tender.orgao||'ÓRGÃO COMPRADOR',cols[7]-cols[0]-12,8.6,bold);
+      const agencyHeight=Math.max(24,agencyLines.length*10+8);
+      page.drawRectangle({x:cols[0],y:headerY-agencyHeight,width:cols[7]-cols[0],height:agencyHeight,borderColor:line,borderWidth:.65,color:soft});
+      agencyLines.forEach((text,index)=>drawText(page,text,{x:cols[0]+Math.max(5,(cols[7]-cols[0]-textWidth(text,8.6,bold))/2),y:headerY-15-index*10,size:8.6,font:bold,color:ink}));
+      headerY-=agencyHeight;
+      page.drawRectangle({x:cols[0],y:headerY-28,width:cols[7]-cols[0],height:28,borderColor:line,borderWidth:.65,color:soft});
+      cols.slice(1,-1).forEach(x=>page.drawLine({start:{x,y:headerY-28},end:{x,y:headerY},thickness:.65,color:line}));
+      const labels=['ITEM','UNID','QTDE','DESCRIÇÃO DO ITEM','MODELO/MARCA','VALOR UNIT','VALOR TOTAL'];
+      labels.forEach((label,index)=>{const cellWidth=cols[index+1]-cols[index],labelLines=label==='VALOR UNIT'?['VALOR','UNIT']:[label];labelLines.forEach((text,lineIndex)=>drawText(page,text,{x:cols[index]+Math.max(3,(cellWidth-textWidth(text,7,bold))/2),y:headerY-12-lineIndex*8,size:7,font:bold,color:ink}));});
+      return headerY-28;
+    };
+
+    let tableY=drawTablePage();
+    for(const row of rows){
+      let descriptionLines=wrap(row.item.descricao||'-',cols[4]-cols[3]-10,rowFont,font);
+      let brandLines=wrap(row.modelBrand,cols[5]-cols[4]-10,rowFont,font);
+      let firstPart=true;
+      while(descriptionLines.length||brandLines.length){
+        let availableLines=Math.floor((tableY-bottomY-8)/rowGap);
+        if(availableLines<2){tableY=drawTablePage();availableLines=Math.floor((tableY-bottomY-8)/rowGap);}
+        const partLines=Math.max(1,Math.min(availableLines,Math.max(descriptionLines.length,brandLines.length)));
+        const descriptionPart=descriptionLines.splice(0,partLines),brandPart=brandLines.splice(0,partLines);
+        const height=Math.max(24,Math.max(descriptionPart.length,brandPart.length)*rowGap+8);
+        page.drawRectangle({x:cols[0],y:tableY-height,width:cols[7]-cols[0],height,borderColor:line,borderWidth:.55});
+        cols.slice(1,-1).forEach(x=>page.drawLine({start:{x,y:tableY-height},end:{x,y:tableY},thickness:.55,color:line}));
+        const values=firstPart?[row.item.numero??'-',row.item.unidade||'-',row.quantity]:['','',''];
+        values.forEach((value,index)=>{const text=String(value),width=cols[index+1]-cols[index];drawText(page,text,{x:cols[index]+Math.max(3,(width-textWidth(text,rowFont))/2),y:tableY-14,size:rowFont,font,color:ink});});
+        descriptionPart.forEach((text,index)=>drawText(page,text,{x:cols[3]+5,y:tableY-12-index*rowGap,size:rowFont,font,color:ink}));
+        brandPart.forEach((text,index)=>drawText(page,text,{x:cols[4]+5,y:tableY-12-index*rowGap,size:rowFont,font,color:ink}));
+        if(firstPart){
+          [moneyPdf(row.winningValue),moneyPdf(row.total)].forEach((text,index)=>{const colIndex=index+5,width=cols[colIndex+1]-cols[colIndex];drawText(page,text,{x:cols[colIndex]+Math.max(3,(width-textWidth(text,6.7))/2),y:tableY-14,size:6.7,font,color:ink});});
+        }
+        tableY-=height;firstPart=false;
+      }
+    }
+    if(tableY-28<bottomY)tableY=drawTablePage();
+    const proposalTotal=rows.reduce((sum,row)=>sum+row.total,0);
+    page.drawRectangle({x:cols[0],y:tableY-28,width:cols[7]-cols[0],height:28,borderColor:line,borderWidth:.75,color:soft});
+    page.drawLine({start:{x:cols[6],y:tableY-28},end:{x:cols[6],y:tableY},thickness:.75,color:line});
+    drawText(page,'VALOR TOTAL DA PROPOSTA:',{x:cols[6]-145,y:tableY-18,size:8.3,font:bold,color:ink});
+    const totalText=moneyPdf(proposalTotal);
+    drawText(page,totalText,{x:cols[6]+Math.max(3,(cols[7]-cols[6]-textWidth(totalText,7.2,bold))/2),y:tableY-18,size:7.2,font:bold,color:ink});
+
+    const bytes=await pdf.save();
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);
+    const safePart=value=>String(value||'edital').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';
+    link.download=`proposta-${safePart(String(tender.cidade||'cidade').split('/')[0])}-edital-${safePart(tender.numero)}.pdf`;
+    document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+  }catch(error){
+    console.error('Exportação PDF da proposta:',error);
+    toast('Não foi possível gerar a proposta em PDF. Tente novamente.','error');
+  }finally{
+    if(button){button.disabled=!proposalRows(state.proposalTenderId).length;button.removeAttribute('aria-busy');button.textContent=originalText;}
+  }
 }
 
 function setTenderDocumentStatus(message='',type=''){
@@ -9928,6 +10121,15 @@ document.querySelectorAll('[data-document-tab]').forEach(button=>{
     activateDocumentTab(tabs[next].dataset.documentTab,true);
   });
 });
+$('#proposalTenderSelect')?.addEventListener('change',event=>{
+  state.proposalTenderId=event.target.value||'';
+  renderProposalWorkspace();
+});
+$('#proposalIssueDate')?.addEventListener('change',event=>{
+  state.proposalIssueDate=event.target.value||localTodayString();
+  renderProposalWorkspace();
+});
+$('#proposalPdfButton')?.addEventListener('click',exportProposalPdf);
 let deferredInstallPrompt=null;
 const installBtn=$('#installBtn');
 const isStandaloneApp=()=>window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
