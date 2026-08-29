@@ -8273,7 +8273,7 @@ function ensureDashboardModelStyles(){
 
     .db-kpis{
       display:grid;
-      grid-template-columns:repeat(4,minmax(180px,1fr));
+      grid-template-columns:repeat(3,minmax(180px,1fr));
       gap:12px;
       margin-bottom:14px;
     }
