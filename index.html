@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.31.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.31.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.31.0" />
-  <link rel="stylesheet" href="styles.css?v=36.31.0" />
-  <script src="./app-config.js?v=36.31.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.32.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.32.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.32.0" />
+  <link rel="stylesheet" href="styles.css?v=36.32.0" />
+  <script src="./app-config.js?v=36.32.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -426,6 +426,15 @@
             <div class="notice compact"><strong>Importante:</strong> esta área arquiva somente cotações de fornecedores (até 25 MB). A leitura inteligente e a revisão dos vínculos ficam na aba Cotações.</div>
           </div>
           <div class="panel"><h2>Arquivos enviados</h2><div id="arquivosLista" class="table-wrap"></div></div>
+          <dialog id="quoteDocumentEditDialog" class="document-edit-dialog">
+            <form id="quoteDocumentEditForm" method="dialog">
+              <div class="panel-title"><div><h2>Editar arquivo enviado</h2><p class="hint" id="quoteDocumentEditName"></p></div><button type="button" class="icon-btn" data-close-quote-edit aria-label="Fechar">×</button></div>
+              <label>Licitação<select id="quoteDocumentEditTender" name="tender_id" required></select></label>
+              <label>Fornecedor<select id="quoteDocumentEditSupplier" name="supplier_id" required></select></label>
+              <label>Status<select id="quoteDocumentEditStatus" name="status"><option value="uploaded">Enviado</option><option value="processing">Processando</option><option value="needs_review">Revisar</option><option value="processed">Processado</option><option value="failed">Erro</option></select></label>
+              <div class="document-edit-actions"><button type="button" class="secondary" data-close-quote-edit>Cancelar</button><button type="submit">Salvar edição</button></div>
+            </form>
+          </dialog>
         </div>
 
       </section>
@@ -530,7 +539,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-              <div class="footer-status"><span>Versão 36.31.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+              <div class="footer-status"><span>Versão 36.32.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -546,6 +555,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.31.0"></script>
+  <script type="module" src="./app.js?v=36.32.0"></script>
 </body>
 </html>

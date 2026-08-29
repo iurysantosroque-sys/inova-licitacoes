@@ -1,1 +1,1 @@
-36.31.0 - Gera propostas comerciais com os itens vencedores e soma total automática.
+36.32.0 - Adiciona edição e exclusão dos arquivos de cotação enviados.

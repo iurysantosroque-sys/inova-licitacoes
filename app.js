@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -9474,7 +9474,7 @@ function renderDocumentation(){
           esc(supplier?.nome||'-'),
           `<span class="badge neutral">${esc(document.status||'arquivado')}</span>`,
           documentDate(document.created_at),
-          `<div class="document-action-group">${download}${shortcut}</div>`
+          `<div class="document-action-group">${download}${shortcut}<button type="button" class="action-btn" data-edit-quote-document="${esc(document.id)}">Editar</button><button type="button" class="action-btn danger-btn" data-delete-quote-document="${esc(document.id)}">Excluir</button></div>`
         ];
       })
     );
@@ -9917,6 +9917,58 @@ $('#arquivoForm')?.addEventListener('submit',async e=>{
   e.target.reset();toast('Cotação arquivada com segurança. Use a aba Cotações para ler e relacionar os itens.');await refreshAll();
 });
 
+function quoteDocumentEditOptions(){
+  const tenders='<option value="">Selecione a licitação</option>'+state.licitacoes.map(row=>`<option value="${esc(row.id)}">${esc(row.numero)} • ${esc(row.orgao||row.cidade||'Órgão não informado')}</option>`).join('');
+  const suppliers='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(row=>`<option value="${esc(row.id)}">${esc(row.nome)}</option>`).join('');
+  return {tenders,suppliers};
+}
+
+function openQuoteDocumentEdit(id){
+  const row=state.documentos.find(document=>String(document.id)===String(id));
+  const quote=state.quotes.find(document=>String(document.id)===String(id));
+  const dialog=$('#quoteDocumentEditDialog');
+  if(!row||!dialog)return toast('Arquivo não encontrado. Atualize a página e tente novamente.','error');
+  if(!currentMemberIsAdmin())return toast('Somente administradores podem editar arquivos enviados.','error');
+  const options=quoteDocumentEditOptions();
+  $('#quoteDocumentEditTender').innerHTML=options.tenders;
+  $('#quoteDocumentEditSupplier').innerHTML=options.suppliers;
+  $('#quoteDocumentEditTender').value=row.licitacao_id||quote?.tender_id||'';
+  $('#quoteDocumentEditSupplier').value=row.fornecedor_id||quote?.supplier_id||'';
+  $('#quoteDocumentEditStatus').value=row.status||quote?.status||'uploaded';
+  $('#quoteDocumentEditName').textContent=row.nome_arquivo||'Arquivo de cotação';
+  state.quoteDocumentEditingId=String(id);
+  if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+}
+
+function closeQuoteDocumentEdit(){
+  const dialog=$('#quoteDocumentEditDialog');
+  state.quoteDocumentEditingId='';
+  if(dialog?.open)dialog.close();else dialog?.removeAttribute('open');
+}
+
+document.querySelectorAll('[data-close-quote-edit]').forEach(button=>button.addEventListener('click',closeQuoteDocumentEdit));
+$('#quoteDocumentEditDialog')?.addEventListener('click',event=>{if(event.target===event.currentTarget)closeQuoteDocumentEdit();});
+$('#quoteDocumentEditForm')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const id=state.quoteDocumentEditingId;
+  const tenderId=$('#quoteDocumentEditTender')?.value||'';
+  const supplierId=$('#quoteDocumentEditSupplier')?.value||'';
+  const status=$('#quoteDocumentEditStatus')?.value||'uploaded';
+  if(!id||!tenderId||!supplierId)return toast('Selecione a licitação e o fornecedor.','error');
+  if(!currentMemberIsAdmin())return toast('Somente administradores podem editar arquivos enviados.','error');
+  if(state.demo||!configured||!supabase)return toast('A edição de arquivos funciona somente no modo online.','error');
+  const saveButton=event.currentTarget.querySelector('button[type="submit"]');
+  if(saveButton){saveButton.disabled=true;saveButton.textContent='Salvando…';}
+  try{
+    const {error}=await supabase.from('quotes').update({tender_id:tenderId,supplier_id:supplierId,status,updated_at:new Date().toISOString()}).eq('id',id).eq('company_id',currentCompanyId());
+    if(error)throw error;
+    closeQuoteDocumentEdit();
+    await refreshAll();
+    toast('Arquivo atualizado.','success');
+  }catch(error){toast(`Não foi possível editar o arquivo: ${error.message||error}`,'error');}
+  finally{if(saveButton){saveButton.disabled=false;saveButton.textContent='Salvar edição';}}
+});
+
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
 document.addEventListener('click',async e=>{
   const directSync=e.target.closest('[data-direct-pncp-sync]');
@@ -9999,6 +10051,27 @@ document.addEventListener('click',async e=>{
     const document=state.documentos.find(row=>String(row.id)===String(downloadQuoteDocument.dataset.downloadQuoteDocument));
     if(!document)return toast('Cotação não encontrada. Atualize a página e tente novamente.','error');
     await downloadPrivateDocument('quote-files',document.storage_path,document.nome_arquivo,downloadQuoteDocument);
+    return;
+  }
+
+  const editQuoteDocument=e.target.closest('[data-edit-quote-document]');
+  if(editQuoteDocument){openQuoteDocumentEdit(editQuoteDocument.dataset.editQuoteDocument);return;}
+
+  const deleteQuoteDocument=e.target.closest('[data-delete-quote-document]');
+  if(deleteQuoteDocument){
+    const row=state.documentos.find(document=>String(document.id)===String(deleteQuoteDocument.dataset.deleteQuoteDocument));
+    if(!row)return toast('Cotação não encontrada. Atualize a página e tente novamente.','error');
+    if(!currentMemberIsAdmin())return toast('Somente administradores podem excluir arquivos enviados.','error');
+    if(!confirm(`Excluir o arquivo “${row.nome_arquivo}”? Esta ação também remove as cotações lidas deste arquivo.`))return;
+    if(state.demo||!configured||!supabase)return toast('A exclusão de arquivos funciona somente no modo online.','error');
+    deleteQuoteDocument.disabled=true;
+    try{
+      if(row.storage_path){const {error:storageError}=await supabase.storage.from('quote-files').remove([row.storage_path]);if(storageError)throw storageError;}
+      const {error}=await supabase.from('quotes').delete().eq('id',row.id).eq('company_id',currentCompanyId());
+      if(error)throw error;
+      await refreshAll();
+      toast('Arquivo excluído.','success');
+    }catch(error){deleteQuoteDocument.disabled=false;toast(`Não foi possível excluir o arquivo: ${error.message||error}`,'error');}
     return;
   }
 

@@ -624,6 +624,14 @@ tr:hover td{background:#0a141a}
 .proposal-table tfoot th,.proposal-table tfoot td{border-bottom:0;background:#102732;color:var(--text);font-weight:850}
 .proposal-table tfoot th{text-align:right;text-transform:uppercase}
 .proposal-table tfoot td{color:#67db96;white-space:nowrap}
+.document-edit-dialog{width:min(560px,calc(100% - 28px));border:1px solid var(--goldline);border-radius:14px;background:var(--panel);color:var(--text);padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.document-edit-dialog::backdrop{background:rgba(0,0,0,.72)}
+.document-edit-dialog form{display:grid;gap:14px}
+.document-edit-dialog label{display:grid;gap:6px;color:var(--muted);font-size:.82rem}
+.document-edit-dialog select{width:100%;border:1px solid #31414b;border-radius:9px;padding:11px 12px;background:#091218;color:#fff}
+.document-edit-dialog .icon-btn{border:0;background:transparent;color:#fff;font-size:1.6rem;cursor:pointer}
+.document-edit-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}
+.document-edit-actions button{border:1px solid var(--gold);border-radius:9px;padding:10px 15px;background:var(--gold);color:#090d10;font-weight:800}
 @media(max-width:880px){
   .proposal-toolbar{grid-template-columns:1fr 1fr}
   .proposal-toolbar label:first-child{grid-column:1/-1}
