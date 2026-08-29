@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.18.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.18.3" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.18.3" />
-  <link rel="stylesheet" href="styles.css?v=36.18.3" />
-  <script src="./app-config.js?v=36.18.3"></script>
+  <link rel="manifest" href="manifest.json?v=36.19.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.19.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.19.0" />
+  <link rel="stylesheet" href="styles.css?v=36.19.0" />
+  <script src="./app-config.js?v=36.19.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
   
@@ -91,6 +91,7 @@
         <button data-tab="cotacoes"><span>Cotações</span></button>
         <button data-tab="precificacao"><span>Precificação</span></button>
         <button data-tab="fornecedores"><span>Fornecedores</span></button>
+        <button data-tab="financeiro"><span>Financeiro</span></button>
         <button data-tab="arquivos"><span>Documentação</span></button>
         <button data-tab="equipe"><span>Equipe</span></button>
       </nav>
@@ -247,6 +248,12 @@
           </form>
         </div>
         <div class="panel"><h2>Fornecedores</h2><div id="fornecedoresLista" class="table-wrap"></div></div>
+      </section>
+
+      <section id="financeiro" class="tab">
+        <div class="finance-header"><div><h1>Financeiro</h1><p class="hint">Balanço líquido estimado a partir dos lucros da precificação.</p></div><label>Período<select id="financePeriod"><option value="30">30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option><option value="365">Último ano</option><option value="all" selected>Durante todos os períodos</option></select></label></div>
+        <div id="financeSummary"></div><div class="panel"><div class="panel-title"><h2>Balanço líquido por mês</h2><span class="badge neutral">Passe o mouse nas barras</span></div><div id="financeChart" class="finance-chart"></div></div>
+        <div class="panel"><h2>Resultado por licitação</h2><div id="financeTenders"></div><div id="financeTenderDetail" class="finance-detail"></div></div>
       </section>
 
       <section id="cotacoes" class="tab">
@@ -563,7 +570,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.18.3</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+      <div class="footer-status"><span>Versão 36.19.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -579,6 +586,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.18.3"></script>
+  <script type="module" src="./app.js?v=36.19.0"></script>
 </body>
 </html>

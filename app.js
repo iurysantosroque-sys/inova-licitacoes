@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', pricingViewTenderId:'', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, demo:false
 };
 
 const TENDER_SITUATIONS=[
@@ -9148,6 +9148,20 @@ async function openPrivateTenderPdf(documentId,button){
   }
 }
 
+function renderFinance(){
+  const summary=$('#financeSummary'), chart=$('#financeChart'), tenders=$('#financeTenders'), detail=$('#financeTenderDetail');
+  if(!summary||!chart||!tenders)return;
+  const days=state.financePeriod==='all'?null:Number(state.financePeriod||'all');
+  const now=Date.now();
+  const rows=state.licitacoes.map(t=>{const items=state.itens.filter(i=>String(i.licitacao_id)===String(t.id));const profit=items.reduce((sum,i)=>{const p=pricing(i);return sum+(Number.isFinite(Number(p?.profit))?Number(p.profit):0)},0);const raw=t.proposalEndAt||t.createdAt||t.raw?.created_at;const date=raw?new Date(raw):null;return {t,profit,date};}).filter(r=>!days||!r.date||now-r.date.getTime()<=days*86400000);
+  const total=rows.reduce((s,r)=>s+r.profit,0), positive=rows.filter(r=>r.profit>0).length;
+  summary.innerHTML=`<div class="finance-kpis"><article><span>Balanço líquido</span><strong>${money(total)}</strong><small>no período selecionado</small></article><article><span>Licitações analisadas</span><strong>${rows.length}</strong><small>com dados de precificação</small></article><article><span>Com lucro positivo</span><strong>${positive}</strong><small>licitações rentáveis</small></article></div>`;
+  const months={};rows.forEach(r=>{const d=r.date||new Date();const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;months[key]=(months[key]||0)+r.profit;});const keys=Object.keys(months).sort().slice(-12);const max=Math.max(1,...keys.map(k=>Math.abs(months[k])));chart.innerHTML=keys.length?keys.map(k=>{const value=months[k],height=Math.max(6,Math.round(Math.abs(value)/max*150));return `<div class="finance-bar-wrap" title="${esc(k)}: ${esc(money(value))}"><div class="finance-bar ${value<0?'negative':''}" style="height:${height}px"><span>${money(value)}</span></div><small>${k.slice(5)}/${k.slice(0,4)}</small></div>`}).join(''):'<p class="hint">Sem dados para o período.</p>';
+  tenders.innerHTML=rows.length?table(['Licitação','Data','Balanço líquido',''],rows.map(r=>[esc(r.t.numero),r.date?dateBR(r.date,false):'-',`<strong class="${r.profit<0?'negative':'positive'}">${money(r.profit)}</strong>`,`<button class="action-btn" data-finance-tender="${esc(r.t.id)}">Ver resultado</button>`])):'<p class="hint">Nenhuma licitação encontrada no período.</p>';
+  const selected=state.financeTenderId&&rows.find(r=>String(r.t.id)===String(state.financeTenderId));
+  detail.innerHTML=selected?`<div class="finance-detail-head"><strong>${esc(selected.t.numero)}</strong><span>${money(selected.profit)}</span></div>${table(['Item','Descrição','Lucro'],state.itens.filter(i=>String(i.licitacao_id)===String(selected.t.id)).map(i=>{const p=pricing(i);return [String(i.numero),esc(i.descricao),money(Number(p?.profit||0))]}))}`:'';
+}
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -9191,6 +9205,7 @@ function renderAll(){
     toast('O novo Dashboard encontrou um erro e o sistema voltou ao Dashboard padrão.','error');
   }
   renderTenderManagement();
+  renderFinance();
   const supplierWithPhone=state.fornecedores.filter(f=>supplierPhone(f)).length;
   const supplierWhatsapp=state.fornecedores.filter(f=>supplierWhatsappUrl(supplierPhone(f))).length;
   const supplierList=state.fornecedores.length
@@ -9652,6 +9667,8 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.tab).classList.add('active');}));
+$('#financePeriod')?.addEventListener('change',e=>{state.financePeriod=e.target.value;state.financeTenderId='';renderFinance();});
+document.addEventListener('click',e=>{const button=e.target.closest('[data-finance-tender]');if(!button)return;state.financeTenderId=button.dataset.financeTender;renderFinance();});
 document.querySelectorAll('[data-document-tab]').forEach(button=>{
   button.addEventListener('click',()=>activateDocumentTab(button.dataset.documentTab));
   button.addEventListener('keydown',event=>{

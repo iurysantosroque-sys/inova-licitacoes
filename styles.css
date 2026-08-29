@@ -36,6 +36,7 @@ main{max-width:1720px;margin:auto;padding:28px 30px 44px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:20px}
 .panel h2{font-size:1.08rem;margin:0 0 16px;color:var(--gold)}
 .supplier-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 20px}.supplier-kpi{position:relative;overflow:hidden;background:#0b171e;border:1px solid var(--line);border-radius:15px;padding:18px 20px}.supplier-kpi:after{content:"";position:absolute;left:20px;right:20px;bottom:0;height:2px;background:linear-gradient(90deg,#38a9ff,#245c77)}.supplier-kpi span{display:block;color:#c4cbd0;font-size:.86rem}.supplier-kpi strong{display:block;color:#fff;font-size:1.7rem;margin-top:7px}.supplier-kpi small{display:block;color:var(--muted);margin-top:4px}.supplier-list{border-top:1px solid var(--line);padding-top:16px}.supplier-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.supplier-whatsapp{color:#65dc91!important;border-color:#267244!important;text-decoration:none}.supplier-no-contact{color:#7f8b92;font-size:.78rem}.supplier-phone{white-space:nowrap}
+.finance-header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px}.finance-header h1{margin:0;color:var(--gold)}.finance-header label{display:grid;gap:6px;color:var(--muted);font-size:.82rem}.finance-header select{min-width:210px;border:1px solid #31414b;border-radius:9px;padding:10px;background:#091218;color:#fff}.finance-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}.finance-kpis article{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 20px}.finance-kpis span,.finance-kpis small{display:block;color:var(--muted)}.finance-kpis strong{display:block;font-size:1.7rem;margin:7px 0;color:#fff}.finance-chart{min-height:190px;display:flex;align-items:flex-end;gap:16px;overflow-x:auto;padding:20px 8px 0}.finance-bar-wrap{height:180px;min-width:70px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}.finance-bar{width:42px;min-height:6px;border-radius:6px 6px 2px 2px;background:#35b96b;position:relative;cursor:pointer}.finance-bar.negative{background:#ef655e}.finance-bar span{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:.7rem;opacity:0;pointer-events:none}.finance-bar-wrap:hover .finance-bar span{opacity:1}.finance-bar-wrap small{color:var(--muted)}.finance-detail{margin-top:16px}.finance-detail-head{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:8px}.finance-detail-head span{font-weight:800;color:var(--gold)}
 .panel-title{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .supplier-new-btn{border:1px solid var(--gold);border-radius:10px;padding:10px 15px;background:var(--gold);color:#090d10;font-weight:800}.supplier-form-panel form[hidden]{display:none}.supplier-form-panel form{margin-top:4px}.supplier-form-panel input.is-loading{border-color:var(--gold);opacity:.7}
 .panel-soft{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:18px}
@@ -122,13 +123,13 @@ tr:hover td{background:#0a141a}
 
 @media(max-width:1000px){
   .cards{grid-template-columns:1fr 1fr}.two-col{grid-template-columns:1fr}.grid-form{grid-template-columns:1fr 1fr}
-  .supplier-kpis{grid-template-columns:1fr 1fr}
+  .supplier-kpis,.finance-kpis{grid-template-columns:1fr 1fr}
   .sim-grid{grid-template-columns:1fr 1fr}.pricing-summary{grid-template-columns:1fr 1fr}
 }
 @media(max-width:680px){
   .topbar{padding:10px 14px;min-height:92px}.tabs{top:92px;padding:0 8px}.tabs button{padding:0 13px}
   .header-logo{width:62px;height:62px}.brand-copy h1{font-size:1.15rem}.brand-copy p{font-size:.6rem}
-  .user-pill #userName{display:none}main{padding:18px 12px}.cards,.grid-form,.sim-grid,.pricing-summary,.supplier-kpis{grid-template-columns:1fr}
+  .user-pill #userName{display:none}main{padding:18px 12px}.cards,.grid-form,.sim-grid,.pricing-summary,.supplier-kpis,.finance-kpis{grid-template-columns:1fr}.finance-header{align-items:stretch;flex-direction:column}.finance-header select{width:100%}
   .company-grid{grid-template-columns:1fr}.app-footer{padding:20px 14px;align-items:flex-start;flex-direction:column}
 }
 

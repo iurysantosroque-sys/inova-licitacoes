@@ -1,1 +1,1 @@
-36.18.3 - Correção da UF exibida e atualização dos fornecedores antigos.
+36.19.0 - Nova aba Financeiro com balanço, filtro de período e gráfico mensal.
