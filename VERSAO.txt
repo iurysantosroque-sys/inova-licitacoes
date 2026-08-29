@@ -1,1 +1,1 @@
-36.18.1 - UF calculada pelo DDD e botão de salvar edição.
+36.18.2 - UF retroativa calculada pelo DDD nos fornecedores existentes.

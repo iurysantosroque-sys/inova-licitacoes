@@ -3929,7 +3929,8 @@ async function refreshAll(){
       raw:t
     };
   });
-  state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,nome_fantasia:f.trade_name||'',uf:f.state_uf||'',cnpj:f.cnpj,vendedor:f.contact_name||'',telefone:f.phone||'',email:f.email||'',frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
+  state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,nome_fantasia:f.trade_name||'',uf:f.state_uf||supplierUfFromPhone(f.phone||''),cnpj:f.cnpj,vendedor:f.contact_name||'',telefone:f.phone||'',email:f.email||'',frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
+  if(!state.demo){const missingUf=(suppliers.data||[]).filter(f=>!f.state_uf&&supplierUfFromPhone(f.phone||''));if(missingUf.length)Promise.all(missingUf.map(f=>supabase.from('suppliers').update({state_uf:supplierUfFromPhone(f.phone)}).eq('id',f.id))).catch(()=>{});}
   state.quotes=quotes.data||[];
   const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
   if(tenderDocumentsResp.error){
