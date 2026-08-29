@@ -4208,8 +4208,9 @@ function exportQuoteExcel(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cotação');XLSX.writeFile(wb,`cotacao-${quoteExportSafePart(tender.cidade)}-edital-${quoteExportSafePart(tender.numero)}.xlsx`);
 }
 
-async function exportQuotePdf(){
-  const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));if(!tender)return;
+async function exportQuotePdf(tenderIdOverride=''){
+  const tenderId=tenderIdOverride||state.quoteViewTenderId;
+  const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));if(!tender)return;
   const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
   const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
@@ -6965,6 +6966,7 @@ function renderPricingExactModel(){
           </select>
         </label>
         <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
+        <button id="pricingPdfExportButton" type="button" title="Baixar a lista desta licitação em PDF">⇩ Baixar PDF</button>
         <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar cotação</button>
       </div>
     </header>
@@ -7052,6 +7054,7 @@ function renderPricingExactModel(){
     renderPricingExactModel();
   });
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
+  shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportQuotePdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
 
   const dialog=shell.querySelector('#pricingItemDialog');

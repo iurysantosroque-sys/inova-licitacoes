@@ -1,1 +1,1 @@
-36.23.1 - Abre uma janela sobreposta para enviar e ler o PDF do fornecedor.
+36.23.2 - Adiciona download PDF da lista de precificação no mesmo formato das cotações.
