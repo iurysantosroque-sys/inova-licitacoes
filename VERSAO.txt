@@ -1,1 +1,1 @@
-36.14.4 - Cabeçalho da tabela de precificação fixo durante a rolagem, com duas linhas sempre visíveis.
+36.14.5 - Configuração de custos em aba própria e visual da precificação simplificado.

@@ -6786,7 +6786,6 @@ function renderPricingExactModel(){
     <header class="pricing-sheet-head">
       <div>
         <h1 id="pricingPageTitle">Precificação</h1>
-        <p>Tabela automática por licitação, no mesmo formato da planilha de referência.</p>
       </div>
       <div class="pricing-sheet-toolbar">
         <label for="pricingSheetTender">Licitação
@@ -6796,6 +6795,7 @@ function renderPricingExactModel(){
               :'<option value="">Nenhuma licitação cadastrada</option>'}
           </select>
         </label>
+        <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
         <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar novo item</button>
       </div>
     </header>
@@ -6887,6 +6887,7 @@ function renderPricingExactModel(){
     state.pricingViewTenderId=event.target.value||'';
     renderPricingExactModel();
   });
+  shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
 
   const dialog=shell.querySelector('#pricingItemDialog');

@@ -485,6 +485,7 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-toolbar select{width:100%;min-height:44px;border:1px solid var(--ps-line);border-radius:8px;background:var(--ps-navy);color:var(--ps-text);padding:0 11px}
 #precificacao .pricing-sheet-toolbar button,#precificacao .pricing-sheet-tax button{min-height:44px;border:1px solid var(--ps-gold);border-radius:8px;background:var(--ps-gold);color:#10171b;padding:0 15px;font-weight:850;white-space:nowrap}
 #precificacao .pricing-sheet-toolbar button:disabled{opacity:.55;cursor:not-allowed}
+#precificacao #pricingCostSettingsButton{background:transparent;color:var(--ps-gold)}
 #precificacao .pricing-sheet-meta{display:flex;align-items:stretch;justify-content:space-between;gap:16px;border:1px solid var(--ps-line);border-radius:10px;background:var(--ps-navy);padding:12px 14px}
 #precificacao .pricing-sheet-meta dl{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:0;flex:1;margin:0}
 #precificacao .pricing-sheet-meta dl>div{padding:2px 16px;border-right:1px solid var(--ps-line)}
