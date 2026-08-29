@@ -1,1 +1,1 @@
-36.17.5 - Fornecedores simplificados, sem frete, pedido mínimo ou prazo na interface.
+36.17.6 - Consulta de fornecedores com três fontes públicas e normalização de contato.
