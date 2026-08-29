@@ -1,1 +1,1 @@
-36.21.10 - Nome do arquivo PDF inclui cidade e número do edital.
+36.21.11 - Simplifica a aba de cotações removendo o bloco de importação.

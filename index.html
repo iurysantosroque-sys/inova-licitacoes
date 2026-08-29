@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.21.10" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.21.10" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.21.10" />
-  <link rel="stylesheet" href="styles.css?v=36.21.10" />
-  <script src="./app-config.js?v=36.21.10"></script>
+  <link rel="manifest" href="manifest.json?v=36.21.11" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.21.11" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.21.11" />
+  <link rel="stylesheet" href="styles.css?v=36.21.11" />
+  <script src="./app-config.js?v=36.21.11"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -261,77 +261,14 @@
         <header class="quote-workspace-header">
           <div>
             <h1>Cotações</h1>
-            <p>Importe o PDF do fornecedor. A IA lê, relaciona e salva automaticamente apenas os itens seguros.</p>
+            <p>Selecione o edital para consultar os itens e preparar sua cotação.</p>
           </div>
-          <div class="quote-workspace-actions"><label class="quote-tender-field" for="quoteWorkspaceTender">Edital da cotação<select id="quoteWorkspaceTender" aria-describedby="quoteWorkspaceSummary"></select></label><button type="button" class="action-btn quote-new-btn" id="quoteNewBtn">＋ Nova cotação</button></div>
+          <div class="quote-workspace-actions"><label class="quote-tender-field" for="quoteWorkspaceTender">Edital da cotação<select id="quoteWorkspaceTender" aria-describedby="quoteWorkspaceSummary"></select></label></div>
         </header>
 
         <div id="quoteWorkspaceSummary" class="quote-summary quote-summary-direct" aria-live="polite"></div>
         <section class="quote-sheet-panel panel" id="quoteSheetPanel"></section>
 
-        <nav class="quote-section-tabs" aria-label="Áreas de cotações">
-          <button type="button" data-quote-section="import" aria-controls="quoteImportPanel">Importar PDF</button>
-          <button type="button" data-quote-section="review" aria-controls="quoteReviewPanel">Revisar dúvidas <span id="quoteReviewCount" class="quote-tab-count">0</span></button>
-          <button type="button" data-quote-section="quoted" aria-controls="quoteQuotedPanel">Itens cotados</button>
-        </nav>
-
-        <div id="quoteImportPanel" class="panel quote-import-panel quote-editor-panel">
-          <div class="panel-title">
-            <div>
-              <h2>Importar PDF com IA</h2>
-              <p class="hint">Selecione o fornecedor e o PDF. A leitura começa automaticamente, sem outro botão.</p>
-            </div>
-          </div>
-
-          <select id="quoteImportTender" hidden aria-hidden="true" tabindex="-1"></select>
-          <div id="quoteImportTenderLabel" class="quote-import-tender-label"></div>
-          <div class="quote-import-grid">
-            <label for="quoteImportSupplier">Fornecedor
-              <select id="quoteImportSupplier"></select>
-            </label>
-            <label class="quote-file-label" for="quoteImportFile">PDF da cotação
-              <input id="quoteImportFile" type="file" accept=".pdf,.csv,application/pdf,text/csv" aria-describedby="quoteImportHelp">
-            </label>
-          </div>
-
-          <div id="quoteImportStatus" class="quote-import-status" role="status" aria-live="polite" hidden></div>
-          <ol id="quoteImportProgress" class="quote-import-progress" aria-label="Etapas da importação" hidden>
-            <li data-quote-step="upload">Enviando PDF</li>
-            <li data-quote-step="reading">Identificando itens</li>
-            <li data-quote-step="matching">IA relacionando</li>
-            <li data-quote-step="saving">Salvando seguros</li>
-          </ol>
-          <button type="button" id="quoteRetryBtn" class="secondary" hidden>Tentar novamente</button>
-        </div>
-
-        <div id="quoteReviewPanel" class="panel quote-review-panel" hidden>
-          <div class="quote-list-heading">
-            <div>
-              <h2>Revisar dúvidas</h2>
-              <p class="hint">Confirme, troque o item ou ignore. Nada desta área entra na precificação sem sua confirmação.</p>
-            </div>
-          </div>
-          <div id="quoteImportPreview" class="quote-import-preview"></div>
-        </div>
-
-        <div id="quoteQuotedPanel" class="panel quote-comparison-panel" hidden>
-          <div class="quote-list-heading">
-            <div>
-              <h2>Cotações do edital</h2>
-              <p id="quoteListCount" class="hint"></p>
-            </div>
-            <div class="quote-list-tools">
-              <label class="sr-only" for="quoteWorkspaceSearch">Buscar item</label>
-              <input id="quoteWorkspaceSearch" type="search" placeholder="Buscar item por número ou descrição" autocomplete="off" />
-              <div class="quote-filter-buttons" aria-label="Filtrar itens">
-                <button type="button" class="action-btn" data-quote-filter="all">Todos</button>
-                <button type="button" class="action-btn" data-quote-filter="quoted">Com cotação</button>
-                <button type="button" class="action-btn" data-quote-filter="missing">Sem cotação</button>
-              </div>
-            </div>
-          </div>
-          <div id="comparativoLista" class="quote-comparison-scroll"></div>
-        </div>
       </section>
 
       <section id="precificacao" class="tab" aria-labelledby="pricingPageTitle">
@@ -569,7 +506,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-      <div class="footer-status"><span>Versão 36.21.10</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+      <div class="footer-status"><span>Versão 36.21.11</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -585,6 +522,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.21.10"></script>
+  <script type="module" src="./app.js?v=36.21.11"></script>
 </body>
 </html>
