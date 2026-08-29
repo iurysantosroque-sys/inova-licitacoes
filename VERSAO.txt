@@ -1,1 +1,1 @@
-36.47.0 - Mantém o foco do chat após o envio de mensagens.
+36.48.0 - Adiciona minimização e limpeza segura do histórico do chat.
