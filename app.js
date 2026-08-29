@@ -4168,12 +4168,26 @@ async function exportQuoteWord(){
 
 async function exportQuoteWordFallback(tender,items){
   const image=await fetch('assets/papel-timbrado.png').then(response=>response.ok?response.blob():null).catch(()=>null);
-  const imageData=image?await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(image)}):'';
+  let imageData='';
+  if(image){
+    try{
+      const bitmap=await createImageBitmap(image);
+      const canvas=document.createElement('canvas');
+      // O arquivo timbrado é uma página A4; no Word usamos somente o
+      // cabeçalho superior, evitando que a imagem ocupe uma página inteira.
+      const cropHeight=Math.min(bitmap.height,430);
+      canvas.width=bitmap.width;canvas.height=cropHeight;
+      canvas.getContext('2d').drawImage(bitmap,0,0,bitmap.width,cropHeight,0,0,canvas.width,cropHeight);
+      imageData=canvas.toDataURL('image/png');bitmap.close();
+    }catch{
+      imageData=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(image)})
+    }
+  }
   const esc=value=>String(value??'-').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const rows=items.map(item=>`<tr><td>${esc(item.descricao)}</td><td>${esc(item.unidade)}</td><td>${esc(item.quantidade)}</td></tr>`).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page{margin:1.2cm}body{font-family:Arial,sans-serif;color:#1d2328;margin:0;padding:0}
-    .cabecalho{text-align:center;margin-bottom:18px}.cabecalho img{width:550px;max-width:100%;height:auto;max-height:190px;object-fit:contain}
+    .cabecalho{text-align:center;margin:0 0 12px;height:150px;overflow:hidden}.cabecalho img{width:550px;height:185px;max-width:100%;display:block;margin:0 auto;object-fit:contain;object-position:top}
     h1{font-size:20pt;margin:8px 0 4px}.meta{font-size:11pt;margin:2px 0 14px}table{width:100%;border-collapse:collapse;table-layout:fixed}
     th,td{border:1px solid #aaa;padding:6px 7px;vertical-align:top;font-size:10pt;line-height:1.25;word-wrap:break-word}th{font-weight:bold;background:#f1f1f1;text-align:left}
     th:first-child,td:first-child{width:70%}th:nth-child(2),td:nth-child(2){width:16%}th:nth-child(3),td:nth-child(3){width:14%;text-align:center}

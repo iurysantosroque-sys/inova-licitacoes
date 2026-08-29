@@ -1,1 +1,1 @@
-36.22.5 - Corrige a exportação Word com fallback compatível quando a biblioteca externa não carrega.
+36.22.6 - Ajusta o papel timbrado no Word e evita página em branco antes da tabela.
