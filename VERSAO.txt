@@ -1,1 +1,1 @@
-36.14.3 - Consultas ao PNCP com até 3 tentativas automáticas, sem exibir a contagem e com tempo ampliado para editais grandes.
+36.14.4 - Cabeçalho da tabela de precificação fixo durante a rolagem, com duas linhas sempre visíveis.
