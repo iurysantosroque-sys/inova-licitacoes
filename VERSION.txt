@@ -1,4 +1,4 @@
-INOVA V36.50.0
+INOVA V36.51.0
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.
@@ -10,3 +10,4 @@ INOVA V36.50.0
 - Upload privado validado e PWA com cache atualizável.
 - Schema, hardening e Edge Functions atuais versionados.
 - Biblioteca privada de habilitação fiscal com validade, alertas, filtros e histórico de renovação.
+- Reutilização de cotações anteriores compatíveis e exclusão administrativa de cotações antigas.

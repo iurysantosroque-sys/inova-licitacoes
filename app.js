@@ -1547,6 +1547,156 @@ function quoteMatchScore(a,b){
   return {score,reason:''};
 }
 
+function quoteComparableUnit(value){
+  const unit=quoteNormalize(value).replace(/[^A-Z0-9]/g,'');
+  const aliases={
+    UN:'UN',UND:'UN',UNID:'UN',UNIDADE:'UN',UNIDADES:'UN',
+    KG:'KG',KILO:'KG',QUILO:'KG',QUILOGRAMA:'KG',QUILOGRAMAS:'KG',
+    G:'G',GR:'G',GRAMA:'G',GRAMAS:'G',
+    L:'L',LT:'L',LITRO:'L',LITROS:'L',
+    ML:'ML',MILILITRO:'ML',MILILITROS:'ML',
+    M:'M',MT:'M',METRO:'M',METROS:'M',
+    CM:'CM',CENTIMETRO:'CM',CENTIMETROS:'CM',
+    MM:'MM',MILIMETRO:'MM',MILIMETROS:'MM',
+    CX:'CX',CAIXA:'CX',CAIXAS:'CX',
+    PCT:'PCT',PACOTE:'PCT',PACOTES:'PCT',
+    PAR:'PAR',PARES:'PAR',
+    RL:'RL',ROLO:'RL',ROLOS:'RL',
+    FD:'FD',FARDO:'FD',FARDOS:'FD'
+  };
+  return aliases[unit]||unit;
+}
+
+function quoteUnitsCompatible(a,b){
+  const left=quoteComparableUnit(a),right=quoteComparableUnit(b);
+  return !left||!right||left===right;
+}
+
+function quoteDescriptionsHaveDivergentMeasures(a,b){
+  const left=quoteSpecTokens(a),right=quoteSpecTokens(b);
+  if(!left.length||!right.length)return false;
+  return setOverlap(left,right).common===0;
+}
+
+function quoteValidityState(value){
+  const validity=String(value||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(validity))return {key:'unknown',label:'Sem validade informada'};
+  if(validity<localTodayString())return {key:'expired',label:`Vencida em ${dateBR(`${validity}T12:00:00`)}`};
+  return {key:'valid',label:`Válida até ${dateBR(`${validity}T12:00:00`)}`};
+}
+
+function priorQuoteReuseCandidates(tenderId,supplierId){
+  if(!tenderId||!supplierId)return [];
+  const currentItems=state.itens.filter(item=>String(item.licitacao_id)===String(tenderId));
+  const historical=state.cotacoes.filter(quote=>
+    String(quote.fornecedor_id)===String(supplierId)&&
+    String(quote.origem_licitacao_id||quote.quote_tender_id||'')!==String(tenderId)&&
+    quote.raw?.needs_review!==true&&
+    !['error','processing','needs_review','uploading'].includes(String(quote.quote_status||'').toLowerCase())&&
+    Number(quote.preco)>0
+  );
+
+  return currentItems.flatMap(targetItem=>{
+    const alreadyQuoted=state.cotacoes.some(quote=>
+      String(quote.item_id)===String(targetItem.id)&&
+      String(quote.fornecedor_id)===String(supplierId)&&
+      Number(quote.preco)>0
+    );
+    if(alreadyQuoted)return [];
+
+    const ranked=historical.map(sourceQuote=>{
+      const sourceDescription=sourceQuote.origem_item_descricao||sourceQuote.supplier_description||sourceQuote.raw?.supplier_description||'';
+      if(!quoteUnitsCompatible(targetItem.unidade,sourceQuote.origem_item_unidade))return null;
+      if(quoteDescriptionsHaveDivergentMeasures(targetItem.descricao,sourceDescription))return null;
+      const safeScore=quoteSafeMatchScore(sourceDescription,targetItem.descricao);
+      const match=quoteMatchScore(sourceDescription,targetItem.descricao);
+      const compatible=(safeScore>=.72&&match.score>=.34)||(safeScore>=.55&&match.score>=.62);
+      if(!compatible)return null;
+      const validity=quoteValidityState(sourceQuote.quote_validity_date);
+      if(validity.key==='expired')return null;
+      const createdAt=Date.parse(sourceQuote.quote_created_at||sourceQuote.created_at||0)||0;
+      return {targetItem,sourceQuote,safeScore,matchScore:match.score,validity,createdAt};
+    }).filter(Boolean).sort((a,b)=>{
+      const validityRank={valid:2,unknown:1};
+      return (validityRank[b.validity.key]||0)-(validityRank[a.validity.key]||0)||
+        b.createdAt-a.createdAt||b.safeScore-a.safeScore||b.matchScore-a.matchScore;
+    });
+    return ranked.length?[ranked[0]]:[];
+  }).sort((a,b)=>Number(a.targetItem.numero)-Number(b.targetItem.numero));
+}
+
+function renderPriorQuoteReuseOptions(container,tenderId,supplierId){
+  if(!container)return;
+  if(!tenderId||!supplierId){
+    container.innerHTML='<div class="pricing-prior-quotes-empty">Escolha a licitação e o fornecedor para procurar preços já recebidos.</div>';
+    return;
+  }
+  const candidates=priorQuoteReuseCandidates(tenderId,supplierId);
+  if(!candidates.length){
+    container.innerHTML='<div class="pricing-prior-quotes-empty">Nenhuma cotação anterior compatível foi encontrada para os itens ainda sem preço deste fornecedor.</div>';
+    return;
+  }
+  const supplier=state.fornecedores.find(row=>String(row.id)===String(supplierId));
+  container.innerHTML=`<div class="pricing-prior-quotes-heading"><div><strong>Cotações anteriores compatíveis</strong><span>Revise cada sugestão antes de reutilizar. O preço será copiado como um registro independente.</span></div><span class="badge neutral">${candidates.length}</span></div>
+    <div class="pricing-prior-quotes-list">${candidates.map(candidate=>{
+      const {targetItem,sourceQuote,validity}=candidate;
+      const originTender=state.licitacoes.find(row=>String(row.id)===String(sourceQuote.origem_licitacao_id||sourceQuote.quote_tender_id));
+      const product=sourceQuote.supplier_description||sourceQuote.origem_item_descricao||sourceQuote.raw?.supplier_description||'Produto sem descrição';
+      const origin=[originTender?.numero,originTender?.orgao||originTender?.cidade].filter(Boolean).join(' • ')||'Edital anterior';
+      const sentAt=sourceQuote.quote_created_at?documentDate(sourceQuote.quote_created_at):'Data não informada';
+      return `<article class="pricing-prior-quote-card">
+        <div class="pricing-prior-quote-target"><span>Item atual ${esc(targetItem.numero)}</span><strong>${esc(targetItem.descricao)}</strong><small>${esc(targetItem.unidade||'Unidade não informada')}</small></div>
+        <div class="pricing-prior-quote-source"><span>Produto cotado</span><strong>${esc(product)}</strong><small>${esc(supplier?.nome||'Fornecedor')} • ${esc(origin)}</small><small>${esc(sentAt)} • <span class="pricing-prior-validity ${validity.key}">${esc(validity.label)}</span></small></div>
+        <div class="pricing-prior-quote-price"><span>Preço recebido</span><strong>${money(sourceQuote.preco)}</strong><small>${esc(sourceQuote.apresentacao||'Por unidade')} • fator ${esc(sourceQuote.fator_equivalencia||1)}</small><button type="button" data-reuse-prior-quote data-target-item="${esc(targetItem.id)}" data-source-quote-item="${esc(sourceQuote.id)}">Usar esta cotação</button></div>
+      </article>`;
+    }).join('')}</div>`;
+}
+
+async function reusePriorQuoteItem({sourceItemId,targetItemId,tenderId,supplierId,button}){
+  const source=state.cotacoes.find(row=>String(row.id)===String(sourceItemId));
+  const target=state.itens.find(row=>String(row.id)===String(targetItemId)&&String(row.licitacao_id)===String(tenderId));
+  if(!source||!target||String(source.fornecedor_id)!==String(supplierId))return toast('A cotação anterior não está mais disponível. Atualize e tente novamente.','error');
+  if(state.cotacoes.some(row=>String(row.item_id)===String(targetItemId)&&String(row.fornecedor_id)===String(supplierId)&&Number(row.preco)>0))return toast('Este fornecedor já possui uma cotação para o item selecionado.','error');
+  const validity=quoteValidityState(source.quote_validity_date);
+  if(validity.key==='expired')return toast('Esta cotação venceu e não pode ser reutilizada.','error');
+  if(validity.key==='unknown'&&!confirm('Esta cotação não possui validade informada. Confirma que o preço continua válido e deseja criar uma cópia independente?'))return;
+
+  const oldText=button?.textContent||'Usar esta cotação';
+  if(button){button.disabled=true;button.textContent='Copiando…';}
+  const snapshot={
+    supplier_description:source.supplier_description||source.raw?.supplier_description||source.origem_item_descricao||target.descricao,
+    brand:source.brand||source.raw?.brand||null,
+    model:source.model||source.raw?.model||null,
+    package_description:source.apresentacao||source.raw?.package_description||null,
+    package_base_quantity:Number(source.fator_equivalencia||1),
+    unit_price:Number(source.preco),
+    freight_per_package:Number(source.frete_rateado||0),
+    ai_match_confidence:null,
+    needs_review:false
+  };
+  try{
+    if(state.demo){
+      let quote=state.quotes.find(row=>String(row.tender_id)===String(tenderId)&&String(row.supplier_id)===String(supplierId)&&!row.source_filename);
+      if(!quote){quote={id:crypto.randomUUID(),tender_id:tenderId,supplier_id:supplierId,status:'manual',created_at:new Date().toISOString()};state.quotes.unshift(quote);}
+      state.cotacoes.push({id:crypto.randomUUID(),quote_id:quote.id,item_id:target.id,fornecedor_id:supplierId,preco:snapshot.unit_price,fator_equivalencia:snapshot.package_base_quantity,frete_rateado:snapshot.freight_per_package,apresentacao:snapshot.package_description||'',marca:[snapshot.brand,snapshot.model].filter(Boolean).join(' '),brand:snapshot.brand||'',model:snapshot.model||'',supplier_description:snapshot.supplier_description,origem_licitacao_id:tenderId,quote_tender_id:tenderId,quote_created_at:quote.created_at,raw:{...snapshot}});
+      renderAll();
+      return toast('Cotação anterior copiada para este item.');
+    }
+    const quote=await findOrCreateQuote(tenderId,supplierId);
+    if(!quote)throw new Error('Não foi possível preparar a cotação de destino.');
+    const {data:duplicate,error:duplicateError}=await supabase.from('quote_items').select('id').eq('quote_id',quote.id).eq('tender_item_id',target.id).limit(1);
+    if(duplicateError)throw duplicateError;
+    if(duplicate?.length)throw new Error('Este fornecedor já possui uma cotação para o item selecionado.');
+    const {error}=await supabase.from('quote_items').insert({quote_id:quote.id,tender_item_id:target.id,...snapshot});
+    if(error)throw error;
+    await refreshAll();
+    toast('Cotação anterior copiada como um registro independente.','success');
+  }catch(error){
+    if(button){button.disabled=false;button.textContent=oldText;}
+    toast(error.message||'Não foi possível reutilizar a cotação.','error');
+  }
+}
+
 function rankedTenderMatches(description,tenderId){
   const candidates=state.itens.filter(i=>i.licitacao_id===tenderId);
   return candidates
@@ -4036,11 +4186,44 @@ async function refreshAll(){
   if(itemResp.error)return toast(itemResp.error.message,'error'); if(qiResp.error)return toast(qiResp.error.message,'error');
   state.itens=(itemResp.data||[]).map(i=>({id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,quantidade:Number(i.quantity),unidade:i.unit||'',valor_estimado:Number(i.estimated_unit_price||0),raw:i}));
   await loadPricingItemResults(state.itens.map(item=>item.id));
-  state.cotacoes=(qiResp.data||[]).map(qi=>{const q=state.quotes.find(x=>x.id===qi.quote_id);return {id:qi.id,quote_id:qi.quote_id,item_id:qi.tender_item_id,fornecedor_id:q?.supplier_id,preco:Number(qi.unit_price),fator_equivalencia:Number(qi.package_base_quantity||1),frete_rateado:Number(qi.freight_per_package||0),apresentacao:qi.package_description||'',marca:[qi.brand,qi.model].filter(Boolean).join(' '),raw:qi};});
+  state.cotacoes=(qiResp.data||[]).map(qi=>{
+    const q=state.quotes.find(x=>String(x.id)===String(qi.quote_id));
+    const originItem=state.itens.find(item=>String(item.id)===String(qi.tender_item_id));
+    return {
+      id:qi.id,
+      quote_id:qi.quote_id,
+      item_id:qi.tender_item_id,
+      fornecedor_id:q?.supplier_id,
+      preco:Number(qi.unit_price),
+      fator_equivalencia:Number(qi.package_base_quantity||1),
+      frete_rateado:Number(qi.freight_per_package||0),
+      apresentacao:qi.package_description||'',
+      marca:[qi.brand,qi.model].filter(Boolean).join(' '),
+      brand:qi.brand||'',
+      model:qi.model||'',
+      supplier_description:qi.supplier_description||'',
+      origem_licitacao_id:originItem?.licitacao_id||q?.tender_id||'',
+      origem_item_descricao:originItem?.descricao||'',
+      origem_item_unidade:originItem?.unidade||'',
+      origem_item_numero:originItem?.numero??'',
+      quote_tender_id:q?.tender_id||'',
+      quote_created_at:q?.created_at||qi.created_at||null,
+      quote_updated_at:q?.updated_at||null,
+      quote_validity_date:q?.validity_date||null,
+      quote_source_filename:q?.source_filename||'',
+      quote_status:q?.status||'',
+      raw:qi
+    };
+  });
   const pricingResp=await supabase.rpc('get_pricing_map');
   if(pricingResp.error){ console.warn('Precificação:',pricingResp.error.message); state.pricingMap=[]; }
   else state.pricingMap=pricingResp.data||[];
-  state.documentos=state.quotes.filter(q=>q.source_filename).map(q=>({id:q.id,nome_arquivo:q.source_filename,tipo:'cotacao',licitacao_id:q.tender_id,fornecedor_id:q.supplier_id,status:q.status||'enviado',created_at:q.created_at,storage_path:q.storage_path,ai_error:q.ai_error}));
+  state.documentos=state.quotes.filter(q=>q.source_filename).map(q=>({
+    id:q.id,nome_arquivo:q.source_filename,tipo:'cotacao',licitacao_id:q.tender_id,
+    fornecedor_id:q.supplier_id,status:q.status||'enviado',created_at:q.created_at,
+    validity_date:q.validity_date||null,storage_path:q.storage_path,ai_error:q.ai_error,
+    itens_afetados:state.cotacoes.filter(item=>String(item.quote_id)===String(q.id)).length
+  }));
   const memberRows=members.data||[], userIds=memberRows.map(m=>m.user_id);
   const profiles=userIds.length?await supabase.from('profiles').select('id,name,email,avatar_url,created_at').in('id',userIds):{data:[],error:null};
   state.equipe=memberRows.map(m=>{const p=(profiles.data||[]).find(x=>x.id===m.user_id);return {id:m.user_id,nome:p?.name||p?.email||`Usuário ${m.user_id.slice(0,6)}`,avatar_url:p?.avatar_url||'',papel:m.role,created_at:m.created_at};});
@@ -7107,9 +7290,13 @@ function renderPricingExactModel(){
         <div class="pricing-item-form-grid">
           <label>Licitação<select id="quoteImportTenderSelect" required>${state.licitacoes.length?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao||row.cidade||'Órgão não informado')}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}</select></label>
           <input type="hidden" id="quoteImportTender" value="${esc(tenderId)}">
-          <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="">Nenhum fornecedor cadastrado</option>'}</select></label>
+          <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
           <label class="pricing-item-description-field">Arquivo da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required></label>
         </div>
+        <section class="pricing-prior-quotes" aria-labelledby="pricingPriorQuotesTitle">
+          <h3 id="pricingPriorQuotesTitle" class="sr-only">Cotações anteriores compatíveis</h3>
+          <div id="pricingPriorQuotes" aria-live="polite"></div>
+        </section>
         <div id="quoteImportStatus" class="hint" role="status" aria-live="polite">Selecione o arquivo enviado pelo fornecedor e clique em Enviar arquivo.</div>
         <div id="quoteImportProgress" class="hint" hidden></div><div id="quoteImportPreview" hidden></div><button id="quoteRetryBtn" type="button" hidden>Tentar novamente</button>
         <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button id="quoteImportSubmit" type="button">Enviar arquivo</button></div>
@@ -7144,6 +7331,7 @@ function renderPricingExactModel(){
     state.quoteImportLastError=false;
     if(typeof dialog.showModal==='function')dialog.showModal();
     else dialog.setAttribute('open','');
+    renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),dialog.querySelector('#quoteImportTender')?.value||'',dialog.querySelector('#quoteImportSupplier')?.value||'');
     dialog.querySelector('#quoteImportSupplier')?.focus();
   });
   shell.querySelector('#quoteImportTenderSelect')?.addEventListener('change',event=>{
@@ -7152,6 +7340,22 @@ function renderPricingExactModel(){
     state.quoteViewTenderId=value;
     state.quoteImportContext=null;
     clearQuoteImportPreview('O edital mudou. Selecione o arquivo e envie novamente.');
+    renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),value,dialog.querySelector('#quoteImportSupplier')?.value||'');
+  });
+  shell.querySelector('#quoteImportSupplier')?.addEventListener('change',event=>{
+    renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),dialog.querySelector('#quoteImportTender')?.value||'',event.target.value||'');
+  });
+  shell.querySelector('#pricingPriorQuotes')?.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-reuse-prior-quote]');
+    if(!button)return;
+    await reusePriorQuoteItem({
+      sourceItemId:button.dataset.sourceQuoteItem,
+      targetItemId:button.dataset.targetItem,
+      tenderId:dialog.querySelector('#quoteImportTender')?.value||'',
+      supplierId:dialog.querySelector('#quoteImportSupplier')?.value||'',
+      button
+    });
+    if(dialog.open||dialog.hasAttribute('open'))renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),dialog.querySelector('#quoteImportTender')?.value||'',dialog.querySelector('#quoteImportSupplier')?.value||'');
   });
   shell.querySelector('#quoteImportSubmit')?.addEventListener('click',async()=>{
     const file=shell.querySelector('#quoteImportFile')?.files?.[0];
@@ -9585,13 +9789,16 @@ function renderDocumentation(){
         const shortcut=document.licitacao_id
           ? `<button type="button" class="action-btn" data-open-quote-document="${esc(document.licitacao_id)}">Abrir em Cotações</button>`
           : '';
+        const adminActions=currentMemberIsAdmin()
+          ? `<button type="button" class="action-btn" data-edit-quote-document="${esc(document.id)}">Editar</button><button type="button" class="action-btn danger-btn" data-delete-quote-document="${esc(document.id)}">Excluir</button>`
+          : '';
         return [
           esc(document.nome_arquivo),
           esc(tender?.numero||'-'),
           esc(supplier?.nome||'-'),
           `<span class="badge neutral">${esc(document.status||'arquivado')}</span>`,
           documentDate(document.created_at),
-          `<div class="document-action-group">${download}${shortcut}<button type="button" class="action-btn" data-edit-quote-document="${esc(document.id)}">Editar</button><button type="button" class="action-btn danger-btn" data-delete-quote-document="${esc(document.id)}">Excluir</button></div>`
+          `<div class="document-action-group">${download}${shortcut}${adminActions}</div>`
         ];
       })
     );
@@ -10247,15 +10454,32 @@ document.addEventListener('click',async e=>{
     const row=state.documentos.find(document=>String(document.id)===String(deleteQuoteDocument.dataset.deleteQuoteDocument));
     if(!row)return toast('Cotação não encontrada. Atualize a página e tente novamente.','error');
     if(!currentMemberIsAdmin())return toast('Somente administradores podem excluir arquivos enviados.','error');
-    if(!confirm(`Excluir o arquivo “${row.nome_arquivo}”? Esta ação também remove as cotações lidas deste arquivo.`))return;
+    const supplier=state.fornecedores.find(item=>String(item.id)===String(row.fornecedor_id));
+    const tender=state.licitacoes.find(item=>String(item.id)===String(row.licitacao_id));
+    const affectedCount=Number(row.itens_afetados||state.cotacoes.filter(item=>String(item.quote_id)===String(row.id)).length);
+    const confirmation=[
+      `Excluir a cotação “${row.nome_arquivo}”?`,
+      `Fornecedor: ${supplier?.nome||'Não informado'}`,
+      `Edital: ${tender?.numero||'Não informado'}`,
+      `Itens afetados: ${affectedCount}`,
+      '',
+      'Os preços vinculados serão removidos da Precificação e ela será recalculada. Esta ação não pode ser desfeita.'
+    ].join('\n');
+    if(!confirm(confirmation))return;
     if(state.demo||!configured||!supabase)return toast('A exclusão de arquivos funciona somente no modo online.','error');
     deleteQuoteDocument.disabled=true;
     try{
-      if(row.storage_path){const {error:storageError}=await supabase.storage.from('quote-files').remove([row.storage_path]);if(storageError)throw storageError;}
       const {error}=await supabase.from('quotes').delete().eq('id',row.id).eq('company_id',currentCompanyId());
       if(error)throw error;
+      let residualFile=false;
+      if(row.storage_path){
+        const {error:storageError}=await supabase.storage.from('quote-files').remove([row.storage_path]);
+        if(storageError){residualFile=true;console.warn('Arquivo residual de cotação:',row.storage_path,storageError.message);}
+      }
       await refreshAll();
-      toast('Arquivo excluído.','success');
+      toast(residualFile
+        ? 'Cotação e preços excluídos. O arquivo ficou residual no armazenamento e precisa de limpeza administrativa.'
+        : 'Cotação excluída e Precificação recalculada.','success');
     }catch(error){deleteQuoteDocument.disabled=false;toast(`Não foi possível excluir o arquivo: ${error.message||error}`,'error');}
     return;
   }

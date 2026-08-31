@@ -1,1 +1,1 @@
-36.50.0 - Adiciona controle para silenciar notificações sonoras do chat.
+36.51.0 - Reutiliza preços de cotações anteriores e permite excluir cotações antigas com segurança.

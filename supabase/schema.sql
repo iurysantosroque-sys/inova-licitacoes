@@ -243,7 +243,10 @@ create policy settings_all_members on public.pricing_settings for all to authent
 create policy tenders_all_members on public.tenders for all to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
 create policy items_all_members on public.tender_items for all to authenticated using(exists(select 1 from public.tenders where id=tender_id and private.is_company_member(company_id))) with check(exists(select 1 from public.tenders where id=tender_id and private.is_company_member(company_id)));
 create policy suppliers_all_members on public.suppliers for all to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
-create policy quotes_all_members on public.quotes for all to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
+create policy quotes_select_company on public.quotes for select to authenticated using(private.is_company_member(company_id));
+create policy quotes_insert_company on public.quotes for insert to authenticated with check(private.is_company_member(company_id) and created_by=(select auth.uid()));
+create policy quotes_update_company on public.quotes for update to authenticated using(private.is_company_member(company_id)) with check(private.is_company_member(company_id));
+create policy quotes_delete_admin on public.quotes for delete to authenticated using(private.is_company_admin(company_id));
 create policy quote_items_all_members on public.quote_items for all to authenticated using(exists(select 1 from public.quotes where id=quote_id and private.is_company_member(company_id))) with check(exists(select 1 from public.quotes where id=quote_id and private.is_company_member(company_id)));
 create policy tender_documents_select_members on public.tender_documents for select to authenticated using(private.is_company_member(company_id));
 create policy tender_documents_insert_admins on public.tender_documents for insert to authenticated with check(private.is_company_admin(company_id) and created_by=(select auth.uid()));
@@ -258,7 +261,14 @@ insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) v
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('qualification-files','qualification-files',false,26214400,array['application/pdf']);
 create policy quote_files_select_company on storage.objects for select to authenticated using(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
 create policy quote_files_insert_company on storage.objects for insert to authenticated with check(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
-create policy quote_files_delete_company on storage.objects for delete to authenticated using(bucket_id='quote-files' and private.is_company_member(((storage.foldername(name))[1])::uuid));
+create policy quote_files_delete_admin on storage.objects for delete to authenticated using(
+  bucket_id='quote-files' and
+  case
+    when coalesce((storage.foldername(name))[1],'') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      then private.is_company_admin(((storage.foldername(name))[1])::uuid)
+    else false
+  end
+);
 create policy tender_files_select_members on storage.objects for select to authenticated using(
   bucket_id='tender-files' and exists(
     select 1 from public.tender_documents td
