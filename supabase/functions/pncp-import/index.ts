@@ -11,8 +11,8 @@ const API='https://pncp.gov.br/api'
 // O PNCP pode levar alguns segundos para responder em editais com muitos itens.
 // Mantemos um limite finito, mas acima do timeout típico do portal, para que a
 // consulta consiga concluir antes de o cliente aplicar suas tentativas de retry.
-const TOTAL_BUDGET_MS=24_000
-const FETCH_TIMEOUT_MS=18_000
+const TOTAL_BUDGET_MS=20_000
+const FETCH_TIMEOUT_MS=7_500
 const SEARCH_CONCURRENCY=4
 const PAGE_SIZE=100
 const MODALITIES=[6,8,9,4,5,7,12,1,2,3,10,11,13]
@@ -148,10 +148,18 @@ async function getLicitanetItems(url:string,deadline:number,metrics:Metrics){
 }
 
 async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
-  const detailUrl=`${API}/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
+  const detailPath=`/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
+  const detailUrls=[
+    `${API}${detailPath}`,
+    `https://www.pncp.gov.br/api${detailPath}`
+  ]
   let tender:any=null,lastError:unknown=null
-  for(let attempt=0;attempt<1;attempt++){
-    try{tender=await getJson(detailUrl,deadline,metrics);if(tender)break}catch(error){lastError=error}
+  // O PNCP alterna entre os hosts principal e www. Consultar os dois em
+  // paralelo evita esperar o limite inteiro quando um deles está lento.
+  try{
+    tender=await Promise.any(detailUrls.map(url=>getJson(url,deadline,metrics)))
+  }catch(error){
+    lastError=error instanceof AggregateError ? error.errors?.[0] : error
   }
   if(!tender)throw lastError||new PncpHttpError(404)
 

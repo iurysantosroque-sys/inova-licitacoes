@@ -945,7 +945,7 @@ function setPncpStatus(message,type='loading'){
   el.textContent=message||'';
 }
 
-async function invokePncpWithRetry(body,onAttempt,maxAttempts=3,delayMs=700){
+async function invokePncpWithRetry(body,onAttempt,maxAttempts=1,delayMs=700){
   let lastResponse={data:null,error:null};
   for(let attempt=1;attempt<=maxAttempts;attempt++){
     onAttempt?.(attempt,maxAttempts);
