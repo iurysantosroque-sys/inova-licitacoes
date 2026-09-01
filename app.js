@@ -2585,8 +2585,7 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   // tabela. Sugestões exclusivamente da IA continuam fora do salvamento
   // automático (`autoTextMatched` falso).
   const eligible=rows.filter(r=>
-    r.itemId&&r.autoTextMatched===true&&Number(r.price)>0&&Number(r.factor)>0&&
-    !(r.incompatibilities||[]).length
+    r.itemId&&r.autoTextMatched===true&&Number(r.price)>0&&Number(r.factor)>0
   );
   const counts=new Map();
   eligible.forEach(r=>counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1));
@@ -2808,27 +2807,31 @@ async function startAutomaticQuoteImport(force=false){
       }
       if(runToken!==state.quoteImportRunToken)return;
       if(state.quoteImportContext)state.quoteImportContext.extractedRows=extractedRows;
-      // O parser local serve apenas para diagnóstico. A IA sempre recebe o PDF
-      // original completo: uma extração textual parcial nunca mais substitui o
-      // documento e, portanto, não pode fazer produtos desaparecerem.
-      const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION,extracted_rows:extractedRows};
-      setQuoteImportProgress('reading');
-      setQuoteImportStatus(
-        extractedRows.length
-          ?`${extractedRows.length} linhas preliminares encontradas. A IA está conferindo o PDF completo…`
-          :'A IA está lendo o PDF completo, inclusive páginas sem texto selecionável…',
-        'loading'
-      );
-      const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:invokeBody});
-      if(runToken!==state.quoteImportRunToken)return;
-      if(error||data?.error)throw await quoteAiInvokeFailure(error,data);
+      if(extractedRows.length){
+        setQuoteImportStatus(`${extractedRows.length} produtos lidos diretamente do PDF. Relacionando com o edital…`,'loading');
+        state.quoteImportRows=extractedRows.map((row,index)=>({
+          originalOrder:index,code:row.code,description:row.description,quantity:row.quantity,unit:row.unit,
+          price:Number(row.unit_price||0),subtotal:row.subtotal,brand:row.brand,presentation:row.presentation,
+          factor:1,page:null,itemId:'',editalItemNumber:null,manualMatched:false,aiMatched:false,
+          autoTextMatched:false,aiMatchConfidence:null,factorConfidence:.5,
+          aiReason:'Leitura textual direta do PDF',incompatibilities:[],safeToSave:false,needsReview:true,
+          selected:false,savedAutomatically:false,savedAfterReview:false,ignored:false
+        }));
+      }else{
+        const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION,extracted_rows:[]};
+        setQuoteImportProgress('reading');
+        setQuoteImportStatus('O PDF não possui texto selecionável. A IA está lendo as páginas…','loading');
+        const {data,error}=await supabase.functions.invoke('ai-match-quote',{body:invokeBody});
+        if(runToken!==state.quoteImportRunToken)return;
+        if(error||data?.error)throw await quoteAiInvokeFailure(error,data);
+        state.quoteImportRows=mapAiQuoteLines(data,tenderId);
+      }
       setQuoteImportProgress('matching');
       setQuoteImportStatus('Relacionamento concluído. Validando os itens identificados…','loading');
-      state.quoteImportRows=mapAiQuoteLines(data,tenderId);
       autoRelateSafeQuoteRows(tenderId,state.quoteImportRows);
       renderQuoteImportPreview();
       setQuoteImportProgress('saving');
-      setQuoteImportStatus('Salvando somente as correspondências seguras…','loading');
+      setQuoteImportStatus('Salvando as correspondências encontradas e separando dúvidas para revisão…','loading');
       await persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken);
       if(runToken!==state.quoteImportRunToken)return;
       const hasReview=state.quoteImportRows.some(r=>!r.savedAutomatically&&r.needsReview);

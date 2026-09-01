@@ -1,1 +1,1 @@
-36.61.0 - Lê e salva a marca na coluna correta das cotações Stimulsoft.
+36.62.0 - Grava na precificação os itens localmente relacionados e mantém divergências para revisão.
