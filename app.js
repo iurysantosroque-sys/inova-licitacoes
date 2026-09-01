@@ -2172,6 +2172,83 @@ function rowsFromPdfLines(lines){
   return dedupeQuotePdfRows(out);
 }
 
+function parseStimulsoftQuoteProduct(raw,pendingSubtotal=null){
+  const line=String(raw||'')
+    .replace(/\u00a0/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  if(!line)return null;
+
+  const unitRx=quotePdfUnitRegex();
+  const money='([\\d.,]+)';
+  const rx=new RegExp(
+    '^(?:(?:R\\$|\\$)\\s*'+money+'\\s+)?\\d{1,4}\\s+([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$|\\$)\\s*'+money+'\\s*$',
+    'i'
+  );
+  const match=line.match(rx);
+  if(!match)return null;
+
+  const inlineSubtotal=parseBrazilianNumber(match[1]);
+  const code=String(match[2]||'').trim();
+  const description=String(match[3]||'').replace(/\s+/g,' ').trim();
+  const unit=String(match[4]||'').trim().toUpperCase();
+  const presentation=String(match[5]||'').replace(/\s+/g,' ').trim();
+  const quantity=parseBrazilianNumber(match[6]);
+  const price=parseBrazilianNumber(match[7]);
+  const subtotal=inlineSubtotal??pendingSubtotal;
+
+  if(!/\d/.test(code)||!description||!(price>0))return null;
+  return {code,description,quantity,unit,price,subtotal,brand:'',presentation,factor:1,selected:true};
+}
+
+function rowsFromStimulsoftQuoteLines(lines){
+  const out=[];
+  let pendingSubtotal=null;
+
+  for(const source of Array.isArray(lines)?lines:[]){
+    const line=String(source||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+    if(!line)continue;
+
+    const totalOnly=line.match(/^(?:R\$|\$)\s*([\d.,]+)$/i);
+    if(totalOnly){
+      pendingSubtotal=parseBrazilianNumber(totalOnly[1]);
+      continue;
+    }
+
+    const row=parseStimulsoftQuoteProduct(line,pendingSubtotal);
+    if(row){
+      out.push(row);
+      pendingSubtotal=null;
+    }
+  }
+
+  return dedupeQuotePdfRows(out);
+}
+
+function rowsFromStimulsoftQuoteFlatText(text){
+  const cleaned=String(text||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+  if(!cleaned)return [];
+
+  const unitRx=quotePdfUnitRegex();
+  const rx=new RegExp(
+    '(?:R\\$|\\$)\\s*([\\d.,]+)\\s+\\d{1,4}\\s+([A-Z0-9._/-]{2,20})\\s+(.+?)\\s+('+unitRx+')\\s+(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$|\\$)\\s*([\\d.,]+)(?=\\s+(?:(?:R\\$|\\$)\\s*[\\d.,]+\\s+\\d{1,4}\\s+[A-Z0-9._/-]{2,20}\\s+|Total\\b|$))',
+    'gi'
+  );
+  const rows=[];
+  let match;
+
+  while((match=rx.exec(cleaned))!==null){
+    const row=parseStimulsoftQuoteProduct(
+      `1 ${match[2]} ${match[3]} ${match[4]} ${match[5]} ${match[6]} $${match[7]}`,
+      parseBrazilianNumber(match[1])
+    );
+    if(row)rows.push(row);
+  }
+
+  return dedupeQuotePdfRows(rows);
+}
+
 function rowsFromPdfFlatText(text){
   const cleaned=String(text||'')
     .replace(/\u00a0/g,' ')
@@ -2259,9 +2336,11 @@ async function parsePdfFile(file){
 
     // 1) tenta pelas linhas reconstruídas por coordenada
     candidates.push(...rowsFromPdfLines(preciseLines));
+    candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
 
     // 2) tenta pelas quebras EOL nativas do PDF.js
     candidates.push(...rowsFromPdfLines(eolLines));
+    candidates.push(...rowsFromStimulsoftQuoteLines(eolLines));
 
     // 3) tenta pelo texto inteiro da página; recupera produtos que
     // ficaram partidos ou agrupados incorretamente.
@@ -2271,6 +2350,7 @@ async function parsePdfFile(file){
       .join(' ');
 
     candidates.push(...rowsFromPdfFlatText(flatText));
+    candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
   }
 
   return dedupeQuotePdfRows(candidates);
@@ -3494,6 +3574,7 @@ function renderQuoteImportReviewCompact(){
   const count=$('#quoteReviewCount');
   if(count)count.textContent=String(pending.length);
   const canAddManual=Boolean(tenderId&&state.quoteImportContext);
+  el.hidden=!(canAddManual||pending.length);
   const addButton=canAddManual?`<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button type="button" id="quoteAddManualRowBtn" style="background:var(--gold);color:#111;border-color:var(--gold);font-weight:800">+ Adicionar produto não lido</button></div>`:'';
   if(!pending.length){
     el.innerHTML=`${addButton}<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>`;

@@ -1,1 +1,1 @@
-36.59.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.
+36.60.0 - Lê cotações Stimulsoft com preços em dólar e mantém a inclusão manual visível após falhas.
