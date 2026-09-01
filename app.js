@@ -1577,6 +1577,7 @@ function autoRelateSafeQuoteRows(tenderId,rows){
 
     row.itemId=item.id;
     row.editalItemNumber=Number(item.numero);
+    if(!String(row.brand||'').trim())row.brand=inferQuoteBrandFromName(row.description,item.descricao);
     row.manualMatched=false;
     row.autoTextMatched=true;
     row.matchScore=score;
@@ -1613,6 +1614,7 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     if(unitScore===0||quoteDescriptionsHaveDivergentMeasures(supplierDescription,item.descricao))continue;
     row.itemId=item.id;
     row.editalItemNumber=Number(item.numero);
+    if(!String(row.brand||'').trim())row.brand=inferQuoteBrandFromName(row.description,item.descricao);
     row.aiMatched=true;
     row.autoTextMatched=false;
     row.safeToSave=false;
@@ -1638,6 +1640,14 @@ const QUOTE_GENERIC=new Set([
   'KIT','JOGO'
 ]);
 
+const QUOTE_BRAND_NOISE=new Set([
+  'PRETO','PRETA','BRANCO','BRANCA','AZUL','VERDE','VERMELHO','AMARELO','CINZA',
+  'FLEX','FLEXIVEL','RIGIDO','RIGIDA','LEVE','FORTE','PADRAO','PVC','COBRE','ACO',
+  'INOX','INOXIDAVEL','ZINC','ZINCADO','ZINCADA','GALVANIZADO','GALVANIZADA',
+  'ROSCA','ROSCAVEL','LISO','LISA','ELETRICO','ELETRICA','UNIDADE','ROLO','PACOTE',
+  'PTO','PTA','BCO','BCA','GALV','PAD'
+]);
+
 function quoteTokens(v){
   return quoteNormalize(v)
     .split(/[\s,;:()]+/)
@@ -1647,6 +1657,34 @@ function quoteTokens(v){
 
 function quoteWordTokens(v){
   return quoteTokens(v).filter(x=>/[A-Z]/.test(x) && !/^\d/.test(x));
+}
+
+function inferQuoteBrandFromName(description,tenderDescription=''){
+  const original=String(description||'').replace(/\s+/g,' ').trim();
+  if(!original)return '';
+
+  const explicit=original.match(/\b(?:MARCA|FABRICANTE)\s*[:\-]?\s*([A-ZÀ-Ý0-9][A-ZÀ-Ý0-9 .&\/'_-]{1,50})$/i);
+  if(explicit)return String(explicit[1]||'').trim();
+
+  const dashSuffix=original.match(/\s+-\s+([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&\/'_-]{1,35})$/i);
+  if(dashSuffix&&!/\d/.test(dashSuffix[1]))return String(dashSuffix[1]).trim();
+
+  const supplierTokens=quoteWordTokens(original);
+  const tenderTokens=new Set(quoteWordTokens(tenderDescription));
+  const candidateIndexes=[];
+  supplierTokens.forEach((token,index)=>{
+    if(!tenderTokens.has(token)&&!QUOTE_BRAND_NOISE.has(token)&&!/\d/.test(token))candidateIndexes.push(index);
+  });
+  if(!candidateIndexes.length)return '';
+
+  // Marcas escritas no próprio nome normalmente aparecem no final do produto.
+  // Limita a inferência aos três últimos termos para não transformar a
+  // descrição técnica em marca.
+  const lastIndex=supplierTokens.length-1;
+  if(!candidateIndexes.includes(lastIndex))return '';
+  const brand=[supplierTokens[lastIndex]];
+  if(candidateIndexes.includes(lastIndex-1))brand.unshift(supplierTokens[lastIndex-1]);
+  return brand.join(' ').slice(0,80);
 }
 
 function quoteSpecTokens(v){
@@ -2226,6 +2264,51 @@ function rowsFromStimulsoftQuoteLines(lines){
   return dedupeQuotePdfRows(out);
 }
 
+function rowsFromStimulsoftQuoteItems(items){
+  const tokens=(Array.isArray(items)?items:[]).map(item=>({
+    text:String(item?.str||'').trim(),
+    x:Number(item?.transform?.[4]||0),
+    y:Number(item?.transform?.[5]||0)
+  })).filter(token=>token.text);
+  const brandHeader=tokens.find(token=>quoteNormalize(token.text)==='MARCA');
+  const unitHeader=tokens.find(token=>/^UNID/.test(quoteNormalize(token.text)));
+  if(!brandHeader||!unitHeader||unitHeader.x<=brandHeader.x)return [];
+
+  // Neste relatório Stimulsoft os textos são centralizados nas células.
+  // Os deslocamentos abaixo recuperam os limites reais das colunas MARCA/UNID.
+  const brandStart=brandHeader.x-32;
+  const unitStart=unitHeader.x-30;
+  const grouped=[];
+  for(const token of tokens){
+    let row=grouped.find(candidate=>Math.abs(candidate.y-token.y)<=1.25);
+    if(!row){row={y:token.y,tokens:[]};grouped.push(row);}
+    row.tokens.push(token);
+  }
+
+  const rows=[];
+  let pendingSubtotal=null;
+  for(const group of grouped.sort((a,b)=>b.y-a.y)){
+    const ordered=group.tokens.sort((a,b)=>a.x-b.x);
+    const line=ordered.map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    const totalOnly=line.match(/^(?:R\$|\$)\s*([\d.,]+)$/i);
+    if(totalOnly){pendingSubtotal=parseBrazilianNumber(totalOnly[1]);continue;}
+
+    const row=parseStimulsoftQuoteProduct(line,pendingSubtotal);
+    if(!row)continue;
+    const codeIndex=ordered.findIndex(token=>quoteNormalize(token.text)===quoteNormalize(row.code));
+    const descriptionTokens=ordered.filter((token,index)=>index>codeIndex&&token.x<brandStart);
+    const brandTokens=ordered.filter(token=>token.x>=brandStart&&token.x<unitStart);
+    const description=descriptionTokens.map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    const brand=brandTokens.map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    if(description)row.description=description;
+    row.brand=brand;
+    rows.push(row);
+    pendingSubtotal=null;
+  }
+
+  return dedupeQuotePdfRows(rows);
+}
+
 function rowsFromStimulsoftQuoteFlatText(text){
   const cleaned=String(text||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
   if(!cleaned)return [];
@@ -2333,14 +2416,16 @@ async function parsePdfFile(file){
 
     const preciseLines=groupPdfTextItems(content.items);
     const eolLines=pdfLinesByEol(content.items);
+    const stimulsoftLayoutRows=rowsFromStimulsoftQuoteItems(content.items);
 
     // 1) tenta pelas linhas reconstruídas por coordenada
     candidates.push(...rowsFromPdfLines(preciseLines));
-    candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
+    if(stimulsoftLayoutRows.length)candidates.push(...stimulsoftLayoutRows);
+    else candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
 
     // 2) tenta pelas quebras EOL nativas do PDF.js
     candidates.push(...rowsFromPdfLines(eolLines));
-    candidates.push(...rowsFromStimulsoftQuoteLines(eolLines));
+    if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteLines(eolLines));
 
     // 3) tenta pelo texto inteiro da página; recupera produtos que
     // ficaram partidos ou agrupados incorretamente.
@@ -2350,7 +2435,7 @@ async function parsePdfFile(file){
       .join(' ');
 
     candidates.push(...rowsFromPdfFlatText(flatText));
-    candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
+    if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
   }
 
   return dedupeQuotePdfRows(candidates);
@@ -2508,6 +2593,11 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   // Preenche a Precificação também com correspondências confiáveis marcadas
   // para revisão, mantendo a linha sinalizada para conferência posterior.
   const safeRows=eligible.filter(r=>counts.get(String(r.itemId))===1);
+  safeRows.forEach(row=>{
+    if(String(row.brand||'').trim())return;
+    const item=state.itens.find(candidate=>String(candidate.id)===String(row.itemId));
+    row.brand=inferQuoteBrandFromName(row.description,item?.descricao||'');
+  });
   if(runToken!==state.quoteImportRunToken)return 0;
 
   if(state.demo){
@@ -4388,6 +4478,12 @@ async function saveImportedQuotes(){
     });
 
   if(!rows.length)return toast('Nenhuma linha válida selecionada. Relacione pelo menos um produto a um item do edital.','error');
+
+  rows.forEach(row=>{
+    if(String(row.brand||'').trim())return;
+    const item=state.itens.find(candidate=>String(candidate.id)===String(row.itemId));
+    row.brand=inferQuoteBrandFromName(row.description,item?.descricao||'');
+  });
 
   const duplicates=new Map();
   rows.forEach(r=>{

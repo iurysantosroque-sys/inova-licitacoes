@@ -1,1 +1,1 @@
-36.60.0 - Lê cotações Stimulsoft com preços em dólar e mantém a inclusão manual visível após falhas.
+36.61.0 - Lê e salva a marca na coluna correta das cotações Stimulsoft.
