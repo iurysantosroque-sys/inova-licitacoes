@@ -2413,8 +2413,13 @@ function quoteImportSummaryText(tenderId){
 
 async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   const rows=state.quoteImportRows||[];
+  // O comparador local pode confirmar o item com segurança suficiente para
+  // preencher a Precificação, mesmo quando ainda exige revisão humana. Antes,
+  // exigir `safeToSave` aqui fazia todas as linhas "para revisão" sumirem da
+  // tabela. Sugestões exclusivamente da IA continuam fora do salvamento
+  // automático (`autoTextMatched` falso).
   const eligible=rows.filter(r=>
-    r.itemId&&r.safeToSave===true&&Number(r.price)>0&&Number(r.factor)>0&&
+    r.itemId&&r.autoTextMatched===true&&Number(r.price)>0&&Number(r.factor)>0&&
     !(r.incompatibilities||[]).length
   );
   const counts=new Map();

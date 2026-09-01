@@ -1,1 +1,1 @@
-36.55.0 - Melhora a correspondência de cotações por nome, unidade e quantidade, com sugestões e inclusão manual.
+36.56.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.
