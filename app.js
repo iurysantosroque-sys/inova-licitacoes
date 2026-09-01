@@ -11166,6 +11166,19 @@ $('#proposalValidityDays')?.addEventListener('input',event=>{
   state.proposalValidityDays=event.target.value||'';
 });
 $('#proposalPdfButton')?.addEventListener('click',exportProposalPdf);
+let forceRefreshInFlight=false;
+$('#forceRefreshBtn')?.addEventListener('click',async event=>{
+  if(forceRefreshInFlight)return;
+  const button=event.currentTarget;
+  forceRefreshInFlight=true;
+  button.disabled=true;
+  button.textContent='↻ Atualizando…';
+  try{
+    if(state.demo){renderAll();toast('Dados da demonstração atualizados.','success');}
+    else {await refreshAll();toast('Dados atualizados.','success');}
+  }catch(error){toast(`Não foi possível atualizar: ${error.message||error}`,'error');}
+  finally{forceRefreshInFlight=false;button.disabled=false;button.textContent='↻ Atualizar';}
+});
 let deferredInstallPrompt=null;
 const installBtn=$('#installBtn');
 const isStandaloneApp=()=>window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
