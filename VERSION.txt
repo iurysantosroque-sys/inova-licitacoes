@@ -1,4 +1,4 @@
-INOVA V36.53.0
+INOVA V36.55.0
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.
@@ -7,6 +7,7 @@ INOVA V36.53.0
 - Leitura dos resultados em lotes para licitações com muitos itens.
 - Consultas ao PNCP com até 3 tentativas automáticas antes de informar falha.
 - Associação por IA com validação e revisão humana.
+- Correspondência de cotações por nome, unidade e quantidade, com sugestões Top 3 e inclusão manual de produtos não lidos.
 - Upload privado validado e PWA com cache atualizável.
 - Schema, hardening e Edge Functions atuais versionados.
 - Biblioteca privada de habilitação fiscal com validade, alertas, filtros e histórico de renovação.

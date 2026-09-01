@@ -166,7 +166,7 @@ const TENDER_SITUATIONS=[
 const tenderSituationInfo=value=>TENDER_SITUATIONS.find(item=>item.value===value)||TENDER_SITUATIONS[0];
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
-const QUOTE_PARSER_VERSION='36.11.3';
+const QUOTE_PARSER_VERSION='36.11.4';
 const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
 const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
@@ -1389,9 +1389,56 @@ function quoteCanonicalDescription(value){
     .replace(/\bTUBOS?\b/g,'CANO')
     .replace(/\bP\s*\/\s*/g,'PARA ')
     .replace(/\bD AGUA\b/g,'AGUA')
+    // Vocabulário comercial comum nos PDFs da COMFIL/Jupi. As medidas não
+    // são removidas: continuam sendo verificadas separadamente antes de um
+    // vínculo poder ser considerado seguro.
+    .replace(/\bASSENTO\s+(?:SIMPLES|UNIVERSAL)(?:\s+VAZADO)?(?:\s+PARA\s+VASO\s+SANITARIO)?\b/g,'ASSENTO VASO SANITARIO')
+    .replace(/\bSOQUETE\b/g,'BOCAL')
+    .replace(/\bPINO\s+FEMEA\b/g,'PLUG FEMEA')
+    .replace(/\bCENTRO\s+(?:DE\s+)?DIST(?:RIBUICAO)?\b/g,'QUADRO DISTRIBUICAO')
+    .replace(/\bTRINCHA\b/g,'PINCEL')
+    .replace(/\bDUCHA\b/g,'CHUVEIRO')
+    .replace(/\bMASCARA\s+DESCARTAVEL\b/g,'RESPIRADOR DESCARTAVEL')
+    .replace(/\bCARRO\s+DE\s+MAO\b/g,'CARRINHO DE MAO')
+    .replace(/\bVASSOURAO\s+GARI\b/g,'VASSOURA GARI')
+    .replace(/\bANCINHO\b/g,'RASTELO')
+    .replace(/\b(?:PICARETA\s+CHIBANCA|CHIBANCA\s*\/\s*PICARETA)\b/g,'PICARETA')
+    .replace(/\bPROT\b/g,'PROTECAO')
+    .replace(/\bC\s*\/\s*/g,'COM ')
     .replace(/\bPCS?\b|\bPECAS?\b|\bUNIDS?\b|\bUNIDADES?\b/g,'UN')
     .replace(/\s+/g,' ')
     .trim();
+}
+
+function quoteCriticalRequirementIssues(officialDescription,supplierDescription){
+  const official=quoteNormalize(officialDescription);
+  const supplier=quoteNormalize(supplierDescription);
+  const issues=[];
+  for(const requirement of ['CA','NBR','INMETRO','ANVISA']){
+    if(new RegExp(`\\b${requirement}\\b`).test(official)&&!new RegExp(`\\b${requirement}\\b`).test(supplier)){
+      issues.push(`${requirement} obrigatório não confirmado`);
+    }
+  }
+  const materialAliases={
+    'ACO INOXIDAVEL':'INOX','ACO INOX':'INOX','INOX':'INOX','ACO CARBONO':'ACO CARBONO',
+    'POLICARBONATO':'POLICARBONATO','PVC':'PVC','ALUMINIO':'ALUMINIO','BORRACHA':'BORRACHA',
+    'FERRO FUNDIDO':'FERRO FUNDIDO','FERRO':'FERRO','COBRE':'COBRE','LATAO':'LATAO',
+    'POLIPROPILENO':'POLIPROPILENO','POLIETILENO':'POLIETILENO'
+  };
+  const materials=value=>{
+    const found=new Set(Object.entries(materialAliases)
+      .filter(([alias])=>new RegExp(`\\b${alias}\\b`).test(value))
+      .map(([,canonical])=>canonical));
+    if(found.has('FERRO FUNDIDO'))found.delete('FERRO');
+    return found;
+  };
+  const requiredMaterials=materials(official);
+  const supplierMaterials=materials(supplier);
+  if(requiredMaterials.size&&!supplierMaterials.size)issues.push('material obrigatório não confirmado');
+  else if(requiredMaterials.size&&supplierMaterials.size&&![...requiredMaterials].some(material=>supplierMaterials.has(material))){
+    issues.push('composição/material divergente');
+  }
+  return [...new Set(issues)];
 }
 
 function quoteUnitCompatibility(supplierUnit,editalUnit,description=''){
@@ -1440,6 +1487,33 @@ function quoteSafeMatchScore(supplierDescription,itemDescription){
   return Math.min(1,Math.max(sameProductHead ? .56 : 0,containment*.64+jaccard*.22+coverageOfficial*.14));
 }
 
+function quoteLocalSuggestions(tenderId,row,limit=3){
+  const supplierDescription=`${row?.description||''} ${row?.presentation||''}`.trim();
+  const supplierUnit=quoteCanonicalUnit(row?.unit);
+  const supplierQty=Number(row?.quantity);
+  return state.itens
+    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .map(item=>{
+      const nameScore=quoteSafeMatchScore(supplierDescription,item.descricao);
+      // Para sugestões manuais basta haver um sinal textual mínimo; somente o
+      // vínculo automático continua exigindo a faixa alta de confiança.
+      if(nameScore<.04)return null;
+      const measureConflict=quoteDescriptionsHaveDivergentMeasures(supplierDescription,item.descricao);
+      const editalUnit=quoteCanonicalUnit(item.unidade);
+      const unitScore=quoteUnitCompatibility(supplierUnit,editalUnit,`${supplierDescription} ${item.descricao||''}`);
+      const editalQty=Number(item.quantidade);
+      const hasBothQuantities=supplierQty>0&&editalQty>0;
+      const quantityScore=hasBothQuantities
+        ?Math.max(0,1-(Math.abs(supplierQty-editalQty)/Math.max(supplierQty,editalQty)))
+        :.35;
+      const score=Math.max(0,nameScore*.72+unitScore*.18+quantityScore*.10-(measureConflict?.20:0)-(unitScore===0?.16:0));
+      return {item,nameScore,unitScore,quantityScore,measureConflict,unitConflict:unitScore===0,score};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>b.score-a.score||b.nameScore-a.nameScore||b.unitScore-a.unitScore||b.quantityScore-a.quantityScore||Number(a.item.numero)-Number(b.item.numero))
+    .slice(0,Math.max(0,Number(limit)||0));
+}
+
 function autoRelateSafeQuoteRows(tenderId,rows){
   const items=state.itens
     .filter(i=>String(i.licitacao_id)===String(tenderId))
@@ -1457,6 +1531,11 @@ function autoRelateSafeQuoteRows(tenderId,rows){
       usedItems.add(String(row.itemId));
       return;
     }
+    const aiSuggestedItemId=String(row.aiSuggestedItemId||row.itemId||'');
+    if(aiSuggestedItemId){
+      row.aiSuggestedItemId=aiSuggestedItemId;
+      row.aiSuggestedItemNumber=Number(state.itens.find(item=>String(item.id)===aiSuggestedItemId)?.numero||row.aiSuggestedItemNumber||0)||null;
+    }
     row.itemId='';
     row.editalItemNumber=null;
     row.autoTextMatched=false;
@@ -1465,24 +1544,14 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     const supplierDescription=`${row.description||''} ${row.presentation||''}`.trim();
     const supplierUnit=quoteCanonicalUnit(row.unit);
     const supplierQty=Number(row.quantity);
-    items.forEach(item=>{
-      const nameScore=quoteSafeMatchScore(supplierDescription,item.descricao);
-      if(nameScore<.42||quoteDescriptionsHaveDivergentMeasures(supplierDescription,item.descricao))return;
-      const editalUnit=quoteCanonicalUnit(item.unidade);
-      const unitScore=quoteUnitCompatibility(supplierUnit,editalUnit,`${supplierDescription} ${item.descricao||''}`);
-      if(unitScore===0)return;
-      const editalQty=Number(item.quantidade);
-      const hasBothQuantities=supplierQty>0&&editalQty>0;
-      const quantityScore=hasBothQuantities
-        ?Math.max(0,1-(Math.abs(supplierQty-editalQty)/Math.max(supplierQty,editalQty)))
-        :.35;
-      const score=nameScore*.72+unitScore*.18+quantityScore*.10;
-      candidates.push({row,rowIndex,item,nameScore,unitScore,quantityScore,score});
+    quoteLocalSuggestions(tenderId,row,Math.max(3,items.length)).forEach(candidate=>{
+      if(candidate.nameScore<.42||candidate.unitScore===0||candidate.measureConflict)return;
+      candidates.push({row,rowIndex,...candidate});
     });
   });
 
   // Atribuição global um-para-um: primeiro ficam os melhores nomes; unidade e
-  // quantidade confirmam e desempatarem. Um vínculo fraco não pode reservar o
+  // quantidade confirmam e desempatam. Um vínculo fraco não pode reservar o
   // item e impedir uma linha realmente correta de usá-lo.
   candidates.sort((a,b)=>
     b.nameScore-a.nameScore||b.unitScore-a.unitScore||b.quantityScore-a.quantityScore||b.score-a.score||a.rowIndex-b.rowIndex
@@ -1499,7 +1568,11 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     const gap=second?score-second.score:score;
     const quantityConfirmed=quantityScore>=.995;
     const unitConfirmed=unitScore>=.65;
-    const strong=score>=.56&&nameScore>=.50&&unitConfirmed&&(gap>=.025||nameScore>=.86||quantityConfirmed&&gap>=.015);
+    // Empates e quase empates nunca são pré-selecionados. Eles permanecem no
+    // Top 3 para decisão humana, sem reservar arbitrariamente o primeiro item.
+    const strong=score>=.56&&nameScore>=.50&&unitConfirmed&&gap>=.015&&(
+      gap>=.025||nameScore>=.86||quantityConfirmed
+    );
     if(!strong)continue;
 
     row.itemId=item.id;
@@ -1508,14 +1581,44 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     row.autoTextMatched=true;
     row.matchScore=score;
     row.aiReason='Nome conferido; unidade e quantidade usadas como confirmação';
-    row.aiMatched=true;
+    row.aiMatched=false;
     row.aiMatchConfidence=Math.max(.72,Math.min(.96,score));
-    row.factor=Number(row.factor)>0?Number(row.factor):1;
-    row.factorConfidence=Math.max(Number(row.factorConfidence||0),.90);
-    row.incompatibilities=[];
-    row.safeToSave=Number(row.price)>0&&Number(row.factor)>0;
+    row.incompatibilities=[...new Set([
+      ...(row.incompatibilities||[]),
+      ...quoteCriticalRequirementIssues(item.descricao,supplierDescription)
+    ])];
+    const quantityKnown=Number(row.quantity)>0&&Number(item.quantidade)>0;
+    const highConfidence=gap>=.035&&nameScore>=.86&&score>=.90&&unitScore===1&&
+      (!quantityKnown||quantityScore>=.995)&&Number(row.factorConfidence||0)>=.85&&
+      !(row.incompatibilities||[]).length;
+    row.safeToSave=highConfidence&&Number(row.price)>0&&Number(row.factor)>0;
     row.needsReview=!row.safeToSave;
     usedRows.add(rowIndex);
+    usedItems.add(String(item.id));
+    matched++;
+  }
+
+  // A IA pode sugerir um item que o comparador local não confirmou. Essa
+  // sugestão é preservada e pré-selecionada somente quando não cria conflito
+  // técnico nem duplicidade; ela nunca recebe safeToSave sem confirmação.
+  const unresolved=rows
+    .map((row,rowIndex)=>({row,rowIndex}))
+    .filter(({row})=>!row.itemId&&row.aiSuggestedItemId)
+    .sort((a,b)=>Number(b.row.aiSuggestedConfidence||b.row.aiMatchConfidence||0)-Number(a.row.aiSuggestedConfidence||a.row.aiMatchConfidence||0));
+  for(const {row} of unresolved){
+    const item=items.find(candidate=>String(candidate.id)===String(row.aiSuggestedItemId));
+    if(!item||usedItems.has(String(item.id)))continue;
+    const supplierDescription=`${row.description||''} ${row.presentation||''}`.trim();
+    const unitScore=quoteUnitCompatibility(quoteCanonicalUnit(row.unit),quoteCanonicalUnit(item.unidade),`${supplierDescription} ${item.descricao||''}`);
+    if(unitScore===0||quoteDescriptionsHaveDivergentMeasures(supplierDescription,item.descricao))continue;
+    row.itemId=item.id;
+    row.editalItemNumber=Number(item.numero);
+    row.aiMatched=true;
+    row.autoTextMatched=false;
+    row.safeToSave=false;
+    row.needsReview=true;
+    row.selected=false;
+    row.incompatibilities=[...(row.incompatibilities||[]),'Sugestão da IA exige confirmação humana'];
     usedItems.add(String(item.id));
     matched++;
   }
@@ -2275,7 +2378,10 @@ function mapAiQuoteLines(data,tenderId){
     const confidence=Math.max(0,Math.min(1,Number(match.confidence)||0));
     const factorConfidence=Math.max(0,Math.min(1,Number(match.factor_confidence)||0));
     const incompatibilities=Array.isArray(match.incompatibilities)?match.incompatibilities.map(String).slice(0,12):[];
-    const factor=Number(line.package_base_quantity||1);
+    // Fator desconhecido permanece zero: nunca presumimos que preço por caixa
+    // ou pacote seja preço unitário.
+    const rawFactor=Number(line.package_base_quantity);
+    const factor=Number.isFinite(rawFactor)&&rawFactor>0?rawFactor:0;
     const price=Number(line.unit_price||line.price||0);
     const safeToSave=Boolean(
       line.safe_to_save===true&&itemId&&price>0&&factor>0&&confidence>=.90&&factorConfidence>=.85&&!incompatibilities.length
@@ -2285,6 +2391,9 @@ function mapAiQuoteLines(data,tenderId){
       quantity:Number(line.quantity)||null,unit:String(line.unit||''),price,subtotal:Number.isFinite(Number(line.subtotal))?Number(line.subtotal):null,
       brand:String(line.brand||''),presentation:String(line.presentation||''),factor,page:Number(line.page)||null,
       itemId,editalItemNumber:itemId?Number(state.itens.find(i=>String(i.id)===itemId)?.numero||0):null,
+      aiSuggestedItemId:itemId,
+      aiSuggestedItemNumber:itemId?Number(state.itens.find(i=>String(i.id)===itemId)?.numero||0):null,
+      aiSuggestedConfidence:confidence,
       aiMatched:Boolean(itemId),aiMatchConfidence:confidence,factorConfidence,aiReason:String(match.reason||''),
       incompatibilities,safeToSave,needsReview:!safeToSave,selected:false,savedAutomatically:false
     };
@@ -2452,19 +2561,22 @@ async function startAutomaticQuoteImport(force=false){
     if(state.demo){
       setQuoteImportProgress('upload');
       setQuoteImportStatus('Lendo o arquivo na demonstração…','loading');
+      state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),mode:'demo'};
       let rows=ext==='csv'?await parseSpreadsheetFile(file):await parsePdfFile(file);
       if(runToken!==state.quoteImportRunToken)return;
       if(!rows.length)throw new Error('Nenhuma linha com produto e preço foi encontrada');
-      rows.forEach((r,index)=>{r.originalOrder=index;r.itemId='';r.selected=false;});
+      rows.forEach((r,index)=>{
+        r.originalOrder=index;r.itemId='';r.selected=false;
+        r.factor=Number(r.factor)>0?Number(r.factor):0;
+        r.factorConfidence=r.factor>0?.90:0;
+      });
       autoRelateSafeQuoteRows(tenderId,rows);
       rows.forEach(r=>{
         r.aiMatchConfidence=Number(r.matchScore||0);
-        r.factorConfidence=r.autoTextMatched ? .90 : 0;
-        r.safeToSave=Boolean(r.itemId&&r.autoTextMatched&&r.aiMatchConfidence>=.90&&Number(r.price)>0&&Number(r.factor||1)>0);
-        r.needsReview=!r.safeToSave;r.factor=Number(r.factor||1);r.savedAutomatically=false;
+        r.safeToSave=Boolean(r.safeToSave);
+        r.needsReview=!r.safeToSave;r.savedAutomatically=false;
       });
       state.quoteImportRows=rows;
-      state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:quoteImportFileKey(file),mode:'demo'};
       setQuoteImportProgress('matching');
       renderQuoteImportPreview();
       setQuoteImportProgress('saving');
@@ -2563,6 +2675,9 @@ async function startAutomaticQuoteImport(force=false){
     setQuoteImportProgress(state.quoteImportContext?.storagePath?'reading':'');
     setQuoteRetryVisible(true,state.quoteImportContext?.storagePath?'Reprocessar PDF armazenado':'Tentar novamente');
     setQuoteImportStatus(error?.message||'Não foi possível concluir a leitura automática. Tente novamente.','error');
+    // Mesmo quando a IA falha totalmente, o PDF já arquivado mantém o
+    // contexto e o usuário pode incluir todos os produtos manualmente.
+    renderQuoteImportPreview();
     if(!state.demo&&quoteId&&supabase&&error?.code)await supabase.from('quotes').update({status:'error',ai_error:error.code}).eq('id',quoteId);
   }finally{
     if(runToken===state.quoteImportRunToken){
@@ -3291,6 +3406,21 @@ function quoteReviewReason(row){
   return [...new Set(reasons)].join(' • ')||'confira a correspondência antes de salvar';
 }
 
+function addManualQuoteImportRow(tenderId){
+  if(!tenderId||!state.quoteImportContext)return toast('Leia a cotação antes de adicionar um produto manualmente.','error');
+  state.quoteImportRows.push({
+    originalOrder:state.quoteImportRows.length,
+    code:'',description:'',quantity:null,unit:'',price:0,subtotal:null,brand:'',presentation:'',factor:1,page:null,
+    itemId:'',editalItemNumber:null,manualCreated:true,manualMatched:false,aiMatched:false,autoTextMatched:false,
+    aiMatchConfidence:null,factorConfidence:null,aiReason:'Produto adicionado manualmente',incompatibilities:[],
+    safeToSave:false,needsReview:true,selected:false,savedAutomatically:false,savedAfterReview:false,ignored:false
+  });
+  persistQuoteReviewDraft();
+  renderQuoteImportPreview();
+  const rows=$$('#quoteImportPreview [data-quote-row]');
+  rows.at(-1)?.querySelector('[data-q-field="description"]')?.focus();
+}
+
 function renderQuoteImportReviewCompact(){
   const el=$('#quoteImportPreview');
   if(!el)return;
@@ -3302,17 +3432,40 @@ function renderQuoteImportReviewCompact(){
   persistQuoteReviewDraft();
   const count=$('#quoteReviewCount');
   if(count)count.textContent=String(pending.length);
+  const canAddManual=Boolean(tenderId&&state.quoteImportContext);
+  const addButton=canAddManual?`<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button type="button" id="quoteAddManualRowBtn" style="background:var(--gold);color:#111;border-color:var(--gold);font-weight:800">+ Adicionar produto não lido</button></div>`:'';
   if(!pending.length){
-    el.innerHTML='<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>';
+    el.innerHTML=`${addButton}<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>`;
+    $('#quoteAddManualRowBtn')?.addEventListener('click',()=>addManualQuoteImportRow(tenderId));
     return;
   }
-  el.innerHTML=`<div class="quote-review-list">${pending.map(({row,index})=>`
+  const usedByOtherRow=(itemId,rowIndex)=>(state.quoteImportRows||[]).some((candidate,candidateIndex)=>
+    candidateIndex!==rowIndex&&!candidate.ignored&&String(candidate.itemId)===String(itemId)
+  );
+  el.innerHTML=`${addButton}<div class="quote-review-list">${pending.map(({row,index})=>{
+    const localSuggestions=quoteLocalSuggestions(tenderId,row,8)
+      .filter(candidate=>String(candidate.item.id)===String(row.itemId)||!usedByOtherRow(candidate.item.id,index))
+      .slice(0,3);
+    const aiSuggestedItem=items.find(item=>String(item.id)===String(row.aiSuggestedItemId));
+    return `
     <article class="quote-review-row" data-quote-row="${index}">
       <div class="quote-review-product">
         <strong>${esc(row.description||'Produto sem descrição')}</strong>
         <span>${row.code?`Cód. ${esc(row.code)} • `:''}${row.unit?esc(row.unit):'unidade não identificada'}${row.page?` • pág. ${esc(row.page)}`:''}</span>
+        ${aiSuggestedItem?`<div style="margin-top:5px;color:var(--muted);font-size:.74rem">Sugestão preservada da IA: Item ${esc(aiSuggestedItem.numero)} — ${esc(aiSuggestedItem.descricao)}</div>`:''}
         <div class="quote-review-reason">${esc(quoteReviewReason(row))}</div>
       </div>
+      ${row.manualCreated?`<div style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px">
+        <label>Descrição do produto<input data-q-field="description" value="${esc(row.description||'')}" placeholder="Descrição como aparece na cotação"></label>
+        <label>Código<input data-q-field="code" value="${esc(row.code||'')}" placeholder="Opcional"></label>
+        <label>Unidade<input data-q-field="unit" value="${esc(row.unit||'')}" placeholder="UN, PC, KG..."></label>
+        <label>Quantidade<input data-q-field="quantity" type="number" min="0" step="0.001" value="${row.quantity??''}"></label>
+        <label>Marca<input data-q-field="brand" value="${esc(row.brand||'')}" placeholder="Opcional"></label>
+      </div>`:''}
+      ${localSuggestions.length?`<div style="grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="color:var(--muted);font-size:.75rem">Sugestões por nome → unidade → quantidade:</span>
+        ${localSuggestions.map(candidate=>`<button type="button" class="action-btn" data-quote-suggestion-row="${index}" data-quote-suggestion-item="${esc(candidate.item.id)}" title="${esc(candidate.item.descricao)}${candidate.measureConflict?' — confira a medida/apresentação':''}${candidate.unitConflict?' — confira a unidade':''}">Item ${esc(candidate.item.numero)} • aderência ${Math.round(candidate.score*100)}%${candidate.measureConflict||candidate.unitConflict?' ⚠':''}</button>`).join('')}
+      </div>`:''}
       <label>Item correto do edital
         <select data-q-field="itemId">
           <option value="">Selecione o item…</option>
@@ -3323,24 +3476,52 @@ function renderQuoteImportReviewCompact(){
         <input data-q-field="price" type="number" min="0.0001" step="0.0001" value="${Number(row.price||0)}">
       </label>
       <label>Fator
-        <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(row.factor||1)}">
+        <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(row.factor)>0?Number(row.factor):''}" placeholder="Confirme o fator">
       </label>
       <div class="quote-review-actions">
         <button type="button" class="action-btn" data-ignore-quote-row="${index}">Ignorar</button>
-        <button type="button" data-confirm-quote-row="${index}" ${row.itemId&&Number(row.price)>0&&Number(row.factor)>0?'':'disabled'}>Confirmar</button>
+        <button type="button" data-confirm-quote-row="${index}" ${row.itemId&&Number(row.price)>0&&Number(row.factor)>0&&(!row.manualCreated||String(row.description||'').trim())?'':'disabled'}>Confirmar</button>
       </div>
-    </article>`).join('')}</div>`;
+    </article>`;}).join('')}</div>`;
+
+  $('#quoteAddManualRowBtn')?.addEventListener('click',()=>addManualQuoteImportRow(tenderId));
 
   el.querySelectorAll('[data-q-field]').forEach(field=>field.addEventListener('change',()=>{
     syncQuoteRowsFromDom();
     const box=field.closest('[data-quote-row]');
     const row=state.quoteImportRows[Number(box?.dataset.quoteRow)];
     if(row&&field.dataset.qField==='itemId'){
+      const rowIndex=Number(box?.dataset.quoteRow);
+      if(row.itemId&&usedByOtherRow(row.itemId,rowIndex)){
+        row.itemId='';
+        row.editalItemNumber=null;
+        row.manualMatched=false;
+        toast('Esse item já está relacionado a outro produto desta cotação.','error');
+        return renderQuoteImportPreview();
+      }
       row.manualMatched=Boolean(row.itemId);
       row.aiMatched=false;
       row.safeToSave=false;
       row.selected=Boolean(row.itemId&&Number(row.price)>0&&Number(row.factor)>0);
     }
+    renderQuoteImportPreview();
+  }));
+  el.querySelectorAll('[data-quote-suggestion-item]').forEach(button=>button.addEventListener('click',()=>{
+    syncQuoteRowsFromDom();
+    const rowIndex=Number(button.dataset.quoteSuggestionRow);
+    const row=state.quoteImportRows[rowIndex];
+    const itemId=button.dataset.quoteSuggestionItem;
+    const item=items.find(candidate=>String(candidate.id)===String(itemId));
+    if(!row||!item)return;
+    if(usedByOtherRow(itemId,rowIndex))return toast('Esse item já está relacionado a outro produto desta cotação.','error');
+    row.itemId=item.id;
+    row.editalItemNumber=Number(item.numero);
+    row.manualMatched=true;
+    row.aiMatched=false;
+    row.autoTextMatched=false;
+    row.safeToSave=false;
+    row.needsReview=true;
+    row.selected=false;
     renderQuoteImportPreview();
   }));
   el.querySelectorAll('[data-ignore-quote-row]').forEach(button=>button.addEventListener('click',()=>{
@@ -3356,6 +3537,9 @@ function renderQuoteImportReviewCompact(){
     syncQuoteRowsFromDom();
     const row=state.quoteImportRows[Number(button.dataset.confirmQuoteRow)];
     if(!row?.itemId||!(Number(row.price)>0)||!(Number(row.factor)>0))return toast('Selecione o item e confirme preço e fator.','error');
+    if(row.manualCreated&&!String(row.description||'').trim())return toast('Informe a descrição do produto não lido.','error');
+    const rowIndex=Number(button.dataset.confirmQuoteRow);
+    if(usedByOtherRow(row.itemId,rowIndex))return toast('Esse item já está relacionado a outro produto desta cotação.','error');
     (state.quoteImportRows||[]).forEach(candidate=>{candidate.selected=false;});
     row.selected=true;
     await saveImportedQuotes();
@@ -3893,7 +4077,7 @@ function syncQuoteRowsFromDom(){
     tr.querySelectorAll('[data-q-field]').forEach(el=>{
       const key=el.dataset.qField;
       if(key==='selected')row[key]=el.checked;
-      else if(key==='price'||key==='factor')row[key]=Number(el.value||0);
+      else if(key==='price'||key==='factor'||key==='quantity')row[key]=Number(el.value||0);
       else row[key]=el.value;
     });
   });
@@ -3943,7 +4127,8 @@ async function readQuoteImportFile(){
       return;
     }
 
-    // Associação 100% manual: o sistema lê os produtos e você pesquisa o item do edital.
+    // A descrição define os candidatos; unidade e quantidade confirmam e
+    // desempatam. Correspondências ambíguas permanecem para revisão.
     rows.forEach((r,index)=>{
       r.originalOrder=index;
       r.itemId='';
@@ -4098,7 +4283,7 @@ async function saveImportedQuotes(){
     if(state.demo){
       for(const r of rows){
         const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
-        const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor||1),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),needs_review:false};
+        const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence!=null&&Number.isFinite(Number(r.aiMatchConfidence))?Number(r.aiMatchConfidence):null,needs_review:false};
         if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
         r.savedAfterReview=true;r.needsReview=false;r.selected=false;
       }
@@ -4121,10 +4306,10 @@ async function saveImportedQuotes(){
       supplier_description:r.description,
       brand:r.brand||null,
       package_description:r.presentation||null,
-      package_base_quantity:Number(r.factor||1),
+      package_base_quantity:Number(r.factor),
       unit_price:Number(r.price),
       freight_per_package:0,
-      ai_match_confidence:r.aiMatchConfidence??(r.manualMatched?1:null),
+      ai_match_confidence:r.aiMatchConfidence!=null&&Number.isFinite(Number(r.aiMatchConfidence))?Number(r.aiMatchConfidence):null,
       needs_review:false
     }));
 

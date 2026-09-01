@@ -1,1 +1,1 @@
-36.53.0 - Corrige o processamento de cotações quando o modelo principal de IA está indisponível.
+36.55.0 - Melhora a correspondência de cotações por nome, unidade e quantidade, com sugestões e inclusão manual.
