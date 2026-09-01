@@ -1369,9 +1369,42 @@ function quoteTokenSet(v){
   );
 }
 
+function quoteCanonicalUnit(value){
+  const unit=quoteNormalize(value).replace(/[^A-Z0-9]/g,'');
+  const aliases={
+    PC:'UN',PCA:'UN',PCE:'UN',UN:'UN',UND:'UN',UNID:'UN',UNIDADE:'UN',UNIDADES:'UN',
+    BARRA:'BARRA',BARRAS:'BARRA',BR:'BARRA',
+    KG:'KG',KILO:'KG',QUILO:'KG',QUILOGRAMA:'KG',QUILOGRAMAS:'KG',
+    G:'G',GR:'G',GRAMA:'G',GRAMAS:'G',
+    M:'M',MT:'M',METRO:'M',METROS:'M',
+    L:'L',LT:'L',LITRO:'L',LITROS:'L',ML:'ML',
+    CX:'CX',CAIXA:'CX',CAIXAS:'CX',PCT:'PCT',PACOTE:'PCT',PACOTES:'PCT',
+    PAR:'PAR',PARES:'PAR',RL:'RL',ROLO:'RL',ROLOS:'RL',FD:'FD',FARDO:'FD',FARDOS:'FD'
+  };
+  return aliases[unit]||unit;
+}
+
+function quoteCanonicalDescription(value){
+  return quoteNormalize(value)
+    .replace(/\bTUBOS?\b/g,'CANO')
+    .replace(/\bP\s*\/\s*/g,'PARA ')
+    .replace(/\bD AGUA\b/g,'AGUA')
+    .replace(/\bPCS?\b|\bPECAS?\b|\bUNIDS?\b|\bUNIDADES?\b/g,'UN')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function quoteUnitCompatibility(supplierUnit,editalUnit,description=''){
+  if(!supplierUnit||!editalUnit)return .45;
+  if(supplierUnit===editalUnit)return 1;
+  const linear=/\b(CANO|TUBO|CABO|PERFIL|MANGUEIRA)\b/.test(quoteCanonicalDescription(description));
+  if(linear&&new Set([supplierUnit,editalUnit]).has('UN')&&new Set([supplierUnit,editalUnit]).has('BARRA'))return .65;
+  return 0;
+}
+
 function quoteSafeMatchScore(supplierDescription,itemDescription){
-  const a=quoteNormalize(supplierDescription);
-  const b=quoteNormalize(itemDescription);
+  const a=quoteCanonicalDescription(supplierDescription);
+  const b=quoteCanonicalDescription(itemDescription);
   if(!a || !b)return 0;
 
   // Correspondência textual direta: ex. "ARCO DE SERRA" x "ARCO DE SERRA C/LAMINA".
@@ -1390,7 +1423,11 @@ function quoteSafeMatchScore(supplierDescription,itemDescription){
   for(const t of sb)if(sa.has(t))inter++;
 
   const coverageOfficial=inter/sb.size;
+  const containment=inter/Math.min(sa.size,sb.size);
   const jaccard=inter/new Set([...sa,...sb]).size;
+  const firstA=[...sa][0]||'';
+  const firstB=[...sb][0]||'';
+  const sameProductHead=firstA&&firstA===firstB;
 
   // Números/medidas divergentes reduzem bastante a confiança.
   const numsA=(a.match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>x.replace(',','.'));
@@ -1400,7 +1437,7 @@ function quoteSafeMatchScore(supplierDescription,itemDescription){
     if(common===0 && coverageOfficial<1)return Math.min(.55,coverageOfficial*.6);
   }
 
-  return coverageOfficial*.78 + jaccard*.22;
+  return Math.min(1,Math.max(sameProductHead ? .56 : 0,containment*.64+jaccard*.22+coverageOfficial*.14));
 }
 
 function autoRelateSafeQuoteRows(tenderId,rows){
@@ -1408,42 +1445,79 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     .filter(i=>String(i.licitacao_id)===String(tenderId))
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
 
-  const usedItems=new Set(
-    rows.filter(r=>r.itemId).map(r=>String(r.itemId))
-  );
+  const usedItems=new Set();
+  const candidates=[];
 
-  let matched=0;
-
-  for(const row of rows){
-    if(row.itemId)continue;
-
-    const ranked=items
-      .filter(i=>!usedItems.has(String(i.id)))
-      .map(i=>({item:i,score:quoteSafeMatchScore(row.description,i.descricao)}))
-      .sort((a,b)=>b.score-a.score);
-
-    const best=ranked[0];
-    const second=ranked[1];
-
-    // Só associa automaticamente quando a correspondência é muito forte
-    // e claramente melhor que a segunda opção. Não usa IA.
-    if(
-      best &&
-      best.score>=.62 &&
-      (!second || best.score-second.score>=.12)
-    ){
-      row.itemId=best.item.id;
-      row.editalItemNumber=Number(best.item.numero);
-      row.manualMatched=false;
-      row.autoTextMatched=true;
-      row.matchScore=best.score;
-      row.aiMatched=true;
-      row.aiMatchConfidence=Math.max(Number(row.aiMatchConfidence||0),Math.min(.9,best.score));
-      row.factor=Number(row.factor)>0?Number(row.factor):1;
-      row.factorConfidence=Number(row.factorConfidence)>0?Number(row.factorConfidence):.8;
-      usedItems.add(String(best.item.id));
-      matched++;
+  // O código impresso pelo fornecedor não participa da escolha. Cada linha é
+  // novamente comparada com todos os itens do edital nesta ordem: nome,
+  // unidade e quantidade. Assim uma sugestão errada da IA nunca bloqueia a
+  // correção determinística no navegador.
+  rows.forEach((row,rowIndex)=>{
+    if(row.manualMatched&&row.itemId){
+      usedItems.add(String(row.itemId));
+      return;
     }
+    row.itemId='';
+    row.editalItemNumber=null;
+    row.autoTextMatched=false;
+    row.safeToSave=false;
+    row.needsReview=true;
+    const supplierDescription=`${row.description||''} ${row.presentation||''}`.trim();
+    const supplierUnit=quoteCanonicalUnit(row.unit);
+    const supplierQty=Number(row.quantity);
+    items.forEach(item=>{
+      const nameScore=quoteSafeMatchScore(supplierDescription,item.descricao);
+      if(nameScore<.42||quoteDescriptionsHaveDivergentMeasures(supplierDescription,item.descricao))return;
+      const editalUnit=quoteCanonicalUnit(item.unidade);
+      const unitScore=quoteUnitCompatibility(supplierUnit,editalUnit,`${supplierDescription} ${item.descricao||''}`);
+      if(unitScore===0)return;
+      const editalQty=Number(item.quantidade);
+      const hasBothQuantities=supplierQty>0&&editalQty>0;
+      const quantityScore=hasBothQuantities
+        ?Math.max(0,1-(Math.abs(supplierQty-editalQty)/Math.max(supplierQty,editalQty)))
+        :.35;
+      const score=nameScore*.72+unitScore*.18+quantityScore*.10;
+      candidates.push({row,rowIndex,item,nameScore,unitScore,quantityScore,score});
+    });
+  });
+
+  // Atribuição global um-para-um: primeiro ficam os melhores nomes; unidade e
+  // quantidade confirmam e desempatarem. Um vínculo fraco não pode reservar o
+  // item e impedir uma linha realmente correta de usá-lo.
+  candidates.sort((a,b)=>
+    b.nameScore-a.nameScore||b.unitScore-a.unitScore||b.quantityScore-a.quantityScore||b.score-a.score||a.rowIndex-b.rowIndex
+  );
+  const usedRows=new Set();
+  let matched=0;
+  for(const candidate of candidates){
+    const {row,rowIndex,item,nameScore,unitScore,quantityScore,score}=candidate;
+    if(usedRows.has(rowIndex)||usedItems.has(String(item.id)))continue;
+    const alternatives=candidates.filter(other=>
+      other.rowIndex===rowIndex&&String(other.item.id)!==String(item.id)&&!usedItems.has(String(other.item.id))
+    );
+    const second=alternatives[0];
+    const gap=second?score-second.score:score;
+    const quantityConfirmed=quantityScore>=.995;
+    const unitConfirmed=unitScore>=.65;
+    const strong=score>=.56&&nameScore>=.50&&unitConfirmed&&(gap>=.025||nameScore>=.86||quantityConfirmed&&gap>=.015);
+    if(!strong)continue;
+
+    row.itemId=item.id;
+    row.editalItemNumber=Number(item.numero);
+    row.manualMatched=false;
+    row.autoTextMatched=true;
+    row.matchScore=score;
+    row.aiReason='Nome conferido; unidade e quantidade usadas como confirmação';
+    row.aiMatched=true;
+    row.aiMatchConfidence=Math.max(.72,Math.min(.96,score));
+    row.factor=Number(row.factor)>0?Number(row.factor):1;
+    row.factorConfidence=Math.max(Number(row.factorConfidence||0),.90);
+    row.incompatibilities=[];
+    row.safeToSave=Number(row.price)>0&&Number(row.factor)>0;
+    row.needsReview=!row.safeToSave;
+    usedRows.add(rowIndex);
+    usedItems.add(String(item.id));
+    matched++;
   }
 
   return matched;
@@ -1473,7 +1547,10 @@ function quoteWordTokens(v){
 }
 
 function quoteSpecTokens(v){
-  const s=quoteNormalize(v);
+  const s=quoteNormalize(v)
+    // "20 MM" e "20MM" representam a mesma medida e precisam gerar a
+    // mesma chave técnica para o comparador.
+    .replace(/(\d)\s+(MM|CM|M|KG|G|ML|L|LT|W|V)\b/g,'$1$2');
   const specs=new Set();
 
   // Medidas e números relevantes: 20, 25MM, 3/4, 1/2, 15L, 4X2,50MM etc.
@@ -2189,17 +2266,12 @@ async function quoteAiInvokeFailure(error,data){
 function mapAiQuoteLines(data,tenderId){
   const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
   const allowed=new Set(tenderItems.map(i=>String(i.id)));
-  const byNumber=new Map(tenderItems.map(i=>[String(Number(i.numero)),i]));
   return (Array.isArray(data?.lines)?data.lines:[]).slice(0,1000).map((line,index)=>{
     const match=line?.match||{};
-    const rawCode=String(line.code||'').trim();
-    const codeMatch=rawCode.match(/^(?:ITEM\s*)?(\d+)\b/i);
-    const numberedItem=codeMatch?byNumber.get(String(Number(codeMatch[1]))):null;
-    // Quando o PDF traz o número oficial, ele é a âncora mais precisa e
-    // impede que uma descrição parecida seja associada ao item errado.
-    const itemId=numberedItem
-      ? String(numberedItem.id)
-      : (allowed.has(String(match.tender_item_id||''))?String(match.tender_item_id):'');
+    // `line.code` é o código interno do fornecedor (COMFIL, por exemplo), não
+    // o número oficial do edital. Mantemos apenas a sugestão da IA para exibir;
+    // o resolvedor local abaixo refaz a decisão por nome, unidade e quantidade.
+    const itemId=allowed.has(String(match.tender_item_id||''))?String(match.tender_item_id):'';
     const confidence=Math.max(0,Math.min(1,Number(match.confidence)||0));
     const factorConfidence=Math.max(0,Math.min(1,Number(match.factor_confidence)||0));
     const incompatibilities=Array.isArray(match.incompatibilities)?match.incompatibilities.map(String).slice(0,12):[];
@@ -2213,7 +2285,7 @@ function mapAiQuoteLines(data,tenderId){
       quantity:Number(line.quantity)||null,unit:String(line.unit||''),price,subtotal:Number.isFinite(Number(line.subtotal))?Number(line.subtotal):null,
       brand:String(line.brand||''),presentation:String(line.presentation||''),factor,page:Number(line.page)||null,
       itemId,editalItemNumber:itemId?Number(state.itens.find(i=>String(i.id)===itemId)?.numero||0):null,
-      aiMatched:Boolean(itemId),aiMatchConfidence:numberedItem?Math.max(confidence,.98):confidence,factorConfidence,aiReason:numberedItem?'Número oficial do item confirmado':String(match.reason||''),
+      aiMatched:Boolean(itemId),aiMatchConfidence:confidence,factorConfidence,aiReason:String(match.reason||''),
       incompatibilities,safeToSave,needsReview:!safeToSave,selected:false,savedAutomatically:false
     };
   });
@@ -2232,14 +2304,15 @@ function quoteImportSummaryText(tenderId){
 
 async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   const rows=state.quoteImportRows||[];
+  const eligible=rows.filter(r=>
+    r.itemId&&r.safeToSave===true&&Number(r.price)>0&&Number(r.factor)>0&&
+    !(r.incompatibilities||[]).length
+  );
   const counts=new Map();
-  rows.forEach(r=>{if(r.itemId)counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1);});
+  eligible.forEach(r=>counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1));
   // Preenche a Precificação também com correspondências confiáveis marcadas
   // para revisão, mantendo a linha sinalizada para conferência posterior.
-  const safeRows=rows.filter(r=>
-    r.itemId&&counts.get(String(r.itemId))===1&&Number(r.price)>0&&Number(r.factor)>0&&
-    (r.safeToSave===true || (r.aiMatched && Number(r.aiMatchConfidence||0)>=.5 && Number(r.factorConfidence||0)>=.5 && !(r.incompatibilities||[]).length))
-  );
+  const safeRows=eligible.filter(r=>counts.get(String(r.itemId))===1);
   if(runToken!==state.quoteImportRunToken)return 0;
 
   if(state.demo){
