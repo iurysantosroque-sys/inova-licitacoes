@@ -8994,7 +8994,7 @@ function renderDashboardModel(){
       const missing=items.filter(i=>!itemHasQuote(i.id)).length;
       return {l,meta:dashboardDeadlineMeta(l),missing};
     })
-    .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=15&&x.missing>0)
+    .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=15&&x.missing>0&&!x.l.is_quoted)
     .sort((a,b)=>a.meta.date-b.meta.date);
 
   if(!state.dashboardCalendarDate){
