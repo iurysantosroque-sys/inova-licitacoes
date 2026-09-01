@@ -92,6 +92,7 @@
         <button data-tab="licitacoes"><span>Licitações</span></button>
         <button data-tab="cotacoes"><span>Cotações</span></button>
         <button data-tab="precificacao"><span>Precificação</span></button>
+        <button data-tab="agente-lances"><span>Agente de Lances</span></button>
         <button data-tab="fornecedores"><span>Fornecedores</span></button>
         <button data-tab="financeiro"><span>Financeiro</span></button>
         <button data-tab="arquivos"><span>Documentação</span></button>
@@ -283,6 +284,92 @@
         </form>
       </section>
 
+      <section id="agente-lances" class="tab" aria-labelledby="bidAgentTitle">
+        <header class="bid-agent-header">
+          <div>
+            <p class="bid-agent-eyebrow">Operação supervisionada</p>
+            <h1 id="bidAgentTitle">Agente de Lances</h1>
+            <p>Prepare e confirme recomendações simuladas sem conexão com portais de compras.</p>
+          </div>
+          <div class="bid-agent-mode" role="status" aria-live="polite">
+            <span id="bidAgentModeDot" aria-hidden="true"></span>
+            <div><strong id="bidAgentModeLabel">Simulação / supervisionado</strong><small id="bidAgentModeDetail">Nenhum lance sai deste navegador</small></div>
+          </div>
+        </header>
+
+        <div class="notice bid-agent-safety" role="note">
+          <strong>Ambiente seguro de simulação</strong>
+          <p>Esta área não acessa o CamaleonPro, não usa ou armazena credenciais e não envia lances, mesmo no modo online ou quando o app estiver offline.</p>
+        </div>
+
+        <div class="bid-agent-layout">
+          <div class="bid-agent-main">
+            <section class="panel" aria-labelledby="bidAgentContextTitle">
+              <div class="panel-title">
+                <div><h2 id="bidAgentContextTitle">1. Licitação e item</h2><p class="hint">Use somente itens já cadastrados no INOVA.</p></div>
+                <span class="badge neutral">Dados do app</span>
+              </div>
+              <div class="bid-agent-fields bid-agent-fields-two">
+                <label>Licitação<select id="bidAgentTender" required></select></label>
+                <label>Item<select id="bidAgentItem" required></select></label>
+              </div>
+              <div id="bidAgentItemSummary" class="bid-agent-item-summary" aria-live="polite"></div>
+            </section>
+
+            <section class="panel" aria-labelledby="bidAgentStrategyTitle">
+              <div class="panel-title">
+                <div><h2 id="bidAgentStrategyTitle">2. Estratégia supervisionada</h2><p class="hint">O motor sempre calcula: melhor lance observado − redução.</p></div>
+                <span class="badge neutral">Determinístico</span>
+              </div>
+              <form id="bidAgentStrategyForm" class="bid-agent-fields" novalidate>
+                <label>Melhor lance observado (R$)<input id="bidAgentBestBid" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+                <label>Preço de parada / piso (R$)<input id="bidAgentStopPrice" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+                <label>Redução por lance (R$)<input id="bidAgentDecrement" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+                <label>Posição desejada<input id="bidAgentDesiredPosition" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
+                <label class="toggle-line bid-agent-final-toggle"><input id="bidAgentOnlyAtEnd" type="checkbox"><span>Somente no final (modo sniper apenas para simulação)</span></label>
+              </form>
+              <div class="bid-agent-import">
+                <div><strong>Importar estratégia do CamaleonPro (opcional)</strong><p class="hint">Aceita JSON com um objeto ou uma lista. Textos e campos desconhecidos são ignorados, nunca executados.</p></div>
+                <label class="bid-agent-file-button" for="bidAgentJsonFile">Selecionar JSON</label>
+                <input id="bidAgentJsonFile" class="visually-hidden" type="file" accept=".json,application/json">
+              </div>
+              <div id="bidAgentImportStatus" class="document-status" role="status" aria-live="polite" hidden></div>
+            </section>
+
+            <section class="panel" aria-labelledby="bidAgentRecommendationTitle">
+              <div class="panel-title"><div><h2 id="bidAgentRecommendationTitle">3. Recomendação</h2><p class="hint">Revise o preflight antes de confirmar.</p></div></div>
+              <div id="bidAgentRecommendation" class="bid-agent-recommendation" role="status" aria-live="polite">
+                <p>Preencha os valores e clique em <strong>Simular recomendação</strong>.</p>
+              </div>
+              <div id="bidAgentEconomicEffect" class="bid-agent-economics" aria-live="polite"></div>
+            </section>
+          </div>
+
+          <aside class="bid-agent-side" aria-label="Preflight e controles do agente">
+            <section class="panel bid-agent-preflight" aria-labelledby="bidAgentPreflightTitle">
+              <div class="panel-title"><h2 id="bidAgentPreflightTitle">Preflight obrigatório</h2><span id="bidAgentPreflightBadge" class="badge bad">Pendente</span></div>
+              <dl id="bidAgentPreflightList"></dl>
+              <label class="bid-agent-operator-check"><input id="bidAgentOperatorConfirmed" type="checkbox"><span>Eu conferi a licitação, o item e os limites acima.</span></label>
+              <div class="bid-agent-actions">
+                <button id="bidAgentSimulateBtn" type="button">Simular recomendação</button>
+                <button id="bidAgentConfirmBtn" type="button" class="secondary" disabled>Confirmar lance simulado</button>
+                <button id="bidAgentStopBtn" type="button" class="danger-btn">PARAR AGENTE</button>
+                <button id="bidAgentRearmBtn" type="button" class="secondary" hidden>Rearmar modo supervisionado</button>
+              </div>
+              <p class="bid-agent-local-note">Confirmações ficam somente neste navegador. Não existe fila de envio offline.</p>
+            </section>
+          </aside>
+        </div>
+
+        <section class="panel bid-agent-history-panel" aria-labelledby="bidAgentHistoryTitle">
+          <div class="panel-title">
+            <div><h2 id="bidAgentHistoryTitle">Histórico local da simulação</h2><p class="hint">Registro informativo e append-only. Não é comprovante oficial de lance.</p></div>
+            <button id="bidAgentClearHistoryBtn" type="button" class="secondary">Limpar histórico</button>
+          </div>
+          <div id="bidAgentHistory" class="table-wrap" aria-live="polite"></div>
+        </section>
+      </section>
+
       <section id="arquivos" class="tab">
         <div class="documentation-head">
           <div>
@@ -440,6 +527,23 @@
           <div class="profile-photo-box"><div class="profile-photo-preview" id="profilePhotoPreview"><span>👤</span></div><div><strong>Foto do perfil</strong><p class="hint">Sua foto aparecerá para a equipe e nas mensagens do chat.</p><input id="profilePhotoInput" type="file" accept="image/png,image/jpeg,image/webp"><button id="removeProfilePhotoBtn" class="secondary" type="button" hidden>Remover foto</button></div></div>
           <div class="invite-box"><span>Código da empresa</span><strong id="inviteCode">--------</strong><button id="copyInviteBtn" class="secondary">Copiar código</button></div>
         </div>
+
+        <div id="teamInvitePanel" class="panel team-invite-panel" hidden>
+          <div class="panel-title team-invite-title">
+            <div><h2>Convidar novo membro</h2><p class="hint">Prepare um convite personalizado usando o código seguro da empresa.</p></div>
+            <span class="badge neutral">Somente administradores</span>
+          </div>
+          <form id="teamInviteForm" class="team-invite-form">
+            <label>Nome do convidado<input name="name" autocomplete="name" maxlength="120" placeholder="Ex.: Maria Santos" required></label>
+            <label>E-mail<input name="email" type="email" autocomplete="email" maxlength="254" placeholder="nome@empresa.com" required></label>
+            <label>Cargo no convite<select name="role" required><option value="member">Membro</option><option value="admin">Administrador</option></select></label>
+            <button type="submit">Gerar convite</button>
+          </form>
+          <div id="teamInviteStatus" class="document-status" role="status" aria-live="polite">Informe nome, e-mail e cargo para gerar o link. Nada será enviado sem você clicar.</div>
+          <div id="teamInvitePreview" class="team-invite-preview" hidden></div>
+        </div>
+
+        <div id="teamInviteReadOnly" class="panel team-invite-readonly" hidden><strong>Convites da equipe</strong><p class="hint">Somente administradores podem gerar convites e definir o cargo solicitado.</p></div>
 
         <div class="panel appearance-panel">
           <div class="panel-title">

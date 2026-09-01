@@ -86,6 +86,28 @@ tr:hover td{background:#0a141a}
 .invite-box{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#091218;border:1px dashed var(--goldline);border-radius:14px;padding:18px}
 .invite-box strong{font-size:1.4rem;letter-spacing:3px;color:var(--gold)}
 .invite-box button{margin-left:auto}
+.team-invite-panel[hidden],.team-invite-readonly[hidden]{display:none}
+.team-invite-title{align-items:flex-start}
+.team-invite-title h2{margin:0;color:var(--gold)}
+.team-invite-form{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(220px,1.35fr) minmax(155px,.7fr) auto;gap:12px;align-items:end;margin-top:18px}
+.team-invite-form label{display:grid;gap:6px;color:var(--muted);font-size:.8rem;font-weight:750}
+.team-invite-form input,.team-invite-form select{width:100%;min-height:44px;border:1px solid #31434f;border-radius:9px;background:#07131a;color:var(--text);padding:0 11px}
+.team-invite-form button{min-height:44px;white-space:nowrap}
+.team-invite-panel .document-status{margin-top:14px}
+.team-invite-preview{display:grid;gap:13px;margin-top:14px;padding:16px;border:1px solid #315163;border-radius:12px;background:#081820}
+.team-invite-preview[hidden]{display:none}
+.team-invite-person{display:flex;align-items:center;gap:11px}
+.team-invite-person>div span,.team-invite-person>div strong,.team-invite-person>div small{display:block}
+.team-invite-person>div span{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+.team-invite-person>div strong{margin-top:2px;color:#f2f5f7}
+.team-invite-person>div small{margin-top:2px;color:#aab8c0}
+.team-invite-link{display:grid;gap:6px}
+.team-invite-link span{color:var(--muted);font-size:.72rem;font-weight:750}
+.team-invite-link code{display:block;padding:10px 11px;border:1px solid #263e4a;border-radius:8px;background:#050e13;color:#dce7ec;overflow-wrap:anywhere;user-select:all}
+.team-invite-warning{margin:0;padding:10px 12px;border-left:3px solid #e6aa34;background:#211b0b;color:#ffda78;font-size:.78rem;line-height:1.45}
+.team-invite-actions{display:flex;gap:8px;flex-wrap:wrap}
+.team-invite-actions .action-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.incoming-company-invite{border-color:#80611c;background:#201a0b}
 .action-btn{border:1px solid #34444e;background:#0a141a;color:#e9edef;border-radius:8px;padding:6px 9px;font-size:.78rem}
 .danger-btn{color:#ff756d}
 
@@ -378,6 +400,8 @@ tr:hover td{background:#0a141a}
 }
 @media(max-width:1000px){.qualification-library-main{grid-template-columns:1fr 1fr}.qualification-library-main>div:first-child{grid-column:1/-1}.qualification-summary{grid-template-columns:repeat(3,1fr)}.qualification-requirement-card{grid-template-columns:1fr 1fr}.qualification-requirement-actions{grid-column:1/-1;justify-content:flex-start}}
 @media(max-width:720px){.documentation-head{align-items:stretch;flex-direction:column}.document-tabs{display:grid;grid-template-columns:1fr;width:100%}.document-tabs button{min-width:0}.document-action-group{min-width:155px}.qualification-document-form .qualification-notes,.qualification-requirement-form .qualification-notes{grid-column:auto}.qualification-tender-controls,.qualification-library-main,.qualification-requirement-card{grid-template-columns:1fr}.qualification-library-main>div:first-child,.qualification-requirement-actions{grid-column:auto}.qualification-summary{grid-template-columns:1fr 1fr}.qualification-progress{grid-column:1/-1}.qualification-form-actions{align-items:stretch;flex-direction:column}.qualification-alert{flex-direction:column}}
+@media(max-width:900px){.team-invite-form{grid-template-columns:1fr 1fr}.team-invite-form button{width:100%}}
+@media(max-width:620px){.team-invite-form{grid-template-columns:1fr}.team-invite-actions{display:grid}.team-invite-actions>*{width:100%}}
 
 /* Cotações 36.13 — fluxo direto: importar, revisar dúvidas e itens cotados. */
 #cotacoes .quote-summary-direct{
@@ -664,4 +688,68 @@ tr:hover td{background:#0a141a}
   .proposal-toolbar label:first-child,.proposal-summary>div:first-child{grid-column:auto}
   .proposal-summary>div:not(.proposal-empty){border-right:0;border-bottom:1px solid var(--line)}
   .proposal-summary>div:last-child{border-bottom:0}
+}
+
+/* Agente de Lances — ambiente local, determinístico e supervisionado. */
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+#agente-lances{--bid-blue:#153a4c;--bid-green:#45cf82;--bid-red:#ff7169;max-width:1540px;margin:0 auto}
+.bid-agent-header{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;margin-bottom:18px}
+.bid-agent-header h1{margin:2px 0 7px;color:var(--gold);font-size:1.75rem}
+.bid-agent-header>div>p:last-child{margin:0;color:var(--muted)}
+.bid-agent-eyebrow{margin:0;color:#7dcedf;font-size:.72rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
+.bid-agent-mode{display:flex;align-items:center;gap:11px;min-width:270px;border:1px solid #31505f;border-radius:12px;background:#081820;padding:12px 14px}
+.bid-agent-mode>span{width:11px;height:11px;flex:0 0 11px;border-radius:50%;background:var(--bid-green);box-shadow:0 0 0 4px rgba(69,207,130,.12)}
+.bid-agent-mode>span.is-stopped{background:var(--bid-red);box-shadow:0 0 0 4px rgba(255,113,105,.12)}
+.bid-agent-mode strong,.bid-agent-mode small{display:block}.bid-agent-mode strong{color:#eff6f8;font-size:.86rem}.bid-agent-mode small{margin-top:3px;color:var(--muted);font-size:.72rem}
+.bid-agent-safety{margin-bottom:18px;border-left:4px solid var(--gold)}
+.bid-agent-safety p{margin:5px 0 0}
+.bid-agent-layout{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,.75fr);gap:18px;align-items:start}
+.bid-agent-main{display:grid;gap:18px;min-width:0}
+.bid-agent-side{min-width:0;position:sticky;top:182px}
+.bid-agent-fields{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:13px;margin-top:17px}
+.bid-agent-fields-two{grid-template-columns:1fr 1fr}
+.bid-agent-fields label{display:grid;gap:7px;color:#c9d2d7;font-size:.78rem;font-weight:750}
+.bid-agent-fields input,.bid-agent-fields select{width:100%;min-height:44px;border:1px solid #314651;border-radius:9px;background:#07151d;color:#f4f7f8;padding:0 11px}
+.bid-agent-fields input:focus,.bid-agent-fields select:focus,.bid-agent-operator-check:focus-within{outline:2px solid rgba(230,170,52,.42);outline-offset:2px}
+.bid-agent-final-toggle{grid-column:1/-1;margin:0}
+.bid-agent-item-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}
+.bid-agent-item-summary>div{border:1px solid var(--line);border-radius:10px;background:#08161e;padding:11px 12px}
+.bid-agent-item-summary span,.bid-agent-item-summary strong{display:block}.bid-agent-item-summary span{color:var(--muted);font-size:.7rem}.bid-agent-item-summary strong{margin-top:4px;color:#eef3f5;font-size:.84rem}
+.bid-agent-import{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:17px;border-top:1px solid var(--line);padding-top:16px}
+.bid-agent-import strong{color:#e8edf0}.bid-agent-import p{margin:4px 0 0}
+.bid-agent-file-button{flex:0 0 auto;border:1px solid var(--gold);border-radius:9px;background:transparent;color:var(--gold);padding:10px 14px;font-size:.8rem;font-weight:850;cursor:pointer}
+.bid-agent-file-button:hover,.bid-agent-file-button:focus-visible{background:rgba(230,170,52,.1);outline:2px solid rgba(230,170,52,.3);outline-offset:2px}
+.bid-agent-recommendation{min-height:112px;display:grid;align-content:center;justify-items:center;border:1px dashed #3c5968;border-radius:12px;background:#07161e;padding:20px;text-align:center}
+.bid-agent-recommendation span{color:var(--muted);font-size:.76rem}.bid-agent-recommendation strong{display:block;color:var(--gold);font-size:2rem}.bid-agent-recommendation p{margin:7px 0 0;color:#aebbc2;font-size:.8rem}
+.bid-agent-economics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.bid-agent-economics:empty{display:none}.bid-agent-economics>div{border:1px solid var(--line);border-radius:9px;padding:11px;background:#091820}.bid-agent-economics span,.bid-agent-economics strong{display:block}.bid-agent-economics span{color:var(--muted);font-size:.7rem}.bid-agent-economics strong{margin-top:4px;color:#eaf2f4;font-size:.9rem}
+.bid-agent-preflight{border-color:#3c5663}
+.bid-agent-preflight dl{display:grid;gap:0;margin:16px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.bid-agent-preflight dl>div{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:10px 11px;border-bottom:1px solid var(--line);background:#08171f}
+.bid-agent-preflight dl>div:last-child{border-bottom:0}.bid-agent-preflight dt{color:var(--muted);font-size:.72rem}.bid-agent-preflight dd{margin:0;color:#eef3f5;font-size:.76rem;font-weight:750;text-align:right}
+.bid-agent-operator-check{display:flex;align-items:flex-start;gap:9px;border:1px solid #4a5c65;border-radius:10px;background:#0a1a22;padding:12px;color:#dbe3e7;font-size:.8rem;cursor:pointer}
+.bid-agent-operator-check input{width:18px;height:18px;flex:0 0 18px;margin:0;accent-color:var(--gold)}
+.bid-agent-actions{display:grid;gap:9px;margin-top:13px}
+.bid-agent-actions button{width:100%;min-height:43px;border:1px solid var(--gold);border-radius:9px;background:var(--gold);color:#0a1115;padding:9px 12px;font-weight:850}
+.bid-agent-actions button.secondary{background:transparent;color:var(--gold)}
+.bid-agent-actions button.danger-btn{border-color:#a83d39;background:#7f2c29;color:#fff}
+.bid-agent-actions button:disabled{opacity:.42;cursor:not-allowed}
+.bid-agent-local-note{margin:12px 0 0;color:#8fa0a9;font-size:.7rem;line-height:1.45;text-align:center}
+.bid-agent-history-panel{margin-top:18px}.bid-agent-history-panel table small{display:block;max-width:360px;margin-top:4px;color:var(--muted);white-space:normal}.bid-agent-history-panel .panel-title>button{white-space:nowrap}
+
+@media(max-width:1050px){
+  .bid-agent-layout{grid-template-columns:1fr}
+  .bid-agent-side{position:static}
+  .bid-agent-fields{grid-template-columns:1fr 1fr}
+  .bid-agent-final-toggle{grid-column:1/-1}
+}
+@media(max-width:680px){
+  .bid-agent-header{align-items:stretch;flex-direction:column}
+  .bid-agent-mode{min-width:0}
+  .bid-agent-fields,.bid-agent-fields-two,.bid-agent-item-summary,.bid-agent-economics{grid-template-columns:1fr}
+  .bid-agent-final-toggle{grid-column:auto}
+  .bid-agent-import{align-items:stretch;flex-direction:column}
+  .bid-agent-file-button{text-align:center}
+  .bid-agent-history-panel .panel-title{align-items:stretch;flex-direction:column}
+  .bid-agent-history-panel .panel-title>button{width:100%}
 }

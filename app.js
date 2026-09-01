@@ -149,8 +149,10 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
+
+const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
 
 const TENDER_SITUATIONS=[
   {value:'aguardando_disputa',label:'Aguardando disputa',className:'awaiting'},
@@ -2219,15 +2221,18 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   const rows=state.quoteImportRows||[];
   const counts=new Map();
   rows.forEach(r=>{if(r.itemId)counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1);});
+  // Preenche a Precificação também com correspondências confiáveis marcadas
+  // para revisão, mantendo a linha sinalizada para conferência posterior.
   const safeRows=rows.filter(r=>
-    r.safeToSave===true&&!r.needsReview&&r.itemId&&counts.get(String(r.itemId))===1&&Number(r.price)>0&&Number(r.factor)>0
+    r.itemId&&counts.get(String(r.itemId))===1&&Number(r.price)>0&&Number(r.factor)>0&&
+    (r.safeToSave===true || (r.aiMatched && Number(r.aiMatchConfidence||0)>=.5 && Number(r.factorConfidence||0)>=.5 && !(r.incompatibilities||[]).length))
   );
   if(runToken!==state.quoteImportRunToken)return 0;
 
   if(state.demo){
     for(const r of safeRows){
       const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
-      const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence,needs_review:false};
+      const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence,needs_review:!r.safeToSave};
       if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
       r.savedAutomatically=true;r.selected=false;
     }
@@ -2244,7 +2249,7 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   const payload=safeRows.map(r=>({
     quote_id:quoteId,tender_item_id:r.itemId,supplier_description:r.description,
     brand:r.brand||null,package_description:r.presentation||null,package_base_quantity:Number(r.factor),
-    unit_price:Number(r.price),freight_per_package:0,ai_match_confidence:Number(r.aiMatchConfidence),needs_review:false
+    unit_price:Number(r.price),freight_per_package:0,ai_match_confidence:Number(r.aiMatchConfidence),needs_review:!r.safeToSave
   }));
   const insertedIds=[];
   try{
@@ -4089,14 +4094,14 @@ async function boot(){
   if(!configured){ showOnly('setupScreen'); return; }
   const {data:{session},error}=await supabase.auth.getSession();
   if(error) console.warn(error.message);
-  if(!session){ showOnly('authScreen'); return; }
+  if(!session){ showOnly('authScreen');applyIncomingCompanyInvite();return; }
   state.user=session.user; await ensureProfile(); await loadMembershipAndData();
 }
 async function loadMembershipAndData(){
   const {data:membership,error}=await supabase.from('company_members').select('company_id,user_id,role,created_at').eq('user_id',state.user.id).maybeSingle();
   if(error)return toast(error.message,'error');
   state.membership=membership;
-  if(!membership){ showOnly('companyScreen'); return; }
+  if(!membership){ showOnly('companyScreen');applyIncomingCompanyInvite();return; }
   const {data:company,error:companyError}=await supabase.from('companies').select('*').eq('id',membership.company_id).single();
   if(companyError)return toast(companyError.message,'error');
   state.company=company; await refreshAll(); showOnly('appShell');
@@ -9282,6 +9287,109 @@ function currentMemberIsAdmin(){
   return state.membership?.role==='admin';
 }
 
+function normalizedCompanyInviteCode(value){
+  const code=String(value||'').trim().toUpperCase();
+  return /^[A-Z0-9]{4,32}$/.test(code)?code:'';
+}
+
+function pendingCompanyInvite(){
+  const params=new URLSearchParams(location.search);
+  const urlCode=normalizedCompanyInviteCode(params.get('convite'));
+  const storedCode=normalizedCompanyInviteCode(localStorage.getItem(PENDING_COMPANY_INVITE_KEY));
+  const code=urlCode||storedCode;
+  if(urlCode)localStorage.setItem(PENDING_COMPANY_INVITE_KEY,urlCode);
+  return {
+    code,
+    name:String(params.get('nome')||'').trim().slice(0,120),
+    email:String(params.get('email')||'').trim().slice(0,254),
+    role:params.get('cargo')==='admin'?'admin':'member',
+    fromUrl:Boolean(urlCode)
+  };
+}
+
+function applyIncomingCompanyInvite(){
+  const invite=pendingCompanyInvite();
+  if(!invite.code)return;
+  const joinInput=$('#joinCompanyForm [name="codigo"]');
+  if(joinInput)joinInput.value=invite.code;
+  const signup=$('#signupForm');
+  if(invite.fromUrl&&signup){
+    const nameInput=signup.elements.namedItem('nome');
+    const emailInput=signup.elements.namedItem('email');
+    if(nameInput&&invite.name)nameInput.value=invite.name;
+    if(emailInput&&invite.email)emailInput.value=invite.email;
+    if(!$('#authScreen')?.hidden){
+      $('#showSignupBtn')?.classList.add('active');
+      $('#showLoginBtn')?.classList.remove('active');
+      signup.hidden=false;
+      $('#loginForm').hidden=true;
+    }
+  }
+  const host=!$('#authScreen')?.hidden?$('#authScreen .auth-card'):!$('#companyScreen')?.hidden?$('#companyScreen .auth-card'):null;
+  if(host&&invite.fromUrl){
+    let notice=host.querySelector('#incomingCompanyInvite');
+    if(!notice){notice=document.createElement('div');notice.id='incomingCompanyInvite';notice.className='notice compact incoming-company-invite';host.querySelector('h1')?.insertAdjacentElement('afterend',notice);}
+    const roleLabel=invite.role==='admin'?'Administrador solicitado':'Membro';
+    notice.innerHTML=`<strong>Convite para a equipe INOVA</strong><p>${invite.name?`${esc(invite.name)}, `:''}crie ou acesse sua conta. Código <b>${esc(invite.code)}</b> • ${esc(roleLabel)}.</p>`;
+  }
+}
+
+function clearPendingCompanyInvite(){
+  localStorage.removeItem(PENDING_COMPANY_INVITE_KEY);
+  const url=new URL(location.href);
+  ['convite','nome','email','cargo'].forEach(key=>url.searchParams.delete(key));
+  history.replaceState(null,'',`${url.pathname}${url.search}${url.hash}`);
+}
+
+function createTeamInviteLink({name,email,role}){
+  const code=normalizedCompanyInviteCode(state.company?.invite_code||state.company?.codigo_convite);
+  if(!code)return '';
+  const url=new URL(location.href);
+  url.search='';url.hash='';
+  url.searchParams.set('convite',code);
+  url.searchParams.set('nome',name);
+  url.searchParams.set('email',email);
+  url.searchParams.set('cargo',role==='admin'?'admin':'member');
+  return url.toString();
+}
+
+function renderTeamManagement(){
+  const panel=$('#teamInvitePanel');
+  const readOnly=$('#teamInviteReadOnly');
+  const preview=$('#teamInvitePreview');
+  const status=$('#teamInviteStatus');
+  if(!panel||!preview)return;
+  const canInvite=currentMemberIsAdmin();
+  panel.hidden=!canInvite;
+  if(readOnly)readOnly.hidden=canInvite;
+  if(!canInvite)return;
+  const invite=state.teamInvitePreview;
+  preview.hidden=!invite;
+  if(!invite){
+    preview.innerHTML='';
+    if(status){status.classList.remove('is-error','is-success');status.textContent='Informe nome, e-mail e cargo para gerar o link. Nada será enviado sem você clicar.';}
+    return;
+  }
+  const roleLabel=invite.role==='admin'?'Administrador':'Membro';
+  const adminWarning=invite.role==='admin'
+    ? '<p class="team-invite-warning"><strong>Atenção:</strong> o convite atual adiciona a pessoa inicialmente como Membro. O cargo Administrador ficará solicitado para ser efetivado pela operação administrativa segura.</p>'
+    : '';
+  const subject='Convite para a equipe INOVA Licitações';
+  const body=`Olá, ${invite.name}.\n\nVocê foi convidado para participar da equipe INOVA Licitações como ${roleLabel}.\n\nAbra este link para criar ou acessar sua conta:\n${invite.link}\n\nCódigo da empresa: ${invite.code}`;
+  preview.innerHTML=`<div class="team-invite-person">${avatarMarkup({nome:invite.name})}<div><span>Convite preparado para</span><strong>${esc(invite.name)}</strong><small>${esc(invite.email)} • ${esc(roleLabel)}</small></div></div>${adminWarning}<div class="team-invite-link"><span>Link do convite</span><code>${esc(invite.link)}</code></div><div class="team-invite-actions"><button type="button" id="copyTeamInviteLink">Copiar link</button><a class="action-btn" href="mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}">Abrir no e-mail</a><button type="button" class="secondary" id="resetTeamInvite">Novo convite</button></div>`;
+  if(status){status.classList.remove('is-error');status.classList.add('is-success');status.textContent='Convite preparado. Confira os dados antes de copiar ou abrir no e-mail.';}
+  $('#copyTeamInviteLink')?.addEventListener('click',async()=>{
+    try{await navigator.clipboard.writeText(invite.link);toast('Link do convite copiado.');}
+    catch{toast(`Link do convite: ${invite.link}`);}
+  });
+  $('#resetTeamInvite')?.addEventListener('click',()=>{
+    state.teamInvitePreview=null;
+    $('#teamInviteForm')?.reset();
+    renderTeamManagement();
+    $('#teamInviteForm [name="name"]')?.focus();
+  });
+}
+
 function activateDocumentTab(tab='editais',focus=false){
   const selected=['editais','habilitacao','propostas','cotacoes'].includes(tab)?tab:'editais';
   state.documentTab=selected;
@@ -9945,6 +10053,317 @@ document.addEventListener('click',async event=>{if(event.target.closest('#global
 document.addEventListener('input',event=>{if(!event.target.matches('#globalChatInput'))return;state.chatDraft=event.target.value;const channel=state.chatChannel;if(channel?.send&&state.user&&!state.demo){channel.send({type:'broadcast',event:'typing',payload:{sender_id:state.user.id,typing:Boolean(state.chatDraft.trim())}});}});
 document.addEventListener('submit',async event=>{if(!event.target.matches('#globalChatForm'))return;event.preventDefault();const input=$('#globalChatInput'),body=String(state.chatDraft||input?.value||'').trim();if(!body)return;const cid=currentCompanyId();const refocus=()=>requestAnimationFrame(()=>$('#globalChatInput')?.focus());if(state.demo){state.chatMessages=[...(state.chatMessages||[]),{id:crypto.randomUUID(),company_id:cid||'demo',sender_id:state.user?.id||'demo-user',body,created_at:new Date().toISOString()}];state.chatDraft='';renderGlobalChat();refocus();return;}if(!cid||!state.user)return;const button=event.target.querySelector('button');if(button)button.disabled=true;const {error}=await supabase.from('company_chat_messages').insert({company_id:cid,sender_id:state.user.id,body});if(error)toast('Não foi possível enviar a mensagem.','error');else{state.chatDraft='';state.chatChannel?.send?.({type:'broadcast',event:'typing',payload:{sender_id:state.user.id,typing:false}});renderGlobalChat();refocus();}if(button)button.disabled=false;});
 
+const BID_AGENT_MAX_JSON_BYTES=1024*1024;
+const BID_AGENT_MAX_STRATEGIES=200;
+
+function bidAgentStorageScope(){
+  return String(currentCompanyId()||state.user?.id||'local');
+}
+
+function bidAgentHistoryStorageKey(){
+  return `inova:bid-agent:history:v1:${bidAgentStorageScope()}`;
+}
+
+function bidAgentStoppedStorageKey(){
+  return `inova:bid-agent:stopped:v1:${bidAgentStorageScope()}`;
+}
+
+function bidAgentNumber(value){
+  if(typeof value==='number')return Number.isFinite(value)?value:NaN;
+  if(typeof value!=='string')return NaN;
+  let text=value.trim().replace(/\s+/g,'');
+  if(!text)return NaN;
+  if(text.includes(',')&&text.includes('.'))text=text.lastIndexOf(',')>text.lastIndexOf('.')?text.replace(/\./g,'').replace(',','.'):text.replace(/,/g,'');
+  else if(text.includes(','))text=text.replace(',','.');
+  const parsed=Number(text);
+  return Number.isFinite(parsed)?parsed:NaN;
+}
+
+function bidAgentBoolean(value){
+  if(typeof value==='boolean')return value;
+  if(typeof value==='number')return value===1;
+  return ['1','true','sim','yes'].includes(String(value||'').trim().toLowerCase());
+}
+
+function loadBidAgentLocalState(){
+  const scope=bidAgentStorageScope();
+  if(state.bidAgentLocalStateLoadedFor===scope)return;
+  state.bidAgentLocalStateLoadedFor=scope;
+  state.bidAgentHistory=[];
+  try{
+    const saved=JSON.parse(localStorage.getItem(bidAgentHistoryStorageKey())||'[]');
+    if(Array.isArray(saved))state.bidAgentHistory=saved.filter(row=>row&&typeof row==='object').map(row=>({
+      at:String(row.at||''),
+      tender:String(row.tender||''),
+      item:String(row.item||''),
+      value:row.value!==null&&row.value!==''&&Number.isFinite(Number(row.value))?Number(row.value):null,
+      status:String(row.status||'Evento'),
+      reason:String(row.reason||'')
+    }));
+  }catch{
+    state.bidAgentHistory=[];
+  }
+  try{
+    state.bidAgentStopped=localStorage.getItem(bidAgentStoppedStorageKey())==='true';
+  }catch{
+    state.bidAgentStopped=false;
+  }
+}
+
+function persistBidAgentHistory(){
+  try{
+    localStorage.setItem(bidAgentHistoryStorageKey(),JSON.stringify(state.bidAgentHistory));
+    return true;
+  }catch{
+    toast('O histórico da simulação não pôde ser salvo neste navegador.','error');
+    return false;
+  }
+}
+
+function persistBidAgentStopped(){
+  try{localStorage.setItem(bidAgentStoppedStorageKey(),String(Boolean(state.bidAgentStopped)));}catch{}
+}
+
+function selectedBidAgentTender(){
+  return state.licitacoes.find(tender=>String(tender.id)===String(state.bidAgentTenderId));
+}
+
+function selectedBidAgentItem(){
+  return state.itens.find(item=>String(item.id)===String(state.bidAgentItemId)&&String(item.licitacao_id)===String(state.bidAgentTenderId));
+}
+
+function bidAgentRecommendationKey(){
+  return JSON.stringify([
+    String(state.bidAgentTenderId||''),String(state.bidAgentItemId||''),
+    Number(state.bidAgentBestBid),Number(state.bidAgentStopPrice),Number(state.bidAgentDecrement),
+    Number(state.bidAgentDesiredPosition),Boolean(state.bidAgentOnlyAtEnd)
+  ]);
+}
+
+function invalidateBidAgentRecommendation(reason='Revise os dados e simule uma nova recomendação.'){
+  state.bidAgentCandidate=null;
+  state.bidAgentRecommendationValid=false;
+  state.bidAgentRecommendationKey='';
+  state.bidAgentRecommendationReason=reason;
+  const operator=$('#bidAgentOperatorConfirmed');
+  if(operator)operator.checked=false;
+}
+
+function appendBidAgentHistory(status,reason,value=state.bidAgentCandidate){
+  loadBidAgentLocalState();
+  const tender=selectedBidAgentTender(),item=selectedBidAgentItem();
+  state.bidAgentHistory.push({
+    at:new Date().toISOString(),
+    tender:String(tender?.numero||'-'),
+    item:item?`Item ${item.numero} — ${item.descricao}`:'Item não selecionado',
+    value:value!==null&&value!==''&&Number.isFinite(Number(value))?Number(value):null,
+    status:String(status||'Evento'),
+    reason:String(reason||'')
+  });
+  persistBidAgentHistory();
+}
+
+function renderBidAgentHistory(){
+  const root=$('#bidAgentHistory');
+  if(!root)return;
+  const rows=state.bidAgentHistory.slice().reverse().map(event=>[
+    event.at?dateBR(event.at,true):'-',
+    `${esc(event.tender)}<small>${esc(event.item)}</small>`,
+    event.value==null?'-':money(event.value),
+    esc(event.status),
+    esc(event.reason||'-')
+  ]);
+  root.innerHTML=rows.length
+    ?table(['Horário','Licitação / item','Valor','Status','Motivo'],rows)
+    :'<p class="hint">Nenhuma simulação registrada neste navegador.</p>';
+}
+
+function bidAgentCurrencyOrDash(value){
+  return Number.isFinite(Number(value))&&Number(value)>0?money(Number(value)):'—';
+}
+
+function renderBidAgent(){
+  const section=$('#agente-lances');
+  if(!section)return;
+  loadBidAgentLocalState();
+
+  const tenderExists=state.licitacoes.some(tender=>String(tender.id)===String(state.bidAgentTenderId));
+  if(!tenderExists)state.bidAgentTenderId=state.licitacoes[0]?.id||'';
+  const tenderItems=state.itens.filter(item=>String(item.licitacao_id)===String(state.bidAgentTenderId));
+  if(!tenderItems.some(item=>String(item.id)===String(state.bidAgentItemId)))state.bidAgentItemId=tenderItems[0]?.id||'';
+
+  const tenderSelect=$('#bidAgentTender');
+  const itemSelect=$('#bidAgentItem');
+  if(tenderSelect){
+    tenderSelect.innerHTML='<option value="">Selecione a licitação</option>'+state.licitacoes.map(tender=>`<option value="${esc(tender.id)}">${esc(tender.numero)} • ${esc(tender.orgao||'Órgão não informado')}</option>`).join('');
+    tenderSelect.value=state.bidAgentTenderId||'';
+  }
+  if(itemSelect){
+    itemSelect.innerHTML='<option value="">Selecione o item</option>'+tenderItems.map(item=>`<option value="${esc(item.id)}">Item ${esc(item.numero)} • ${esc(item.descricao)}</option>`).join('');
+    itemSelect.value=state.bidAgentItemId||'';
+    itemSelect.disabled=!state.bidAgentTenderId||!tenderItems.length;
+  }
+
+  const item=selectedBidAgentItem(),tender=selectedBidAgentTender();
+  const itemSummary=$('#bidAgentItemSummary');
+  if(itemSummary)itemSummary.innerHTML=item
+    ?`<div><span>Quantidade</span><strong>${esc(item.quantidade||'-')} ${esc(item.unidade||'')}</strong></div><div><span>Valor estimado unitário</span><strong>${Number(item.valor_estimado)>0?money(item.valor_estimado):'Não informado'}</strong></div><div><span>Plataforma</span><strong>${esc(tender?.plataforma||'Não informada')}</strong></div>`
+    :'<p class="hint">Cadastre ou selecione um item para iniciar a simulação.</p>';
+
+  const fieldValues={
+    bidAgentBestBid:state.bidAgentBestBid,
+    bidAgentStopPrice:state.bidAgentStopPrice,
+    bidAgentDecrement:state.bidAgentDecrement,
+    bidAgentDesiredPosition:state.bidAgentDesiredPosition
+  };
+  for(const [id,value] of Object.entries(fieldValues)){
+    const input=$('#'+id);
+    if(input&&String(input.value)!==String(value??''))input.value=value??'';
+  }
+  const onlyAtEnd=$('#bidAgentOnlyAtEnd');
+  if(onlyAtEnd)onlyAtEnd.checked=Boolean(state.bidAgentOnlyAtEnd);
+
+  const modeLabel=$('#bidAgentModeLabel'),modeDetail=$('#bidAgentModeDetail'),modeDot=$('#bidAgentModeDot');
+  if(modeLabel)modeLabel.textContent=state.bidAgentStopped?'Agente parado':'Simulação / supervisionado';
+  if(modeDetail)modeDetail.textContent=state.bidAgentStopped?'Kill switch ativo; confirmações bloqueadas':'Nenhum lance sai deste navegador';
+  if(modeDot)modeDot.classList.toggle('is-stopped',state.bidAgentStopped);
+
+  const best=Number(state.bidAgentBestBid),stop=Number(state.bidAgentStopPrice),decrement=Number(state.bidAgentDecrement),position=Number(state.bidAgentDesiredPosition);
+  const valuesValid=Boolean(tender&&item&&best>0&&stop>0&&decrement>0&&Number.isInteger(position)&&position>0);
+  const operatorConfirmed=Boolean($('#bidAgentOperatorConfirmed')?.checked);
+  const recommendationCurrent=state.bidAgentRecommendationValid&&state.bidAgentRecommendationKey===bidAgentRecommendationKey();
+  const preflightReady=valuesValid&&operatorConfirmed&&recommendationCurrent&&!state.bidAgentStopped;
+  const preflight=$('#bidAgentPreflightList');
+  if(preflight)preflight.innerHTML=`
+    <div><dt>Licitação / item</dt><dd>${tender&&item?`${esc(tender.numero)} • Item ${esc(item.numero)}`:'Pendente'}</dd></div>
+    <div><dt>Preço de parada</dt><dd>${bidAgentCurrencyOrDash(stop)}</dd></div>
+    <div><dt>Redução</dt><dd>${bidAgentCurrencyOrDash(decrement)}</dd></div>
+    <div><dt>Modo</dt><dd>Simulação local</dd></div>
+    <div><dt>Confirmação do operador</dt><dd>${operatorConfirmed?'Confirmada':'Pendente'}</dd></div>`;
+  const preflightBadge=$('#bidAgentPreflightBadge');
+  if(preflightBadge){
+    preflightBadge.textContent=state.bidAgentStopped?'Parado':preflightReady?'Pronto':'Pendente';
+    preflightBadge.className=`badge ${preflightReady?'good':'bad'}`;
+  }
+
+  const recommendation=$('#bidAgentRecommendation');
+  if(recommendation){
+    if(state.bidAgentStopped)recommendation.innerHTML='<strong>Kill switch ativo.</strong><p>Rearme conscientemente o modo supervisionado antes de uma nova simulação.</p>';
+    else if(recommendationCurrent)recommendation.innerHTML=`<span>Próximo lance recomendado</span><strong>${money(state.bidAgentCandidate)}</strong><p>${esc(state.bidAgentRecommendationReason)}</p>`;
+    else if(state.bidAgentRecommendationReason)recommendation.innerHTML=`<strong>Simulação pendente</strong><p>${esc(state.bidAgentRecommendationReason)}</p>`;
+    else recommendation.innerHTML='<p>Preencha os valores e clique em <strong>Simular recomendação</strong>.</p>';
+  }
+
+  const economics=$('#bidAgentEconomicEffect');
+  if(economics){
+    if(recommendationCurrent&&item&&Number(item.quantidade)>0){
+      const quantity=Number(item.quantidade),candidate=Number(state.bidAgentCandidate);
+      const estimated=Number(item.valor_estimado);
+      economics.innerHTML=`<div><span>Total simulado do item</span><strong>${money(candidate*quantity)}</strong></div><div><span>Redução total vs. melhor observado</span><strong>${money((best-candidate)*quantity)}</strong></div>${estimated>0?`<div><span>Diferença vs. valor estimado</span><strong>${money((estimated-candidate)*quantity)}</strong></div>`:''}`;
+    }else economics.innerHTML='';
+  }
+
+  const confirmButton=$('#bidAgentConfirmBtn');
+  if(confirmButton)confirmButton.disabled=!preflightReady;
+  const simulateButton=$('#bidAgentSimulateBtn');
+  if(simulateButton)simulateButton.disabled=state.bidAgentStopped;
+  const stopButton=$('#bidAgentStopBtn');
+  if(stopButton)stopButton.hidden=state.bidAgentStopped;
+  const rearmButton=$('#bidAgentRearmBtn');
+  if(rearmButton)rearmButton.hidden=!state.bidAgentStopped;
+  renderBidAgentHistory();
+}
+
+function simulateBidAgentRecommendation(){
+  if(state.bidAgentStopped)return toast('O kill switch está ativo. Rearme o agente antes de simular.','error');
+  const tender=selectedBidAgentTender(),item=selectedBidAgentItem();
+  const best=Number(state.bidAgentBestBid),stop=Number(state.bidAgentStopPrice),decrement=Number(state.bidAgentDecrement),position=Number(state.bidAgentDesiredPosition);
+  let reason='';
+  if(!tender||!item)reason='Selecione uma licitação e um item válidos.';
+  else if(!Number.isFinite(best)||best<=0)reason='Informe um melhor lance observado maior que zero.';
+  else if(!Number.isFinite(stop)||stop<=0)reason='Informe um preço de parada maior que zero.';
+  else if(!Number.isFinite(decrement)||decrement<=0)reason='Informe uma redução maior que zero.';
+  else if(!Number.isInteger(position)||position<=0)reason='Informe uma posição desejada válida.';
+
+  const candidate=(Math.round(best*100)-Math.round(decrement*100))/100;
+  if(!reason&&(!Number.isFinite(candidate)||candidate<=0))reason='Lance bloqueado: o candidato calculado é inválido ou menor ou igual a zero.';
+  if(!reason&&candidate<stop)reason=`Lance bloqueado: ${money(candidate)} ficaria abaixo do preço de parada de ${money(stop)}.`;
+
+  if(reason){
+    state.bidAgentCandidate=Number.isFinite(candidate)?candidate:null;
+    state.bidAgentRecommendationValid=false;
+    state.bidAgentRecommendationKey='';
+    state.bidAgentRecommendationReason=reason;
+    appendBidAgentHistory('Bloqueado',reason,state.bidAgentCandidate);
+    renderBidAgent();
+    return toast(reason,'error');
+  }
+
+  state.bidAgentCandidate=candidate;
+  state.bidAgentRecommendationValid=true;
+  state.bidAgentRecommendationKey=bidAgentRecommendationKey();
+  state.bidAgentRecommendationReason=`Cálculo local: ${money(best)} − ${money(decrement)}. Posição desejada: ${position}${state.bidAgentOnlyAtEnd?' • somente no final':''}.`;
+  appendBidAgentHistory('Recomendado',state.bidAgentRecommendationReason,candidate);
+  renderBidAgent();
+}
+
+function normalizeBidAgentStrategy(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const has=key=>Object.prototype.hasOwnProperty.call(value,key);
+  const recognized=['NumeroItem','Lote','Descricao','LanceMinimo','ValorDesconto','PosicaoDesejada','Colocacao','SomenteNoFinal','ModoSniper'].some(has);
+  if(!recognized)return null;
+  const itemNumber=bidAgentNumber(has('NumeroItem')?value.NumeroItem:value.Lote);
+  const stopPrice=bidAgentNumber(value.LanceMinimo);
+  const decrement=bidAgentNumber(value.ValorDesconto);
+  const position=bidAgentNumber(has('PosicaoDesejada')?value.PosicaoDesejada:value.Colocacao);
+  return {
+    itemNumber:Number.isFinite(itemNumber)?itemNumber:null,
+    description:String(value.Descricao??'').slice(0,300),
+    stopPrice:Number.isFinite(stopPrice)?stopPrice:null,
+    decrement:Number.isFinite(decrement)?decrement:null,
+    position:Number.isFinite(position)?position:null,
+    onlyAtEnd:has('SomenteNoFinal')?bidAgentBoolean(value.SomenteNoFinal):has('ModoSniper')?bidAgentBoolean(value.ModoSniper):null
+  };
+}
+
+async function importBidAgentJson(file){
+  const status=$('#bidAgentImportStatus');
+  const setStatus=(message,type='')=>{
+    if(!status)return;
+    status.hidden=false;
+    status.className=`document-status${type?` is-${type}`:''}`;
+    status.textContent=message;
+  };
+  if(!file)return;
+  if(file.size>BID_AGENT_MAX_JSON_BYTES)return setStatus('Arquivo recusado: o JSON deve ter no máximo 1 MB.','error');
+  if(!String(file.name||'').toLowerCase().endsWith('.json'))return setStatus('Arquivo recusado: selecione um arquivo .json.','error');
+  try{
+    const parsed=JSON.parse(await file.text());
+    const rawRows=Array.isArray(parsed)?parsed:[parsed];
+    if(!rawRows.length||rawRows.length>BID_AGENT_MAX_STRATEGIES)throw new Error(`O arquivo deve conter entre 1 e ${BID_AGENT_MAX_STRATEGIES} estratégias.`);
+    const strategies=rawRows.map(normalizeBidAgentStrategy).filter(Boolean);
+    if(!strategies.length)throw new Error('Nenhum campo de estratégia reconhecido foi encontrado.');
+    state.bidAgentImportedStrategies=strategies;
+    const item=selectedBidAgentItem();
+    const strategy=strategies.find(row=>item&&row.itemNumber!==null&&Number(row.itemNumber)===Number(item.numero))
+      ||(strategies.length===1&&(strategies[0].itemNumber===null||!item||Number(strategies[0].itemNumber)===Number(item.numero))?strategies[0]:null);
+    if(!strategy){
+      setStatus(`${strategies.length} estratégia(s) sanitizada(s), mas nenhuma corresponde ao item selecionado. Campos desconhecidos e textos de comando foram ignorados.`,'success');
+      return;
+    }
+    if(strategy.stopPrice!==null)state.bidAgentStopPrice=strategy.stopPrice;
+    if(strategy.decrement!==null)state.bidAgentDecrement=strategy.decrement;
+    if(strategy.position!==null)state.bidAgentDesiredPosition=Math.max(1,Math.trunc(strategy.position));
+    if(strategy.onlyAtEnd!==null)state.bidAgentOnlyAtEnd=strategy.onlyAtEnd;
+    invalidateBidAgentRecommendation('Estratégia importada. Confira os limites e simule uma nova recomendação.');
+    renderBidAgent();
+    setStatus(`Estratégia sanitizada aplicada ao item ${item?.numero||'selecionado'}${strategy.description?` (${strategy.description})`:''}. Apenas campos conhecidos foram importados; nenhum texto foi executado.`,'success');
+  }catch(error){
+    state.bidAgentImportedStrategies=[];
+    setStatus(`Não foi possível importar o JSON: ${error.message||error}`,'error');
+  }
+}
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -10013,8 +10432,32 @@ function renderAll(){
   }
   renderQuotesWorkspace();
   renderPricingByTender();
+  renderBidAgent();
   renderDocumentation();
-  $('#equipeLista').innerHTML=table(['Membro','Papel','Desde'],state.equipe.map(p=>[`<div class="team-member-cell">${avatarMarkup(p)}<span>${esc(p.nome)}</span></div>`,esc(p.papel==='admin'?'Administrador':'Usuário'),new Date(p.created_at).toLocaleDateString('pt-BR')]));
+  $('#equipeLista').innerHTML=table(['Membro','Papel','Desde'],state.equipe.map(p=>{
+    const roleLabel=p.papel==='admin'?'Administrador':'Membro';
+    const roleCell=currentMemberIsAdmin() && !state.demo
+      ? `<select class="team-role-select" data-team-role="${esc(p.user_id||p.id||'')}" aria-label="Cargo de ${esc(p.nome)}"><option value="member" ${p.papel==='member'?'selected':''}>Membro</option><option value="admin" ${p.papel==='admin'?'selected':''}>Administrador</option></select>`
+      : esc(roleLabel);
+    return [`<div class="team-member-cell">${avatarMarkup(p)}<span>${esc(p.nome)}</span></div>`,roleCell,new Date(p.created_at).toLocaleDateString('pt-BR')];
+  }));
+  $('#equipeLista').querySelectorAll('[data-team-role]').forEach(select=>select.addEventListener('change',async event=>{
+    const memberId=event.currentTarget.dataset.teamRole;
+    const role=event.currentTarget.value==='admin'?'admin':'member';
+    if(!memberId||!configured||!supabase)return;
+    event.currentTarget.disabled=true;
+    try{
+      const {error}=await supabase.rpc('update_company_member_role',{p_user_id:memberId,p_role:role});
+      if(error)throw error;
+      toast('Cargo atualizado.','success');
+      await refreshAll();
+    }catch(error){
+      const previous=state.equipe.find(item=>String(item.user_id||item.id)===String(memberId))?.papel||'member';
+      event.currentTarget.value=previous;
+      toast(`Não foi possível atualizar o cargo: ${error.message||error}`,'error');
+    }finally{event.currentTarget.disabled=false;}
+  }));
+  renderTeamManagement();
   renderProfilePhoto();
   for(const [k,v] of Object.entries(c)){const el=$(`#configForm [name="${k}"]`);if(el)el.value=v;}
   renderGlobalChat();
@@ -10022,7 +10465,7 @@ function renderAll(){
 }
 
 function demoSeed(){
-  state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração',avatar_url:localStorage.getItem('inova-demo-avatar')||''};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
+  state.demo=true;state.user={email:'demo@inova.local'};state.profile={name:'Demonstração',avatar_url:localStorage.getItem('inova-demo-avatar')||''};state.membership={company_id:'demo',role:'admin'};state.company={id:'demo',name:'INOVA Licitações — Demonstração',invite_code:'DEMO2026'};state.config={imposto:6,margem_alvo:25,lucro_minimo:500,margem_minima:10,reserva_operacional:0};
   try{state.config={...state.config,...JSON.parse(localStorage.getItem('inova_demo_pricing_config')||'{}')}}catch{}
   state.pricingTargetsLoadedFor='';loadPricingTargets();
   state.pricingItemResultsLoadedFor='';loadLocalPricingItemResults();
@@ -10045,7 +10488,7 @@ $('#showSignupBtn').addEventListener('click',()=>{$('#showSignupBtn').classList.
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.auth.signInWithPassword({email:f.email,password:f.password});if(error)return toast(error.message,'error');state.user=data.user;await ensureProfile();await loadMembershipAndData();});
 $('#signupForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.auth.signUp({email:f.email,password:f.password,options:{data:{nome:f.nome}}});if(error)return toast(error.message,'error');if(!data.session)return toast('Conta criada. Abra o e-mail de confirmação enviado pelo sistema.');state.user=data.user;await ensureProfile();await loadMembershipAndData();});
 $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.rpc('create_company_with_owner',{p_name:f.nome});if(error)return toast(error.message,'error');toast(`Empresa criada. Código: ${data?.[0]?.invite_code||''}`);await loadMembershipAndData();});
-$('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');toast('Você entrou na empresa.');await loadMembershipAndData();});
+$('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');clearPendingCompanyInvite();toast('Você entrou na empresa.');await loadMembershipAndData();});
 async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
 
 $('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const linkText=String(f.link_pncp||'').trim();const linkParts=linkText?pncpLinkParts(linkText):null;if(linkText&&!linkParts)return toast('Informe um link válido de edital do PNCP.','error');const sourceUrl=linkParts?`https://pncp.gov.br/app/editais/${linkParts.cnpj}/${linkParts.ano}/${linkParts.sequencial}`:'';if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',source_url:sourceUrl,proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,source_url:sourceUrl||null,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
@@ -10360,6 +10803,21 @@ $('#quoteDocumentEditForm')?.addEventListener('submit',async event=>{
 });
 
 $('#copyInviteBtn').addEventListener('click',async()=>{const code=state.company?.invite_code||'DEMO2026';try{await navigator.clipboard.writeText(code);toast('Código copiado.');}catch{toast(`Código: ${code}`);}});
+$('#teamInviteForm')?.addEventListener('submit',event=>{
+  event.preventDefault();
+  if(!currentMemberIsAdmin())return toast('Somente administradores podem gerar convites.','error');
+  const values=Object.fromEntries(new FormData(event.currentTarget));
+  const name=String(values.name||'').trim();
+  const email=String(values.email||'').trim().toLowerCase();
+  const role=values.role==='admin'?'admin':'member';
+  if(name.length<2)return toast('Informe o nome do convidado.','error');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Informe um e-mail válido.','error');
+  const code=normalizedCompanyInviteCode(state.company?.invite_code||state.company?.codigo_convite);
+  const link=createTeamInviteLink({name,email,role});
+  if(!code||!link)return toast('O código de convite da empresa não está disponível. Atualize a página.','error');
+  state.teamInvitePreview={name,email,role,code,link};
+  renderTeamManagement();
+});
 $('#profilePhotoInput')?.addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){toast('Escolha uma imagem de até 5 MB.','error');event.target.value='';return;}try{const avatar=await resizeProfilePhoto(file);if(state.demo){state.profile={...(state.profile||{}),avatar_url:avatar};localStorage.setItem('inova-demo-avatar',avatar);}else{const {error}=await supabase.from('profiles').update({avatar_url:avatar,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:avatar};}renderProfilePhoto();await refreshAll();toast('Foto de perfil atualizada.','success');}catch(error){toast(`Não foi possível salvar a foto: ${error.message||error}`,'error');}event.target.value='';});
 $('#removeProfilePhotoBtn')?.addEventListener('click',async()=>{if(!confirm('Remover sua foto de perfil?'))return;try{if(state.demo){state.profile={...(state.profile||{}),avatar_url:''};localStorage.removeItem('inova-demo-avatar');}else{const {error}=await supabase.from('profiles').update({avatar_url:null,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:''};}renderProfilePhoto();await refreshAll();toast('Foto removida.','success');}catch(error){toast(`Não foi possível remover a foto: ${error.message||error}`,'error');}});
 document.addEventListener('click',async e=>{
@@ -10547,6 +11005,76 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tabs button,.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.tab).classList.add('active');}));
+$('#bidAgentTender')?.addEventListener('change',event=>{
+  state.bidAgentTenderId=event.target.value||'';
+  state.bidAgentItemId=state.itens.find(item=>String(item.licitacao_id)===String(state.bidAgentTenderId))?.id||'';
+  state.bidAgentBestBid='';state.bidAgentStopPrice='';state.bidAgentDecrement='';state.bidAgentDesiredPosition=1;state.bidAgentOnlyAtEnd=false;
+  invalidateBidAgentRecommendation('Licitação alterada. Configure o item selecionado.');
+  renderBidAgent();
+});
+$('#bidAgentItem')?.addEventListener('change',event=>{
+  state.bidAgentItemId=event.target.value||'';
+  state.bidAgentBestBid='';state.bidAgentStopPrice='';state.bidAgentDecrement='';state.bidAgentDesiredPosition=1;state.bidAgentOnlyAtEnd=false;
+  invalidateBidAgentRecommendation('Item alterado. Configure uma estratégia específica para ele.');
+  renderBidAgent();
+});
+['bidAgentBestBid','bidAgentStopPrice','bidAgentDecrement','bidAgentDesiredPosition'].forEach(id=>{
+  $('#'+id)?.addEventListener('input',event=>{
+    const stateKey={bidAgentBestBid:'bidAgentBestBid',bidAgentStopPrice:'bidAgentStopPrice',bidAgentDecrement:'bidAgentDecrement',bidAgentDesiredPosition:'bidAgentDesiredPosition'}[id];
+    state[stateKey]=event.target.value;
+    invalidateBidAgentRecommendation('Dados alterados. Simule uma nova recomendação para atualizar o preflight.');
+    renderBidAgent();
+  });
+});
+$('#bidAgentOnlyAtEnd')?.addEventListener('change',event=>{
+  state.bidAgentOnlyAtEnd=event.target.checked;
+  invalidateBidAgentRecommendation('Modo de operação alterado. Simule uma nova recomendação.');
+  renderBidAgent();
+});
+$('#bidAgentOperatorConfirmed')?.addEventListener('change',renderBidAgent);
+$('#bidAgentSimulateBtn')?.addEventListener('click',simulateBidAgentRecommendation);
+$('#bidAgentConfirmBtn')?.addEventListener('click',()=>{
+  const current=state.bidAgentRecommendationValid&&state.bidAgentRecommendationKey===bidAgentRecommendationKey();
+  if(state.bidAgentStopped)return toast('O kill switch bloqueou a confirmação.','error');
+  if(!current||!$('#bidAgentOperatorConfirmed')?.checked)return toast('Conclua o preflight antes de confirmar.','error');
+  appendBidAgentHistory('Confirmado (simulação)','Operador confirmou localmente; nenhum lance foi enviado.',state.bidAgentCandidate);
+  $('#bidAgentOperatorConfirmed').checked=false;
+  renderBidAgent();
+  toast('Lance simulado confirmado apenas neste navegador.');
+});
+$('#bidAgentStopBtn')?.addEventListener('click',()=>{
+  appendBidAgentHistory('Agente parado','Kill switch acionado pelo operador; novas confirmações foram bloqueadas.',state.bidAgentCandidate);
+  state.bidAgentStopped=true;
+  state.bidAgentRecommendationValid=false;
+  state.bidAgentRecommendationKey='';
+  state.bidAgentRecommendationReason='Kill switch ativo. Rearme conscientemente para voltar a simular.';
+  const operator=$('#bidAgentOperatorConfirmed');if(operator)operator.checked=false;
+  persistBidAgentStopped();
+  renderBidAgent();
+  toast('Agente parado. Nenhuma confirmação será aceita.','error');
+});
+$('#bidAgentRearmBtn')?.addEventListener('click',()=>{
+  if(!confirm('Rearmar o modo supervisionado? O agente continuará somente em simulação local, sem enviar lances.'))return;
+  state.bidAgentStopped=false;
+  persistBidAgentStopped();
+  invalidateBidAgentRecommendation('Agente rearmado. Revise os dados e simule uma nova recomendação.');
+  appendBidAgentHistory('Agente rearmado','Operador rearmou conscientemente o modo supervisionado.',null);
+  renderBidAgent();
+  toast('Modo supervisionado rearmado.');
+});
+$('#bidAgentClearHistoryBtn')?.addEventListener('click',()=>{
+  if(!state.bidAgentHistory.length)return;
+  if(!confirm('Limpar definitivamente o histórico local de simulações deste navegador?'))return;
+  state.bidAgentHistory=[];
+  try{localStorage.removeItem(bidAgentHistoryStorageKey());}catch{}
+  renderBidAgentHistory();
+  toast('Histórico local removido.');
+});
+$('#bidAgentJsonFile')?.addEventListener('change',async event=>{
+  const file=event.target.files?.[0];
+  await importBidAgentJson(file);
+  event.target.value='';
+});
 $('#financePeriod')?.addEventListener('change',e=>{state.financePeriod=e.target.value;state.financeTenderId='';renderFinance();});
 document.addEventListener('click',e=>{const close=e.target.closest('[data-close-finance-edital]');if(close){state.financeEditalId='';renderFinance();return;}const edital=e.target.closest('[data-finance-edital]');if(edital){state.financeEditalId=edital.dataset.financeEdital;renderFinance();}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-finance-tender]');if(!button)return;state.financeTenderId=button.dataset.financeTender;renderFinance();});
