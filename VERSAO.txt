@@ -1,1 +1,1 @@
-36.56.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.
+36.57.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.

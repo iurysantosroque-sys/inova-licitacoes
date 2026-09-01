@@ -2403,12 +2403,13 @@ function mapAiQuoteLines(data,tenderId){
 function quoteImportSummaryText(tenderId){
   const rows=state.quoteImportRows||[];
   const automatic=rows.filter(r=>r.savedAutomatically).length;
+  const saved=rows.filter(r=>r.savedAutomatically||r.savedToPricing).length;
   const approved=rows.filter(r=>r.savedAfterReview).length;
   const review=rows.filter(r=>!r.savedAutomatically&&!r.savedAfterReview&&r.itemId&&r.needsReview).length;
   const unidentified=rows.filter(r=>!r.itemId).length;
   const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
   const missing=tenderItems.filter(i=>!quotesForItem(i.id).length).length;
-  return `${automatic} salvos automaticamente, ${approved} correções aprovadas, ${review} para revisão, ${unidentified} não identificados e ${missing} itens do edital sem cotação.`;
+  return `${saved} salvos na precificação (${automatic} automáticos), ${approved} correções aprovadas, ${review} para revisão, ${unidentified} não identificados e ${missing} itens do edital sem cotação.`;
 }
 
 async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
@@ -2434,7 +2435,7 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
       const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
       const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence,needs_review:!r.safeToSave};
       if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
-      r.savedAutomatically=true;r.selected=false;
+      r.savedToPricing=true;r.savedAutomatically=true;r.selected=false;
     }
     renderAll();
     return safeRows.length;
@@ -2467,7 +2468,7 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
     if(insertedIds.length)await supabase.from('quote_items').delete().in('id',insertedIds);
     throw error;
   }
-  safeRows.forEach(r=>{r.savedAutomatically=true;r.selected=false;});
+  safeRows.forEach(r=>{r.savedToPricing=true;r.savedAutomatically=Boolean(r.safeToSave);r.selected=false;});
   return safeRows.length;
 }
 
