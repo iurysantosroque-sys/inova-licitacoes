@@ -619,7 +619,10 @@ Deno.serve(async(req)=>{
         })}
         model=model?`${model}:automatic-fallback`:'automatic-fallback'
       }
-      if(!geminiKey){
+      // Quando o PDF já possui texto estruturado, o fallback determinístico é
+      // imediato e evita que uma chamada lenta da IA bloqueie a importação.
+      // A interface ainda apresenta as sugestões e permite revisão manual.
+      if(!geminiKey||extractedRows.length){
         applyAutomaticFallback()
       }else{textModelLoop: for(let index=0;index<models.length;index++){
         model=models[index]
