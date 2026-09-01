@@ -10486,7 +10486,30 @@ $('#authDemoModeBtn')?.addEventListener('click',demoSeed);
 $('#showLoginBtn').addEventListener('click',()=>{$('#showLoginBtn').classList.add('active');$('#showSignupBtn').classList.remove('active');$('#loginForm').hidden=false;$('#signupForm').hidden=true;});
 $('#showSignupBtn').addEventListener('click',()=>{$('#showSignupBtn').classList.add('active');$('#showLoginBtn').classList.remove('active');$('#signupForm').hidden=false;$('#loginForm').hidden=true;});
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.auth.signInWithPassword({email:f.email,password:f.password});if(error)return toast(error.message,'error');state.user=data.user;await ensureProfile();await loadMembershipAndData();});
-$('#signupForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.auth.signUp({email:f.email,password:f.password,options:{data:{nome:f.nome}}});if(error)return toast(error.message,'error');if(!data.session)return toast('Conta criada. Abra o e-mail de confirmação enviado pelo sistema.');state.user=data.user;await ensureProfile();await loadMembershipAndData();});
+let signupInFlight=false;
+$('#signupForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(signupInFlight)return;
+  const form=e.target, submit=form.querySelector('button[type="submit"]');
+  const f=Object.fromEntries(new FormData(form));
+  signupInFlight=true;
+  if(submit){submit.disabled=true;submit.dataset.originalText=submit.textContent;submit.textContent='Criando conta…';}
+  try{
+    const {data,error}=await supabase.auth.signUp({email:f.email,password:f.password,options:{data:{nome:f.nome}}});
+    if(error){
+      const message=String(error.message||'');
+      if(/rate limit|email rate limit|too many requests/i.test(message)){
+        return toast('O limite de envio de e-mails foi atingido. Aguarde alguns minutos e tente novamente; se a conta já existir, use a opção Entrar.','error');
+      }
+      return toast(message,'error');
+    }
+    if(!data.session)return toast('Conta criada. Abra o e-mail de confirmação enviado pelo sistema.');
+    state.user=data.user;await ensureProfile();await loadMembershipAndData();
+  }finally{
+    signupInFlight=false;
+    if(submit){submit.disabled=false;submit.textContent=submit.dataset.originalText||'Criar conta';}
+  }
+});
 $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.rpc('create_company_with_owner',{p_name:f.nome});if(error)return toast(error.message,'error');toast(`Empresa criada. Código: ${data?.[0]?.invite_code||''}`);await loadMembershipAndData();});
 $('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');clearPendingCompanyInvite();toast('Você entrou na empresa.');await loadMembershipAndData();});
 async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
