@@ -3413,7 +3413,11 @@ function quoteReviewReason(row){
 }
 
 function addManualQuoteImportRow(tenderId){
-  if(!tenderId||!state.quoteImportContext)return toast('Leia a cotação antes de adicionar um produto manualmente.','error');
+  const supplierId=$('#quoteImportSupplier')?.value||'';
+  if(!tenderId||!supplierId)return toast('Selecione a licitação e o fornecedor antes de adicionar um produto manualmente.','error');
+  if(!state.quoteImportContext){
+    state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:'',mode:'manual'};
+  }
   state.quoteImportRows.push({
     originalOrder:state.quoteImportRows.length,
     code:'',description:'',quantity:null,unit:'',price:0,subtotal:null,brand:'',presentation:'',factor:1,page:null,
@@ -4231,11 +4235,14 @@ async function saveImportedQuotes(){
   const supplierId=$('#quoteImportSupplier')?.value;
   const file=$('#quoteImportFile')?.files?.[0];
   const context=state.quoteImportContext;
-  if(
-    !context ||
+  const hasManualRows=(state.quoteImportRows||[]).some(row=>row.manualCreated);
+  const contextMismatch=context&&(
     String(context.tenderId)!==String(tenderId||'') ||
-    String(context.supplierId)!==String(supplierId||'') ||
-    (!state.demo&&!context.storagePath&&context.fileKey!==quoteImportFileKey(file))
+    String(context.supplierId)!==String(supplierId||'')
+  );
+  const fileMismatch=!state.demo&&context&&!context.storagePath&&!hasManualRows&&context.fileKey!==quoteImportFileKey(file);
+  if(
+    (!context&&!hasManualRows) || contextMismatch || fileMismatch
   ){
     clearQuoteImportPreview('O edital, fornecedor ou arquivo mudou. Leia o arquivo novamente antes de salvar.');
     return toast('Leia o arquivo novamente para atualizar a revisão.','error');
