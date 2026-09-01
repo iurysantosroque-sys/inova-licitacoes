@@ -164,7 +164,7 @@ const TENDER_SITUATIONS=[
 const tenderSituationInfo=value=>TENDER_SITUATIONS.find(item=>item.value===value)||TENDER_SITUATIONS[0];
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
-const QUOTE_PARSER_VERSION='36.11.2';
+const QUOTE_PARSER_VERSION='36.11.3';
 const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
 const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
@@ -2432,7 +2432,7 @@ async function startAutomaticQuoteImport(force=false){
       // O parser local serve apenas para diagnóstico. A IA sempre recebe o PDF
       // original completo: uma extração textual parcial nunca mais substitui o
       // documento e, portanto, não pode fazer produtos desaparecerem.
-      const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION};
+      const invokeBody={quote_id:quoteId,parser_version:QUOTE_PARSER_VERSION,extracted_rows:extractedRows};
       setQuoteImportProgress('reading');
       setQuoteImportStatus(
         extractedRows.length

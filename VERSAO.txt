@@ -1,1 +1,1 @@
-36.52.0 - Consulta o PNCP mais rápido e evita repetições desnecessárias quando o portal demora.
+36.53.0 - Corrige o processamento de cotações quando o modelo principal de IA está indisponível.
