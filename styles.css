@@ -554,6 +554,10 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-supplier strong,#precificacao .pricing-sheet-supplier small{display:block}
 #precificacao .pricing-sheet-supplier small{margin-top:3px;color:var(--ps-muted)}
 #precificacao .pricing-sheet-supplier button{margin-top:7px;border:1px solid var(--ps-gold);border-radius:6px;background:transparent;color:var(--ps-gold);padding:6px 8px;font-size:.68rem;font-weight:800}
+#precificacao .pricing-manual-entry{display:grid;gap:5px}
+#precificacao .pricing-manual-entry small{font-size:.64rem;line-height:1.3}
+#precificacao .pricing-sheet-supplier .pricing-manual-quote-button{width:100%;margin-top:1px;border-color:#df9d34;background:linear-gradient(135deg,#3a2915,#17232a);color:#ffd36a;text-align:left;white-space:nowrap}
+#precificacao .pricing-sheet-supplier .pricing-manual-quote-button:hover{border-color:#ffd36a;background:#443116}
 #precificacao .pricing-sheet-pending{color:#98a8b1;font-size:.7rem;font-style:italic}
 #precificacao .pricing-sheet-winning{min-width:135px!important}
 #precificacao .pricing-sheet-winning input{width:110px;min-height:36px;border:1px solid #55717f;border-radius:6px;background:#06131b;color:#fff;padding:0 8px;text-align:right;font-weight:800}
@@ -575,6 +579,20 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-item-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
 #precificacao .pricing-item-form-actions button{min-height:42px;border:1px solid var(--ps-gold);border-radius:7px;background:var(--ps-gold);color:#11191d;padding:0 16px;font-weight:850}
 #precificacao .pricing-item-form-actions .secondary{border-color:var(--ps-line);background:transparent;color:var(--ps-text)}
+#precificacao .pricing-manual-dialog{width:min(720px,calc(100% - 24px))}
+#precificacao .pricing-manual-badge{display:inline-flex;align-items:center;border:1px solid #c48b28;border-radius:999px;background:#352714;color:#ffd36a;padding:4px 8px;font-size:.62rem;font-weight:900;letter-spacing:.08em}
+#precificacao .pricing-manual-dialog .pricing-item-dialog-head h2{margin-top:7px}
+#precificacao .pricing-manual-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}
+#precificacao .pricing-manual-steps span{display:flex;align-items:center;gap:7px;min-height:38px;border:1px solid #29424e;border-radius:8px;background:#07161e;color:#b9c8ce;padding:7px 9px;font-size:.72rem;font-weight:750}
+#precificacao .pricing-manual-steps b{display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--ps-gold);color:#162127;font-size:.68rem}
+#precificacao .pricing-manual-item{display:grid;gap:4px;margin-bottom:15px;border:1px solid #2b4654;border-left:4px solid var(--ps-gold);border-radius:9px;background:#071820;padding:12px 14px}
+#precificacao .pricing-manual-item span{color:var(--ps-gold);font-size:.65rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+#precificacao .pricing-manual-item strong{color:#f0f6f8;font-size:.82rem;line-height:1.4}
+#precificacao .pricing-manual-item small{color:var(--ps-muted);font-size:.72rem}
+#precificacao .pricing-manual-form-grid label small{font-weight:500}
+#precificacao .pricing-manual-preview{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;border:1px solid #1f7148;border-radius:9px;background:#08271d;padding:12px 14px}
+#precificacao .pricing-manual-preview span{color:#a9cbb8;font-size:.75rem;font-weight:700}
+#precificacao .pricing-manual-preview strong{color:#78e4a5;font-size:.9rem}
 #precificacao .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 #precificacao .pricing-prior-quotes{margin-top:16px;border:1px solid var(--ps-line);border-radius:10px;background:#07161e;overflow:hidden}
 #precificacao .pricing-prior-quotes-empty{padding:15px;color:var(--ps-muted);font-size:.8rem;line-height:1.45}
@@ -611,6 +629,8 @@ tr:hover td{background:#0a141a}
   #precificacao .pricing-sheet-tax button{grid-column:1/-1}
   #precificacao .pricing-item-form-grid{grid-template-columns:1fr}
   #precificacao .pricing-item-description-field{grid-column:auto}
+  #precificacao .pricing-manual-steps{grid-template-columns:1fr}
+  #precificacao .pricing-manual-preview{align-items:flex-start;flex-direction:column}
   #precificacao .pricing-prior-quote-card{grid-template-columns:1fr}
   #precificacao .pricing-prior-quotes-list{max-height:380px}
 }

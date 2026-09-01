@@ -7831,7 +7831,7 @@ function renderPricingExactModel(){
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingSheetMoney(row.governmentUnit)}</td>
                   <td>${pricingSheetMoney(row.governmentTotal)}</td>
-                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}</small>`:`<span class="pricing-sheet-pending">Pendente</span><button type="button" data-pricing-go-quotes="${esc(row.item.id)}">Ir para cotações</button>`}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -7865,6 +7865,30 @@ function renderPricingExactModel(){
         <div id="quoteImportProgress" class="hint" hidden></div><div id="quoteImportPreview" hidden></div><button id="quoteRetryBtn" type="button" hidden>Tentar novamente</button>
         <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-dialog>Cancelar</button><button id="quoteImportSubmit" type="button">Enviar arquivo</button></div>
       </form>
+    </dialog>
+
+    <dialog id="pricingManualQuoteDialog" class="pricing-item-dialog pricing-manual-dialog" aria-labelledby="pricingManualQuoteTitle">
+      <form id="pricingManualQuoteForm" novalidate>
+        <div class="pricing-item-dialog-head">
+          <div><span class="pricing-manual-badge">COTAÇÃO MANUAL</span><h2 id="pricingManualQuoteTitle">Informar cotação do item</h2><p>Use esta opção quando o valor foi recebido por telefone, mensagem ou outro canal. A marca e os valores da tabela serão atualizados ao salvar.</p></div>
+          <button type="button" data-close-pricing-manual-dialog aria-label="Fechar">×</button>
+        </div>
+        <div class="pricing-manual-steps" aria-label="Etapas da cotação manual"><span><b>1</b> Escolha o fornecedor</span><span><b>2</b> Informe o valor</span><span><b>3</b> Confirme a marca</span></div>
+        <section class="pricing-manual-item" aria-label="Item selecionado">
+          <span>Item do edital</span><strong id="pricingManualQuoteItem">Selecione um item na tabela</strong><small id="pricingManualQuoteDetails"></small>
+        </section>
+        <input id="pricingManualQuoteItemId" name="item_id" type="hidden">
+        <div class="pricing-item-form-grid pricing-manual-form-grid">
+          <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
+          <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ex.: 12,50" required></label>
+          <label>Marca <small>(opcional)</small><input name="marca" maxlength="120" placeholder="Ex.: Tigre"></label>
+          <label>Apresentação <small>(opcional)</small><input name="apresentacao" maxlength="160" placeholder="Ex.: Caixa com 12 unidades"></label>
+          <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required></label>
+          <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.01" value="0"></label>
+        </div>
+        <div class="pricing-manual-preview" aria-live="polite"><span>Valor estimado para este item</span><strong id="pricingManualQuoteTotal">Informe o preço por unidade</strong></div>
+        <div class="pricing-item-form-actions"><button type="button" class="secondary" data-close-pricing-manual-dialog>Cancelar</button><button id="pricingManualQuoteSave" type="submit">Salvar cotação manual</button></div>
+      </form>
     </dialog>`;
 
   const goToQuotes=itemId=>{
@@ -7878,6 +7902,35 @@ function renderPricingExactModel(){
     },0);
   };
 
+  const manualDialog=shell.querySelector('#pricingManualQuoteDialog');
+  const manualForm=shell.querySelector('#pricingManualQuoteForm');
+  const updateManualQuotePreview=()=>{
+    const item=items.find(row=>String(row.id)===String(manualForm?.elements?.item_id?.value||''));
+    const unitPrice=Number(manualForm?.elements?.preco?.value||0);
+    const factor=Math.max(Number(manualForm?.elements?.fator_equivalencia?.value||1),0.0001);
+    const freight=Math.max(Number(manualForm?.elements?.frete_rateado?.value||0),0);
+    const unitCost=unitPrice/factor+freight/factor;
+    const total=unitPrice>0&&item?unitCost*Math.max(Number(item.quantidade||0),0):null;
+    const output=shell.querySelector('#pricingManualQuoteTotal');
+    if(output)output.textContent=total!=null?`${money(unitCost)} por unidade • ${money(total)} no total`:'Informe o preço por unidade';
+  };
+  const openManualQuote=itemId=>{
+    const item=items.find(row=>String(row.id)===String(itemId));
+    if(!item)return;
+    manualForm?.reset();
+    if(manualForm?.elements?.fator_equivalencia)manualForm.elements.fator_equivalencia.value='1';
+    if(manualForm?.elements?.frete_rateado)manualForm.elements.frete_rateado.value='0';
+    if(manualForm?.elements?.item_id)manualForm.elements.item_id.value=item.id;
+    const itemLabel=shell.querySelector('#pricingManualQuoteItem');
+    const details=shell.querySelector('#pricingManualQuoteDetails');
+    if(itemLabel)itemLabel.textContent=`${item.numero} • ${item.descricao}`;
+    if(details)details.textContent=`${item.quantidade||'—'} ${item.unidade||'unidades'} • os campos à direita serão calculados automaticamente.`;
+    updateManualQuotePreview();
+    if(typeof manualDialog?.showModal==='function')manualDialog.showModal();
+    else manualDialog?.setAttribute('open','');
+    setTimeout(()=>manualForm?.elements?.fornecedor_id?.focus(),0);
+  };
+
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
     state.pricingViewTenderId=event.target.value||'';
     renderPricingExactModel();
@@ -7885,6 +7938,53 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
+  shell.querySelectorAll('[data-pricing-manual-quote]').forEach(button=>button.addEventListener('click',()=>openManualQuote(button.dataset.pricingManualQuote)));
+  manualForm?.addEventListener('input',updateManualQuotePreview);
+  shell.querySelectorAll('[data-close-pricing-manual-dialog]').forEach(button=>button.addEventListener('click',()=>manualDialog?.close?.()||manualDialog?.removeAttribute('open')));
+  manualDialog?.addEventListener('click',event=>{if(event.target===manualDialog)manualDialog.close?.();});
+  manualForm?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const values=Object.fromEntries(new FormData(manualForm));
+    const item=items.find(row=>String(row.id)===String(values.item_id||''));
+    const supplierId=String(values.fornecedor_id||'');
+    const price=Number(values.preco);
+    const factor=Number(values.fator_equivalencia||1);
+    const freight=Number(values.frete_rateado||0);
+    if(!item)return toast('Selecione o item desejado na tabela.','error');
+    if(!supplierId)return toast('Escolha o fornecedor desta cotação.','error');
+    if(!Number.isFinite(price)||price<=0)return toast('Informe um preço por unidade maior que zero.','error');
+    if(!Number.isFinite(factor)||factor<=0)return toast('Informe uma quantidade válida por embalagem.','error');
+    if(!Number.isFinite(freight)||freight<0)return toast('O frete não pode ser negativo.','error');
+    const submit=shell.querySelector('#pricingManualQuoteSave');
+    if(submit){submit.disabled=true;submit.textContent='Salvando…';}
+    try{
+      if(state.demo){
+        const existing=state.cotacoes.find(row=>String(row.item_id)===String(item.id)&&String(row.fornecedor_id)===supplierId);
+        const quote={id:existing?.id||crypto.randomUUID(),item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim()};
+        if(existing)Object.assign(existing,quote);else state.cotacoes.push(quote);
+        manualDialog?.close?.();
+        renderAll();
+        toast(existing?'Cotação manual atualizada.':'Cotação manual adicionada.');
+        return;
+      }
+      const quote=await findOrCreateQuote(tenderId,supplierId);
+      if(!quote)return;
+      const {error}=await supabase.from('quote_items').insert({
+        quote_id:quote.id,tender_item_id:item.id,supplier_description:item.descricao,
+        brand:String(values.marca||'').trim()||null,
+        package_description:String(values.apresentacao||'').trim()||null,
+        package_base_quantity:factor,unit_price:price,freight_per_package:freight
+      });
+      if(error)throw error;
+      manualDialog?.close?.();
+      toast('Cotação manual salva. Valores e marca atualizados na tabela.');
+      await refreshAll();
+    }catch(error){
+      toast(error?.message||'Não foi possível salvar a cotação manual.','error');
+    }finally{
+      if(submit){submit.disabled=false;submit.textContent='Salvar cotação manual';}
+    }
+  });
 
   const dialog=shell.querySelector('#pricingItemDialog');
   shell.querySelector('#pricingAddItemButton')?.addEventListener('click',()=>{
