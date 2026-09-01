@@ -2676,6 +2676,57 @@ async function startAutomaticQuoteImport(force=false){
     toast('A leitura automática da cotação foi concluída.');
   }catch(error){
     if(runToken!==state.quoteImportRunToken)return;
+    const fallbackRows=compactExtractedQuoteRows(state.quoteImportContext?.extractedRows||[]).map((row,index)=>({
+      originalOrder:index,
+      code:row.code,
+      description:row.description,
+      quantity:row.quantity,
+      unit:row.unit,
+      price:Number(row.unit_price||0),
+      subtotal:row.subtotal,
+      brand:row.brand,
+      presentation:row.presentation,
+      factor:1,
+      page:null,
+      itemId:'',
+      editalItemNumber:null,
+      manualMatched:false,
+      aiMatched:false,
+      autoTextMatched:false,
+      aiMatchConfidence:null,
+      factorConfidence:.5,
+      aiReason:'Pareamento local após indisponibilidade da IA',
+      incompatibilities:[],
+      safeToSave:false,
+      needsReview:true,
+      selected:false,
+      savedAutomatically:false,
+      savedAfterReview:false,
+      ignored:false
+    }));
+    if(fallbackRows.length){
+      try{
+        state.quoteImportRows=fallbackRows;
+        autoRelateSafeQuoteRows(tenderId,state.quoteImportRows);
+        setQuoteImportProgress('saving');
+        setQuoteImportStatus('A IA não respondeu. Salvando o texto já extraído e abrindo a revisão manual…','loading');
+        renderQuoteImportPreview();
+        await persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken);
+        if(runToken!==state.quoteImportRunToken)return;
+        const hasReview=state.quoteImportRows.some(row=>!row.savedAutomatically&&!row.savedAfterReview&&row.needsReview&&!row.ignored);
+        if(quoteId)await supabase.from('quotes').update({status:hasReview?'needs_review':'completed',ai_error:null}).eq('id',quoteId);
+        await refreshAll();
+        setQuoteImportProgress('done');
+        setQuoteRetryVisible(false);
+        setQuoteImportStatus(`Leitura local concluída. ${quoteImportSummaryText(tenderId)}`,'success');
+        renderQuoteImportPreview();
+        setQuoteWorkspaceSection(hasReview?'review':'quoted',false);
+        toast('O PDF foi recuperado pela leitura local. Revise os itens pendentes.');
+        return;
+      }catch(fallbackError){
+        console.warn('Fallback local da cotação:',fallbackError?.code||'LOCAL_FALLBACK_ERROR');
+      }
+    }
     console.warn('Importação automática de cotação:',error?.code||'IMPORT_ERROR');
     state.quoteImportLastError=true;
     setQuoteImportProgress(state.quoteImportContext?.storagePath?'reading':'');

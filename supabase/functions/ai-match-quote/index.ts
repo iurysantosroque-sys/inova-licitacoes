@@ -466,7 +466,10 @@ Deno.serve(async(req)=>{
     // ignorar páginas; o PDF original preserva a posição e todos os itens.
     // PDFs grandes ou com muitas linhas são processados em lotes textuais;
     // enviar o arquivo inteiro nesses casos pode exceder o tempo da função.
-    const preferMultimodal=Boolean(geminiKey)&&(!extractedRows.length||(extractedRows.length<=40&&pageCount<=2))
+    // A visão multimodal só é necessária quando o navegador não conseguiu
+    // extrair nenhuma linha. Qualquer texto válido segue pelo comparador local
+    // imediato, independentemente do número de páginas ou produtos.
+    const preferMultimodal=Boolean(geminiKey)&&!extractedRows.length
     const pdfBase64=preferMultimodal?bytesToBase64(bytes):''
     const variants=['json_schema','legacy_schema','json_only'] as const
     type Variant=typeof variants[number]
@@ -606,7 +609,7 @@ Deno.serve(async(req)=>{
       throw new BlockHttpFailure(429)
     }
 
-    if(extractedRows.length&&!preferMultimodal){
+    if(extractedRows.length){
       const batches=Array.from({length:Math.ceil(extractedRows.length/TEXT_BATCH_SIZE)},(_,batchIndex)=>
         extractedRows.slice(batchIndex*TEXT_BATCH_SIZE,(batchIndex+1)*TEXT_BATCH_SIZE))
       const textDeadline=Date.now()+FUNCTION_BUDGET_MS

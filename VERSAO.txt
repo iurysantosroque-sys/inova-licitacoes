@@ -1,1 +1,1 @@
-36.58.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.
+36.59.0 - Preenche a precificação com correspondências locais confirmadas e mantém revisão humana para casos duvidosos.
