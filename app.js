@@ -8780,6 +8780,13 @@ function ensureDashboardModelStyles(){
     .db-company-row:last-child{border-bottom:0}
     .db-company-row strong{color:#f1f5f7}
 
+    .db-tasks-list{display:flex;flex-direction:column;gap:8px;padding:8px 12px 13px}
+    .db-task{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;width:100%;padding:9px 10px;border:1px solid #203844;border-radius:8px;background:#0b1820;color:#dce6eb;text-align:left;cursor:pointer}
+    .db-task:hover{border-color:#d6a000;background:#10232d}
+    .db-task-date{font-size:.68rem;color:#f2bb24;white-space:nowrap}
+    .db-task-name{font-size:.76rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .db-task-meta{grid-column:2;font-size:.66rem;color:#aebdc5}
+
     .db-status{
       padding:14px;
       display:grid;
@@ -8972,6 +8979,15 @@ function renderDashboardModel(){
     .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=7)
     .sort((a,b)=>a.meta.date-b.meta.date);
 
+  const nextTasks=activeTenders
+    .map(l=>{
+      const items=allItems.filter(i=>String(i.licitacao_id)===String(l.id));
+      const missing=items.filter(i=>!itemHasQuote(i.id)).length;
+      return {l,meta:dashboardDeadlineMeta(l),missing};
+    })
+    .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=15&&x.missing>0)
+    .sort((a,b)=>a.meta.date-b.meta.date);
+
   if(!state.dashboardCalendarDate){
     const base=upcoming[0]?.meta?.date || new Date();
     state.dashboardCalendarDate=new Date(base.getFullYear(),base.getMonth(),1);
@@ -9157,16 +9173,11 @@ function renderDashboardModel(){
 
         <section class="db-card db-company-card">
           <div class="db-card-head">
-            <strong>▦ Resumo da empresa</strong>
+            <strong>✓ Próximas tarefas</strong>
           </div>
 
-          <div class="db-company">
-            <div class="db-company-row"><span>Licitações ativas</span><strong>${activeTenders.length}</strong></div>
-            <div class="db-company-row"><span>Itens totais</span><strong>${allItems.length}</strong></div>
-            <div class="db-company-row"><span>Itens cotados</span><strong>${quotedItems.length}</strong></div>
-            <div class="db-company-row"><span>% itens cotados</span><strong>${quoteRate.toFixed(1).replace('.',',')}%</strong></div>
-            <div class="db-company-row"><span>Oportunidades</span><strong>${opportunities.length}</strong></div>
-            <div class="db-company-row"><span>Fornecedores</span><strong>${state.fornecedores.length}</strong></div>
+          <div class="db-company db-tasks-list">
+            ${nextTasks.length?nextTasks.map(({l,meta,missing})=>`<button type="button" class="db-task" data-db-open-tab="cotacoes" title="Abrir cotações do edital ${esc(l.numero||'')}"><span class="db-task-date">${dateBR(l.proposalEndAt||l.raw?.dispute_at,false)}</span><span class="db-task-name">Edital ${esc(l.numero||'')} • ${esc(l.cidade||l.orgao||'')}</span><span class="db-task-meta">${missing} ${missing===1?'item':'itens'} sem cotação</span></button>`).join(''):'<div class="db-tip">Nenhuma cotação pendente nos próximos 15 dias.</div>'}
           </div>
         </section>
       </div>
