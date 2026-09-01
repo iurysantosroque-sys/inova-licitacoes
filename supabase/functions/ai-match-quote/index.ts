@@ -4,7 +4,12 @@ const MAX_PDF_BYTES=25*1024*1024
 const MAX_REQUEST_BYTES=512*1024
 const PARSER_VERSION='36.11.4'
 const TEXT_BATCH_SIZE=200
-const MAX_EXTERNAL_RESEARCH_PER_IMPORT=5
+// A importação precisa devolver uma resposta antes do limite de execução da
+// Edge Function. Pesquisas externas eram opcionais e podiam consumir quase
+// todo o orçamento; o vínculo local continua disponível para revisão manual.
+const MAX_EXTERNAL_RESEARCH_PER_IMPORT=0
+const MAX_AI_REQUEST_MS=35_000
+const FUNCTION_BUDGET_MS=95_000
 const PAGES_ORIGIN='https://iurysantosroque-sys.github.io'
 const corsHeaders=(req:Request)=>{
   const origin=req.headers.get('origin')||''
@@ -66,7 +71,7 @@ function modelPreference(name:string){
 async function discoverGenerateContentModels(geminiKey:string){
   const started=Date.now()
   const controller=new AbortController()
-  const timer=setTimeout(()=>controller.abort(),15_000)
+  const timer=setTimeout(()=>controller.abort(),8_000)
   let response:Response
   try{
     response=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',{
@@ -471,7 +476,7 @@ Deno.serve(async(req)=>{
 
     const requestBlock=async(modelName:string,variant:Variant,maxOutputTokens:number,range:PageRange|null,deadline:number)=>{
       const pageRange=range?.label||'all'
-      const remaining=Math.min(115_000,deadline-Date.now())
+      const remaining=Math.min(MAX_AI_REQUEST_MS,deadline-Date.now())
       if(remaining<1000)throw new AiFailure('AI_TIMEOUT',504)
       const compat=variant!=='json_schema'
       const rangeInstruction=range
@@ -530,7 +535,7 @@ Deno.serve(async(req)=>{
 
     const allowedItemIds=new Set(officialItems.map((item:any)=>String(item.id)))
     const requestTextBatch=async(modelName:string,variant:Variant,maxOutputTokens:number,batch:ExtractedRow[],deadline:number)=>{
-      const remaining=Math.min(115_000,deadline-Date.now())
+      const remaining=Math.min(MAX_AI_REQUEST_MS,deadline-Date.now())
       if(remaining<1000)throw new AiFailure('AI_TIMEOUT',504)
       const batchLabel=`${batch[0]?.row_index??0}-${batch.at(-1)?.row_index??0}`
       const batchTask=`Relacione TODAS as linhas do lote aos itens oficiais e responda EXATAMENTE como {"r":[{"i":0,"m":false,"t":"","x":0,"f":0,"y":0}]}, em JSON puro, sem justificativas, comentários ou chaves extras. i deve repetir o row_index; m indica correspondência; t é o ID exato da allowlist ou vazio; x é a confiança do item entre 0 e 1; f é quantas unidades oficiais existem na embalagem precificada, ou 0 sem evidência; y é a confiança do fator entre 0 e 1. Retorne cada índice recebido exatamente uma vez. Não devolva descrição nem preço.\n\nEDITAL: ${JSON.stringify({number:tender.number,agency:tender.agency,object:tender.object})}\nFORNECEDOR: ${JSON.stringify({name:supplier.name})}\nALLOWLIST OFICIAL: ${JSON.stringify(officialItems)}\nLOTE DE LINHAS NÃO CONFIÁVEIS: ${JSON.stringify(batch)}`
@@ -540,7 +545,7 @@ Deno.serve(async(req)=>{
       else if(variant==='legacy_schema')generationConfig.responseSchema=textMatchLegacySchema
       const requestBody=JSON.stringify({systemInstruction:{parts:[{text:textMatchSystemInstruction}]},contents,generationConfig})
       for(let attempt=1;attempt<=2;attempt++){
-        const remaining=Math.min(115_000,deadline-Date.now())
+        const remaining=Math.min(MAX_AI_REQUEST_MS,deadline-Date.now())
         if(remaining<1000)throw new AiFailure('AI_TIMEOUT',504)
         const started=Date.now()
         const controller=new AbortController()
@@ -604,7 +609,7 @@ Deno.serve(async(req)=>{
     if(extractedRows.length&&!preferMultimodal){
       const batches=Array.from({length:Math.ceil(extractedRows.length/TEXT_BATCH_SIZE)},(_,batchIndex)=>
         extractedRows.slice(batchIndex*TEXT_BATCH_SIZE,(batchIndex+1)*TEXT_BATCH_SIZE))
-      const textDeadline=Date.now()+115_000
+      const textDeadline=Date.now()+FUNCTION_BUDGET_MS
       const applyAutomaticFallback=()=>{
         const matches=automaticFallbackMatches(extractedRows,officialItems)
         const matchByRow=new Map(matches.map((match:any)=>[match.row_index,match]))
@@ -684,7 +689,7 @@ Deno.serve(async(req)=>{
         const ranges:PageRange[]=chunked
           ?Array.from({length:Math.ceil(pageCount/pagesPerBlock)},(_,rangeIndex)=>{const start=rangeIndex*pagesPerBlock+1;const end=Math.min(pageCount,start+pagesPerBlock-1);return {start,end,label:`${start}-${end}`}})
           :[]
-        const modelDeadline=Date.now()+(chunked?105_000:115_000)
+        const modelDeadline=Date.now()+FUNCTION_BUDGET_MS
 
         for(let variantIndex=0;variantIndex<variants.length;variantIndex++){
           const variant=variants[variantIndex]
@@ -698,7 +703,7 @@ Deno.serve(async(req)=>{
               const remaining=await Promise.all(ranges.slice(1).map(range=>requestBlock(model,variant,maxOutputTokens,range,modelDeadline)))
               lines=[probe,...remaining].flat().map((line:any,rowIndex:number)=>({...line,row_index:rowIndex}))
             }else{
-              lines=(await requestBlock(model,variant,maxOutputTokens,null,Date.now()+115_000)).map((line:any,rowIndex:number)=>({...line,row_index:rowIndex}))
+              lines=(await requestBlock(model,variant,maxOutputTokens,null,Date.now()+FUNCTION_BUDGET_MS)).map((line:any,rowIndex:number)=>({...line,row_index:rowIndex}))
             }
             parsed={lines:lines.slice(0,1000)}
             break modelLoop
