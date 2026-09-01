@@ -2183,10 +2183,19 @@ async function quoteAiInvokeFailure(error,data){
 }
 
 function mapAiQuoteLines(data,tenderId){
-  const allowed=new Set(state.itens.filter(i=>String(i.licitacao_id)===String(tenderId)).map(i=>String(i.id)));
+  const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(tenderId));
+  const allowed=new Set(tenderItems.map(i=>String(i.id)));
+  const byNumber=new Map(tenderItems.map(i=>[String(Number(i.numero)),i]));
   return (Array.isArray(data?.lines)?data.lines:[]).slice(0,1000).map((line,index)=>{
     const match=line?.match||{};
-    const itemId=allowed.has(String(match.tender_item_id||''))?String(match.tender_item_id):'';
+    const rawCode=String(line.code||'').trim();
+    const codeMatch=rawCode.match(/^(?:ITEM\s*)?(\d+)\b/i);
+    const numberedItem=codeMatch?byNumber.get(String(Number(codeMatch[1]))):null;
+    // Quando o PDF traz o número oficial, ele é a âncora mais precisa e
+    // impede que uma descrição parecida seja associada ao item errado.
+    const itemId=numberedItem
+      ? String(numberedItem.id)
+      : (allowed.has(String(match.tender_item_id||''))?String(match.tender_item_id):'');
     const confidence=Math.max(0,Math.min(1,Number(match.confidence)||0));
     const factorConfidence=Math.max(0,Math.min(1,Number(match.factor_confidence)||0));
     const incompatibilities=Array.isArray(match.incompatibilities)?match.incompatibilities.map(String).slice(0,12):[];
@@ -2200,7 +2209,7 @@ function mapAiQuoteLines(data,tenderId){
       quantity:Number(line.quantity)||null,unit:String(line.unit||''),price,subtotal:Number.isFinite(Number(line.subtotal))?Number(line.subtotal):null,
       brand:String(line.brand||''),presentation:String(line.presentation||''),factor,page:Number(line.page)||null,
       itemId,editalItemNumber:itemId?Number(state.itens.find(i=>String(i.id)===itemId)?.numero||0):null,
-      aiMatched:Boolean(itemId),aiMatchConfidence:confidence,factorConfidence,aiReason:String(match.reason||''),
+      aiMatched:Boolean(itemId),aiMatchConfidence:numberedItem?Math.max(confidence,.98):confidence,factorConfidence,aiReason:numberedItem?'Número oficial do item confirmado':String(match.reason||''),
       incompatibilities,safeToSave,needsReview:!safeToSave,selected:false,savedAutomatically:false
     };
   });
