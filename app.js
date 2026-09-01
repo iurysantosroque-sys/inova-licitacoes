@@ -2931,6 +2931,7 @@ function clearQuoteImportPreview(message=''){
   state.quoteImportRows=[];
   state.quoteImportContext=null;
   state.quoteImportFilter='';
+  state.quoteImportTab='automatic';
   state.quoteOnlyUnrelated=false;
   state.quoteSupplierSearches={};
   setQuoteRetryVisible(false);
@@ -3655,6 +3656,29 @@ function addManualQuoteImportRow(tenderId){
   rows.at(-1)?.querySelector('[data-q-field="description"]')?.focus();
 }
 
+function addManualQuoteTenderItem(tenderId,itemId){
+  const supplierId=$('#quoteImportSupplier')?.value||'';
+  const item=state.itens.find(candidate=>String(candidate.id)===String(itemId));
+  if(!tenderId||!supplierId||!item)return;
+  const already=state.quoteImportRows.some(row=>!row.ignored&&String(row.itemId)===String(item.id));
+  if(already)return toast('Este item já foi selecionado para esta cotação.','warn');
+  if(!state.quoteImportContext){
+    state.quoteImportContext={tenderId:String(tenderId),supplierId:String(supplierId),fileKey:'',mode:'manual'};
+  }
+  state.quoteImportRows.push({
+    originalOrder:state.quoteImportRows.length,code:'',description:String(item.descricao||''),quantity:Number(item.quantidade)||null,
+    unit:String(item.unidade||''),price:0,subtotal:null,brand:'',presentation:'',factor:1,page:null,itemId:item.id,
+    editalItemNumber:Number(item.numero)||null,manualCreated:true,manualMatched:true,aiMatched:false,autoTextMatched:false,
+    aiMatchConfidence:null,factorConfidence:.5,aiReason:'Item selecionado manualmente do edital',incompatibilities:[],
+    safeToSave:false,needsReview:true,selected:false,savedAutomatically:false,savedAfterReview:false,ignored:false
+  });
+  state.quoteImportTab='automatic';
+  persistQuoteReviewDraft();
+  renderQuoteImportPreview();
+  const rowIndex=state.quoteImportRows.length-1;
+  $(`#quoteImportPreview [data-quote-row="${rowIndex}"] [data-q-field="price"]`)?.focus();
+}
+
 function renderQuoteImportReviewCompact(){
   const el=$('#quoteImportPreview');
   if(!el)return;
@@ -3668,16 +3692,27 @@ function renderQuoteImportReviewCompact(){
   if(count)count.textContent=String(pending.length);
   const canAddManual=Boolean(tenderId&&state.quoteImportContext);
   el.hidden=!(canAddManual||pending.length);
+  const tabBar=`<div class="quote-import-tabs" role="tablist" style="display:flex;gap:8px;margin:0 0 12px;border-bottom:1px solid var(--q-line,#213743);padding-bottom:8px"><button type="button" role="tab" aria-selected="${state.quoteImportTab!=='manual'}" data-quote-import-tab="automatic" style="border:1px solid ${state.quoteImportTab!=='manual'?'var(--gold)':'var(--q-line2,#2c4654)'};background:${state.quoteImportTab!=='manual'?'var(--gold)':'transparent'};color:${state.quoteImportTab!=='manual'?'#111':'var(--q-text,#eef4f7)'};font-weight:800;border-radius:7px;padding:8px 12px;cursor:pointer">Automática</button><button type="button" role="tab" aria-selected="${state.quoteImportTab==='manual'}" data-quote-import-tab="manual" style="border:1px solid ${state.quoteImportTab==='manual'?'var(--gold)':'var(--q-line2,#2c4654)'};background:${state.quoteImportTab==='manual'?'var(--gold)':'transparent'};color:${state.quoteImportTab==='manual'?'#111':'var(--q-text,#eef4f7)'};font-weight:800;border-radius:7px;padding:8px 12px;cursor:pointer">Seleção manual</button></div>`;
+  const bindTabs=()=>el.querySelectorAll('[data-quote-import-tab]').forEach(button=>button.addEventListener('click',()=>{state.quoteImportTab=button.dataset.quoteImportTab==='manual'?'manual':'automatic';renderQuoteImportPreview();}));
+  if(state.quoteImportTab==='manual'){
+    const selected=new Set(state.quoteImportRows.filter(row=>!row.ignored&&row.itemId).map(row=>String(row.itemId)));
+    el.hidden=!tenderId;
+    el.innerHTML=`${tabBar}<div style="color:var(--muted);font-size:.78rem;margin-bottom:10px">Selecione os itens do edital que deseja cotar manualmente. Depois, abra a aba Automática para informar preço, fator e marca.</div><div style="display:grid;gap:7px">${items.map(item=>{const isSelected=selected.has(String(item.id));return `<div style="display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--q-line,#213743);border-radius:8px;background:var(--q-panel2,#0c1c26)"><strong style="color:var(--gold)">Item ${esc(item.numero)}</strong><span style="font-size:.78rem;line-height:1.3">${esc(item.descricao)}<small style="display:block;color:var(--muted);margin-top:3px">${esc(item.unidade||'')} • quantidade ${esc(item.quantidade??'')}</small></span><button type="button" class="action-btn" data-manual-tender-item="${esc(item.id)}" ${isSelected?'disabled':''}>${isSelected?'Selecionado':'Selecionar'}</button></div>`;}).join('')}</div>`;
+    bindTabs();
+    el.querySelectorAll('[data-manual-tender-item]').forEach(button=>button.addEventListener('click',()=>addManualQuoteTenderItem(tenderId,button.dataset.manualTenderItem)));
+    return;
+  }
   const addButton=canAddManual?`<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button type="button" id="quoteAddManualRowBtn" style="background:var(--gold);color:#111;border-color:var(--gold);font-weight:800">+ Adicionar produto não lido</button></div>`:'';
   if(!pending.length){
-    el.innerHTML=`${addButton}<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>`;
+    el.innerHTML=`${tabBar}${addButton}<div class="quote-review-empty"><strong>Nenhuma dúvida pendente.</strong><br>Os itens seguros já estão em “Itens cotados”.</div>`;
+    bindTabs();
     $('#quoteAddManualRowBtn')?.addEventListener('click',()=>addManualQuoteImportRow(tenderId));
     return;
   }
   const usedByOtherRow=(itemId,rowIndex)=>(state.quoteImportRows||[]).some((candidate,candidateIndex)=>
     candidateIndex!==rowIndex&&!candidate.ignored&&String(candidate.itemId)===String(itemId)
   );
-  el.innerHTML=`${addButton}<div class="quote-review-list">${pending.map(({row,index})=>{
+  el.innerHTML=`${tabBar}${addButton}<div class="quote-review-list">${pending.map(({row,index})=>{
     const localSuggestions=quoteLocalSuggestions(tenderId,row,8)
       .filter(candidate=>String(candidate.item.id)===String(row.itemId)||!usedByOtherRow(candidate.item.id,index))
       .slice(0,3);
@@ -3720,6 +3755,7 @@ function renderQuoteImportReviewCompact(){
     </article>`;}).join('')}</div>`;
 
   $('#quoteAddManualRowBtn')?.addEventListener('click',()=>addManualQuoteImportRow(tenderId));
+  bindTabs();
 
   el.querySelectorAll('[data-q-field]').forEach(field=>field.addEventListener('change',()=>{
     syncQuoteRowsFromDom();

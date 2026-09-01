@@ -1,1 +1,1 @@
-36.62.0 - Grava na precificação os itens localmente relacionados e mantém divergências para revisão.
+36.63.0 - Adiciona abas Automática e Seleção manual para produtos da cotação.
