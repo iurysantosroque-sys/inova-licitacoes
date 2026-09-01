@@ -4370,7 +4370,14 @@ async function readQuoteImportFile(){
   if(btn){btn.disabled=true;btn.textContent='Lendo…';}
   setQuoteImportStatus('Lendo o arquivo e identificando produtos…','loading');
   state.quoteImportRows=[];
-  state.quoteImportContext=null;
+  // Mantém o contexto mesmo quando a leitura automática falhar, permitindo
+  // continuar pela aba de seleção manual sem depender da IA.
+  state.quoteImportContext={
+    tenderId:String(tenderId),
+    supplierId:String(supplierId),
+    fileKey:quoteImportFileKey(file),
+    mode:'manual'
+  };
   renderQuoteImportPreview();
 
   try{
