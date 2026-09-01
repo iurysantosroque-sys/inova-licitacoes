@@ -1429,14 +1429,18 @@ function autoRelateSafeQuoteRows(tenderId,rows){
     // e claramente melhor que a segunda opção. Não usa IA.
     if(
       best &&
-      best.score>=.91 &&
-      (!second || best.score-second.score>=.10)
+      best.score>=.62 &&
+      (!second || best.score-second.score>=.12)
     ){
       row.itemId=best.item.id;
       row.editalItemNumber=Number(best.item.numero);
       row.manualMatched=false;
       row.autoTextMatched=true;
       row.matchScore=best.score;
+      row.aiMatched=true;
+      row.aiMatchConfidence=Math.max(Number(row.aiMatchConfidence||0),Math.min(.9,best.score));
+      row.factor=Number(row.factor)>0?Number(row.factor):1;
+      row.factorConfidence=Number(row.factorConfidence)>0?Number(row.factorConfidence):.8;
       usedItems.add(String(best.item.id));
       matched++;
     }
@@ -2460,6 +2464,7 @@ async function startAutomaticQuoteImport(force=false){
       setQuoteImportProgress('matching');
       setQuoteImportStatus('Relacionamento concluído. Validando os itens identificados…','loading');
       state.quoteImportRows=mapAiQuoteLines(data,tenderId);
+      autoRelateSafeQuoteRows(tenderId,state.quoteImportRows);
       renderQuoteImportPreview();
       setQuoteImportProgress('saving');
       setQuoteImportStatus('Salvando somente as correspondências seguras…','loading');
