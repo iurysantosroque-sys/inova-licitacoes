@@ -10084,6 +10084,13 @@ function activateDocumentTab(tab='editais',focus=false){
   if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
   if(declaracoes)declaracoes.hidden=selected!=='declaracoes';
   if(selected==='propostas')renderProposalWorkspace();
+  if(selected==='declaracoes')renderDeclarationWorkspace();
+}
+
+function renderDeclarationWorkspace(){
+  const select=$('#declarationTenderSelect');
+  if(!select)return;
+  select.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
 }
 
 function proposalRows(tenderId){
