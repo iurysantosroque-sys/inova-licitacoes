@@ -1,1 +1,1 @@
-36.67.0 - Adiciona abas Automática e Seleção manual para produtos da cotação.
+36.68.0 - Adiciona abas Automática e Seleção manual para produtos da cotação.

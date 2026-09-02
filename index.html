@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.67.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.67.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.67.0" />
-  <link rel="stylesheet" href="styles.css?v=36.67.0" />
-  <script src="./app-config.js?v=36.67.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.68.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.68.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.68.0" />
+  <link rel="stylesheet" href="styles.css?v=36.68.0" />
+  <script src="./app-config.js?v=36.68.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -89,15 +89,25 @@
 
       <nav class="tabs tabs-v27" id="mainTabs">
         <button data-tab="dashboard" class="active"><span>Dashboard</span></button>
-        <button data-tab="central-licitacoes"><span>Central de Licitações</span></button>
-        <button data-tab="cadastros"><span>Cadastros</span></button>
-        <button data-tab="gestao"><span>Gestão</span></button>
+        <button type="button" data-menu="central"><span>Central de Licitações</span><i class="menu-chevron">⌄</i></button>
+        <button type="button" data-menu="cadastros"><span>Cadastros</span><i class="menu-chevron">⌄</i></button>
+        <button type="button" data-menu="gestao"><span>Gestão</span><i class="menu-chevron">⌄</i></button>
         <span hidden aria-hidden="true">
           <button data-tab="licitacoes"></button><button data-tab="cotacoes"></button><button data-tab="precificacao"></button>
           <button data-tab="agente-lances"></button><button data-tab="fornecedores"></button><button data-tab="financeiro"></button>
           <button data-tab="arquivos"></button><button data-tab="equipe"></button>
         </span>
       </nav>
+      <div class="nav-menu-popover" data-popover="central" hidden>
+        <strong>Central de Licitações</strong>
+        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-menu-tab="arquivos">Propostas e Documentação</button><button data-menu-tab="agente-lances">Agente de Lances</button>
+      </div>
+      <div class="nav-menu-popover nav-menu-popover-small" data-popover="cadastros" hidden>
+        <strong>Cadastros</strong><button data-menu-tab="fornecedores">Fornecedores</button><button data-menu-tab="equipe">Equipe</button>
+      </div>
+      <div class="nav-menu-popover nav-menu-popover-small" data-popover="gestao" hidden>
+        <strong>Gestão</strong><button data-menu-tab="financeiro">Financeiro</button><button data-menu-tab="arquivos">Documentação</button>
+      </div>
 
       <div class="top-actions">
         <button id="forceRefreshBtn" class="secondary" type="button" title="Atualizar dados sem recarregar a página">↻ Atualizar</button>
@@ -663,7 +673,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 36.67.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 36.68.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -679,9 +689,12 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.67.0"></script>
+  <script type="module" src="./app.js?v=36.68.0"></script>
   <script>
     document.querySelectorAll('.hub-card').forEach(btn=>btn.addEventListener('click',()=>document.querySelector('#mainTabs [data-tab="'+btn.dataset.tab+'"]').click()));
+    document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.addEventListener('click',event=>{event.stopPropagation();const name=trigger.dataset.menu;document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=menu.dataset.popover!==name||!menu.hidden);document.querySelectorAll('[data-menu]').forEach(item=>item.classList.toggle('menu-open',item===trigger&&!document.querySelector('[data-popover="'+name+'"]').hidden));}));
+    document.querySelectorAll('[data-menu-tab]').forEach(item=>item.addEventListener('click',()=>{document.querySelector('#mainTabs [data-tab="'+item.dataset.menuTab+'"]').click();document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.classList.remove('menu-open'));}));
+    document.addEventListener('click',()=>{document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.classList.remove('menu-open'));});
   </script>
 </body>
 </html>
