@@ -10061,9 +10061,9 @@ function renderTeamManagement(){
 }
 
 function activateDocumentTab(tab='editais',focus=false){
-  const selected=['editais','habilitacao','propostas','cotacoes'].includes(tab)?tab:'editais';
+  const selected=['editais','habilitacao','propostas','cotacoes','declaracoes'].includes(tab)?tab:'editais';
   state.documentTab=selected;
-  const documentLabels={editais:['Editais','Gerencie os editais cadastrados e seus arquivos.'],habilitacao:['Habilitação fiscal','Cadastre e acompanhe as certidões e seus vencimentos.'],propostas:['Propostas','Monte e acompanhe as propostas das suas licitações.'],cotacoes:['Cotações','Consulte e organize as cotações dos fornecedores.']};
+  const documentLabels={editais:['Editais','Gerencie os editais cadastrados e seus arquivos.'],habilitacao:['Habilitação fiscal','Cadastre e acompanhe as certidões e seus vencimentos.'],propostas:['Propostas','Monte e acompanhe as propostas das suas licitações.'],cotacoes:['Cotações','Consulte e organize as cotações dos fornecedores.'],declaracoes:['Declarações','Consulte e organize as declarações utilizadas nas suas propostas.']};
   const label=documentLabels[selected]||documentLabels.editais;
   if($('#documentationTitle'))$('#documentationTitle').textContent=label[0];
   if($('#documentationSubtitle'))$('#documentationSubtitle').textContent=label[1];
@@ -10077,10 +10077,12 @@ function activateDocumentTab(tab='editais',focus=false){
   const habilitacao=$('#documentPanelHabilitacao');
   const propostas=$('#documentPanelPropostas');
   const cotacoes=$('#documentPanelCotacoes');
+  const declaracoes=$('#documentPanelDeclaracoes');
   if(editais)editais.hidden=selected!=='editais';
   if(habilitacao)habilitacao.hidden=selected!=='habilitacao';
   if(propostas)propostas.hidden=selected!=='propostas';
   if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
+  if(declaracoes)declaracoes.hidden=selected!=='declaracoes';
   if(selected==='propostas')renderProposalWorkspace();
 }
 
