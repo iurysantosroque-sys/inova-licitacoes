@@ -163,10 +163,13 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     // Alguns editais do PNCP deixam o endpoint de detalhes preso por dezenas
     // de segundos, embora a lista de itens esteja disponível. Não bloqueie a
     // importação por causa desse endpoint secundário.
-    const quickDeadline=Math.min(deadline,Date.now()+3_500)
+    // Editais recentes podem levar cerca de 12 segundos para responder no
+    // endpoint de detalhes. Aguarde esse intervalo, mas ainda preserve o
+    // fallback de itens caso um edital específico esteja indisponível.
+    const quickDeadline=Math.min(deadline,Date.now()+14_000)
     tender=await Promise.race([
       Promise.any(detailUrls.map(url=>getJson(url,quickDeadline,metrics))),
-      new Promise((_,reject)=>setTimeout(()=>reject(new BudgetExceeded()),3_500))
+      new Promise((_,reject)=>setTimeout(()=>reject(new BudgetExceeded()),14_000))
     ])
   }catch(error){
     lastError=error instanceof AggregateError ? error.errors?.[0] : error
