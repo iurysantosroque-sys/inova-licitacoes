@@ -176,7 +176,7 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     // itens estiver respondendo. O vínculo oficial continua sendo preservado.
     tender={
       numeroCompra:`${String(sequencial).padStart(3,'0')}/${ano}`,
-      numeroControlePNCP:`${cnpj}-1-${String(sequencial).padStart(6,'0')}/${ano}`,
+      numeroControlePNCP:'',
       anoCompra:ano,sequencialCompra:sequencial,
       orgaoEntidade:{cnpj},unidadeOrgao:{},
       linkSistemaOrigem:`https://pncp.gov.br/app/editais/${cnpj}/${ano}/${sequencial}`,
@@ -247,9 +247,12 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     if(sourceHadRows&&!sourceFailed)break
   }
   if(!itemSourceWorked)partial=true
+  const detailMessage=tender?._detailsUnavailable
+    ?'Itens carregados diretamente do PNCP. Alguns dados complementares do cabeçalho não foram disponibilizados pelo portal.'
+    :partial?'Dados principais carregados, mas o PNCP não disponibilizou a lista completa de itens nesta tentativa. Tente atualizar novamente.':''
   return {
     mode:'detail',tender,items,has_more:partial,
-    message:partial?'Dados principais carregados, mas o PNCP não disponibilizou a lista completa de itens nesta tentativa. Tente atualizar novamente.':''
+    message:detailMessage
   }
 }
 
