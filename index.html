@@ -92,6 +92,11 @@
         <button data-tab="central-licitacoes"><span>Central de Licitações</span></button>
         <button data-tab="cadastros"><span>Cadastros</span></button>
         <button data-tab="gestao"><span>Gestão</span></button>
+        <span hidden aria-hidden="true">
+          <button data-tab="licitacoes"></button><button data-tab="cotacoes"></button><button data-tab="precificacao"></button>
+          <button data-tab="agente-lances"></button><button data-tab="fornecedores"></button><button data-tab="financeiro"></button>
+          <button data-tab="arquivos"></button><button data-tab="equipe"></button>
+        </span>
       </nav>
 
       <div class="top-actions">
@@ -675,5 +680,8 @@
     <option value="Outro"></option>
   </datalist>
   <script type="module" src="./app.js?v=36.67.0"></script>
+  <script>
+    document.querySelectorAll('.hub-card').forEach(btn=>btn.addEventListener('click',()=>document.querySelector('#mainTabs [data-tab="'+btn.dataset.tab+'"]').click()));
+  </script>
 </body>
 </html>
