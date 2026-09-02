@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.73.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.73.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.73.0" />
-  <link rel="stylesheet" href="styles.css?v=36.73.0" />
-  <script src="./app-config.js?v=36.73.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.74.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.74.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.74.0" />
+  <link rel="stylesheet" href="styles.css?v=36.74.0" />
+  <script src="./app-config.js?v=36.74.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -100,7 +100,7 @@
         </span>
       </nav>
       <div class="nav-menu-popover" data-popover="central" hidden>
-        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-document-menu-tab="propostas">Propostas</button><button data-menu-tab="agente-lances">Agente de Lances</button>
+        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-menu-tab="agente-lances">Agente de Lances</button>
       </div>
       <div class="nav-menu-popover nav-menu-popover-small" data-popover="cadastros" hidden>
         <button data-menu-tab="fornecedores">Fornecedores</button><button data-menu-tab="equipe">Equipe</button>
@@ -109,7 +109,7 @@
         <button data-menu-tab="financeiro">Financeiro</button>
       </div>
       <div class="nav-menu-popover" data-popover="documentacao" hidden>
-        <button data-document-menu-tab="editais">Editais</button><button data-document-menu-tab="habilitacao">Habilitação fiscal</button>
+        <button data-document-menu-tab="editais">Editais</button><button data-document-menu-tab="habilitacao">Habilitação fiscal</button><button data-document-menu-tab="propostas">Propostas</button>
       </div>
 
       <div class="top-actions">
@@ -411,8 +411,8 @@
       <section id="arquivos" class="tab">
         <div class="documentation-head">
           <div>
-            <h2>Documentação</h2>
-            <p class="hint">Editais, documentos de habilitação fiscal e cotações ficam organizados em áreas privadas da empresa.</p>
+            <h2 id="documentationTitle">Documentação</h2>
+            <p id="documentationSubtitle" class="hint">Editais, documentos de habilitação fiscal e cotações ficam organizados em áreas privadas da empresa.</p>
           </div>
           <div class="document-tabs" role="tablist" aria-label="Tipos de documentação">
             <button id="documentTabEditais" type="button" role="tab" aria-selected="true" aria-controls="documentPanelEditais" tabindex="0" data-document-tab="editais">Editais</button>
@@ -676,7 +676,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 36.73.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 36.74.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -692,7 +692,7 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.73.0"></script>
+  <script type="module" src="./app.js?v=36.74.0"></script>
   <script>
     document.querySelectorAll('.hub-card').forEach(btn=>btn.addEventListener('click',()=>document.querySelector('#mainTabs [data-tab="'+btn.dataset.tab+'"]').click()));
     document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.addEventListener('click',event=>{event.stopPropagation();const name=trigger.dataset.menu;const target=document.querySelector('[data-popover="'+name+'"]');const willOpen=target.hidden;document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu]').forEach(item=>item.classList.remove('menu-open'));if(willOpen){target.hidden=false;target.style.left=Math.max(8,trigger.offsetLeft)+'px';trigger.classList.add('menu-open');}}));

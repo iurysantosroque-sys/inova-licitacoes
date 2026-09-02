@@ -10063,6 +10063,10 @@ function renderTeamManagement(){
 function activateDocumentTab(tab='editais',focus=false){
   const selected=['editais','habilitacao','propostas','cotacoes'].includes(tab)?tab:'editais';
   state.documentTab=selected;
+  const documentLabels={editais:['Editais','Gerencie os editais cadastrados e seus arquivos.'],habilitacao:['Habilitação fiscal','Cadastre e acompanhe as certidões e seus vencimentos.'],propostas:['Propostas','Monte e acompanhe as propostas das suas licitações.'],cotacoes:['Cotações','Consulte e organize as cotações dos fornecedores.']};
+  const label=documentLabels[selected]||documentLabels.editais;
+  if($('#documentationTitle'))$('#documentationTitle').textContent=label[0];
+  if($('#documentationSubtitle'))$('#documentationSubtitle').textContent=label[1];
   document.querySelectorAll('[data-document-tab]').forEach(button=>{
     const active=button.dataset.documentTab===selected;
     button.setAttribute('aria-selected',String(active));
