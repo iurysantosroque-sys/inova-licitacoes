@@ -160,11 +160,29 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   // O PNCP alterna entre os hosts principal e www. Consultar os dois em
   // paralelo evita esperar o limite inteiro quando um deles está lento.
   try{
-    tender=await Promise.any(detailUrls.map(url=>getJson(url,deadline,metrics)))
+    // Alguns editais do PNCP deixam o endpoint de detalhes preso por dezenas
+    // de segundos, embora a lista de itens esteja disponível. Não bloqueie a
+    // importação por causa desse endpoint secundário.
+    const quickDeadline=Math.min(deadline,Date.now()+3_500)
+    tender=await Promise.race([
+      Promise.any(detailUrls.map(url=>getJson(url,quickDeadline,metrics))),
+      new Promise((_,reject)=>setTimeout(()=>reject(new BudgetExceeded()),3_500))
+    ])
   }catch(error){
     lastError=error instanceof AggregateError ? error.errors?.[0] : error
   }
-  if(!tender)throw lastError||new PncpHttpError(404)
+  if(!tender){
+    // Identificação mínima para permitir a importação quando só o endpoint de
+    // itens estiver respondendo. O vínculo oficial continua sendo preservado.
+    tender={
+      numeroCompra:`${String(sequencial).padStart(3,'0')}/${ano}`,
+      numeroControlePNCP:`${cnpj}-1-${String(sequencial).padStart(6,'0')}/${ano}`,
+      anoCompra:ano,sequencialCompra:sequencial,
+      orgaoEntidade:{cnpj},unidadeOrgao:{},
+      linkSistemaOrigem:`https://pncp.gov.br/app/editais/${cnpj}/${ano}/${sequencial}`,
+      _detailsUnavailable:true
+    }
+  }
 
   const realCnpj=String(tender?.orgaoEntidade?.cnpj||cnpj).replace(/\D/g,'')
   const realAno=Number(tender?.anoCompra||ano)
