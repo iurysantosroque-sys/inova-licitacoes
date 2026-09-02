@@ -90,7 +90,10 @@ async function getJson(url:string,deadline:number,metrics:Metrics){
       // O manual do PNCP especifica `accept: */*` para este recurso. O WAF do
       // portal pode reter chamadas do endpoint legado quando o cliente exige
       // `application/json`, embora a resposta bem-sucedida continue sendo JSON.
-      const response=await fetch(current,{headers:{Accept:'*/*'},redirect:'manual',signal:controller.signal})
+      // O PNCP alterna entre pncp.gov.br e www.pncp.gov.br. O runtime segue
+      // o redirecionamento oficial; os URLs iniciais já são restritos ao
+      // domínio do PNCP.
+      const response=await fetch(current,{headers:{Accept:'*/*'},redirect:'follow',signal:controller.signal})
       if(response.status>=300&&response.status<400){
         const location=response.headers.get('location')
         if(!location){
