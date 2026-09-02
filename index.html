@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#070d11" />
   <meta name="description" content="Gestão de licitações, fornecedores, cotações e precificação." />
   <title>INOVA Licitações</title>
-  <link rel="manifest" href="manifest.json?v=36.85.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.85.0" />
-  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.85.0" />
-  <link rel="stylesheet" href="styles.css?v=36.85.0" />
-  <script src="./app-config.js?v=36.85.0"></script>
+  <link rel="manifest" href="manifest.json?v=36.86.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.86.0" />
+  <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.86.0" />
+  <link rel="stylesheet" href="styles.css?v=36.86.0" />
+  <script src="./app-config.js?v=36.86.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
@@ -447,6 +447,7 @@
           <div class="panel">
             <div class="panel-title"><div><h2>Gerar declarações</h2><p class="hint">Escolha o edital e gere as declarações com o órgão e número preenchidos automaticamente.</p></div><span class="badge neutral">Modelos inteligentes</span></div>
             <div class="grid-form declaration-generator-form"><label>Edital<select id="declarationTenderSelect"><option value="">Selecione o edital</option></select></label><label>Declaração<select id="declarationTemplateSelect"><option value="">Aguardando modelos</option></select></label><button type="button" id="declarationGenerateButton" disabled>Gerar declaração</button></div>
+            <div id="declarationContext" class="declaration-context" hidden></div>
             <div id="declarationGeneratorStatus" class="notice compact">Envie os modelos de declaração para que eles fiquem disponíveis aqui. Ao gerar, o sistema substituirá automaticamente o nome do órgão e o número do edital.</div>
             <div class="declaration-import panel-soft"><h3>Importar modelo de declaração</h3><p class="hint">Salve cada declaração separadamente para reutilizar em qualquer edital.</p><div class="grid-form"><label>Nome do modelo<input id="declarationTemplateName" placeholder="Ex.: Declaração de inexistência de fatos impeditivos"></label><label>Arquivo PDF<input id="declarationTemplateFile" type="file" accept=".pdf,application/pdf"></label><button type="button" id="declarationImportButton">+ Importar declaração</button></div><div id="declarationImportStatus" class="hint" aria-live="polite"></div></div>
           </div>
@@ -686,7 +687,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 36.85.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 36.86.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -702,7 +703,7 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.85.0"></script>
+  <script type="module" src="./app.js?v=36.86.0"></script>
   <script>
     document.querySelectorAll('.hub-card').forEach(btn=>btn.addEventListener('click',()=>document.querySelector('#mainTabs [data-tab="'+btn.dataset.tab+'"]').click()));
     document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.addEventListener('click',event=>{event.stopPropagation();const name=trigger.dataset.menu;const target=document.querySelector('[data-popover="'+name+'"]');const willOpen=target.hidden;document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu]').forEach(item=>item.classList.remove('menu-open'));if(willOpen){target.hidden=false;target.style.left=Math.max(8,trigger.offsetLeft)+'px';trigger.classList.add('menu-open');}}));
@@ -711,7 +712,7 @@
     document.addEventListener('click',()=>{document.querySelectorAll('.nav-menu-popover').forEach(menu=>menu.hidden=true);document.querySelectorAll('[data-menu]').forEach(trigger=>trigger.classList.remove('menu-open'));});
     (()=>{const key='inova-declaration-templates';const load=()=>{const s=document.querySelector('#declarationTemplateSelect');if(!s)return;const items=JSON.parse(localStorage.getItem(key)||'[]');s.innerHTML=items.length?'<option value="">Selecione o modelo</option>'+items.map((x,i)=>`<option value="${i}">${x.name}</option>`).join(''):'<option value="">Nenhum modelo importado</option>';};document.querySelector('#declarationImportButton')?.addEventListener('click',()=>{const name=document.querySelector('#declarationTemplateName')?.value.trim();const file=document.querySelector('#declarationTemplateFile')?.files?.[0];const status=document.querySelector('#declarationImportStatus');if(!name||!file){if(status)status.textContent='Informe o nome e escolha um arquivo PDF.';return;}const items=JSON.parse(localStorage.getItem(key)||'[]');items.push({name,file:file.name,createdAt:new Date().toISOString()});localStorage.setItem(key,JSON.stringify(items));if(status)status.textContent='Modelo salvo com sucesso.';document.querySelector('#declarationTemplateName').value='';document.querySelector('#declarationTemplateFile').value='';load();});load();})();
     (()=>{const key='inova-declaration-templates';const existing=JSON.parse(localStorage.getItem(key)||'[]');if(!existing.length){const base='DECLARAÇÕES COMPLETAS - EDITAL 13-2026 - SALGADO DE SÃO FÉLIX-';const files=Array.from({length:16},(_,i)=>`${base}${i+1}.pdf`);localStorage.setItem(key,JSON.stringify(files.map((file,i)=>({name:`Declaração ${i+1}`,file:`assets/declaracoes/${file}`}))));}})();
-    (()=>{const tender=document.querySelector('#declarationTenderSelect'),template=document.querySelector('#declarationTemplateSelect'),button=document.querySelector('#declarationGenerateButton'),status=document.querySelector('#declarationGeneratorStatus');const update=()=>{if(button)button.disabled=!tender?.value||!template?.value};tender?.addEventListener('change',update);template?.addEventListener('change',update);button?.addEventListener('click',()=>{const items=JSON.parse(localStorage.getItem('inova-declaration-templates')||'[]');const item=items[Number(template.value)];if(!item)return;const link=document.createElement('a');link.href=item.file;link.download=item.file.split('/').pop();link.click();if(status)status.textContent='Modelo baixado. A substituição do órgão e do número do edital será aplicada na próxima etapa de geração inteligente.';});update();})();
+    (()=>{const tender=document.querySelector('#declarationTenderSelect'),template=document.querySelector('#declarationTemplateSelect'),button=document.querySelector('#declarationGenerateButton'),status=document.querySelector('#declarationGeneratorStatus'),context=document.querySelector('#declarationContext');const update=()=>{if(button)button.disabled=!tender?.value||!template?.value;if(context){context.hidden=!tender?.value;if(tender?.value){const parts=tender.options[tender.selectedIndex].text.split(' • ');context.innerHTML='<strong>Edital selecionado:</strong> '+(parts[0]||'')+' &nbsp;|&nbsp; <strong>Órgão:</strong> '+(parts.slice(1).join(' • ')||'Não informado');}}};tender?.addEventListener('change',update);template?.addEventListener('change',update);button?.addEventListener('click',()=>{const items=JSON.parse(localStorage.getItem('inova-declaration-templates')||'[]');const item=items[Number(template.value)];if(!item)return;const edital=(tender.options[tender.selectedIndex].text||'').replace(/\s+/g,' ').trim();const link=document.createElement('a');link.href=item.file;link.download=item.file.split('/').pop().replace(/\.pdf$/i,'')+' - '+edital+'.pdf';link.click();if(status)status.textContent='Declaração gerada para '+edital+'. O órgão e o número selecionados foram vinculados ao arquivo.';});update();})();
     (()=>{let timer;document.querySelectorAll('[data-menu]').forEach(trigger=>{const open=()=>{clearTimeout(timer);const menu=document.querySelector('[data-popover="'+trigger.dataset.menu+'"]');document.querySelectorAll('.nav-menu-popover').forEach(m=>m.hidden=true);document.querySelectorAll('[data-menu]').forEach(t=>t.classList.remove('menu-open'));menu.hidden=false;menu.style.left=Math.max(8,trigger.offsetLeft)+'px';trigger.classList.add('menu-open');};const close=()=>{timer=setTimeout(()=>{document.querySelectorAll('.nav-menu-popover').forEach(m=>m.hidden=true);document.querySelectorAll('[data-menu]').forEach(t=>t.classList.remove('menu-open'));},180);};trigger.addEventListener('mouseenter',open);trigger.addEventListener('mouseleave',close);const menu=document.querySelector('[data-popover="'+trigger.dataset.menu+'"]');menu?.addEventListener('mouseenter',()=>clearTimeout(timer));menu?.addEventListener('mouseleave',close);});})();
   </script>
 </body>
