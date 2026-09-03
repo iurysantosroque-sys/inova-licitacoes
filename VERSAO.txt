@@ -1,1 +1,1 @@
-41.0.0 - Cadastro de novo produto com fornecedor e importação.
+42.0.0 - Leitura de PDFs de cotação e tabela de produtos por fornecedor.
