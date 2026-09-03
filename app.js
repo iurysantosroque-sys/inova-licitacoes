@@ -2138,12 +2138,24 @@ function parseQuotePdfProduct(raw){
   // Formato da COMFIL e da maioria das cotações:
   // código | descrição | unidade | quantidade | preço unitário | subtotal
   const rx=new RegExp(
-    '^\\s*([A-Z0-9._/-]{4,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')\\s*$',
+    '^\\s*([A-Z0-9._/-]{1,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')\\s*$',
     'i'
   );
 
   const m=line.match(rx);
-  if(!m)return null;
+  if(!m){
+    const simpleRx=new RegExp('^\\s*([A-Z0-9._/-]{1,20})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s*$','i');
+    const simple=line.match(simpleRx);
+    if(simple){
+      const simpleCode=String(simple[1]||'').trim();
+      const simpleDescription=String(simple[2]||'').replace(/\\s+/g,' ').trim();
+      const simpleUnit=String(simple[3]||'').trim().toUpperCase();
+      const simpleQuantity=parseBrazilianNumber(simple[4]);
+      const simplePrice=parseBrazilianNumber(simple[5]);
+      if(/\\d/.test(simpleCode)&&simpleDescription&&simplePrice>0)return {code:simpleCode,description:simpleDescription,quantity:simpleQuantity,unit:simpleUnit,price:simplePrice,subtotal:null,brand:'',presentation:'',factor:1,selected:true};
+    }
+    return null;
+  }
 
   const code=String(m[1]||'').trim();
 
@@ -2372,7 +2384,7 @@ function rowsFromPdfFlatText(text){
     preserva corretamente as quebras de linha.
   */
   const rx=new RegExp(
-    '(?:^|\\s)(\\d{4,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')(?=\\s+(?:\\d{4,8}\\s+|Vendedor\\s*:|Sub-?Total\\s*:|Total\\s*:|$))',
+    '(?:^|\\s)(\\d{1,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')\\s+(?:R\\$\\s*)?('+moneyRx+')(?=\\s+(?:\\d{1,8}\\s+|Vendedor\\s*:|Sub-?Total\\s*:|Total\\s*:|$))',
     'gi'
   );
 
@@ -2391,6 +2403,14 @@ function rowsFromPdfFlatText(text){
 
     const row=parseQuotePdfProduct(line);
     if(row)rows.push(row);
+  }
+
+  if(!rows.length){
+    const simpleRx=new RegExp('(?:^|\\s)(\\d{1,8})\\s+(.+?)\\s+('+unitRx+')\\s+(\\d+(?:[.,]\\d+)?)\\s+(?:R\\$\\s*)?('+moneyRx+')(?=\\s+(?:\\d{1,8}\\s+|Vendedor\\s*:|Total\\s*:|$))','gi');
+    while((m=simpleRx.exec(cleaned))!==null){
+      const row=parseQuotePdfProduct(`${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]} ${m[5]}`);
+      if(row)rows.push(row);
+    }
   }
 
   return dedupeQuotePdfRows(rows);
