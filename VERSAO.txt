@@ -1,1 +1,1 @@
-36.94.0 - Lista de declarações com caixas ao lado dos nomes e ações de download discretas.
+36.95.0 - Lista de declarações redesenhada em cartões compactos e leitura direta.

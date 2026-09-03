@@ -10147,7 +10147,7 @@ function renderDeclarationWorkspace(){
   tenderSelect.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
   if(templateChoices){
     const selectedIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
-    templateChoices.innerHTML=DECLARATION_TEMPLATES.map(template=>`<label class="declaration-choice"><input type="checkbox" value="${template.id}" ${selectedIds.includes(template.id)?'checked':''}><span>${esc(template.number)}. ${esc(template.name)}</span></label>`).join('');
+    templateChoices.innerHTML=DECLARATION_TEMPLATES.map(template=>`<label class="declaration-choice"><input type="checkbox" value="${template.id}" ${selectedIds.includes(template.id)?'checked':''}><span class="declaration-choice-number">${template.number}</span><span class="declaration-choice-name">${esc(template.name)}</span></label>`).join('');
   }
   if(selectAll)selectAll.checked=selectedTemplateIds.length===DECLARATION_TEMPLATES.length;
   if(templateSelect)templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
