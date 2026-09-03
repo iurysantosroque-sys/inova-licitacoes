@@ -1,1 +1,1 @@
-38.3.0 - Remoção do aviso auxiliar dentro da pasta da licitação.
+38.4.0 - Botão de retorno das pastas reduzido e discreto.
