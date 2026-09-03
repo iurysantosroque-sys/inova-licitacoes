@@ -1034,7 +1034,7 @@ function renderPncpPreview(data){
   }
 
   state.pncpPreview=data;
-  const items=Array.isArray(data.items)?data.items:[];
+  const items=(Array.isArray(data.items)?data.items:[]).map((item,index)=>normalizePncpItem(item,index));
   const orgao=t.orgaoEntidade?.razaoSocial || '-';
   const cidade=[t.unidadeOrgao?.municipioNome,t.unidadeOrgao?.ufSigla].filter(Boolean).join('/') || '-';
   const control=t.numeroControlePNCP||'';
@@ -1091,6 +1091,19 @@ function renderPncpPreview(data){
   `;
 
   $('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
+}
+
+function normalizePncpItem(item,index=0){
+  const source=item||{};
+  return {
+    ...source,
+    numeroItem:Number(source.numeroItem??source.numero??source.item??source.itemNumero??index+1),
+    descricao:String(source.descricao??source.descricaoItem??source.nome??source.nomeItem??source.description??'Item PNCP'),
+    quantidade:Number(source.quantidade??source.quantidadeItem??source.qtd??source.quantity??1),
+    unidadeMedida:String(source.unidadeMedida??source.unidade??source.unidadeFornecimento??source.unit??'UN'),
+    valorUnitarioEstimado:source.valorUnitarioEstimado??source.valorUnitario??source.precoUnitario??source.estimatedUnitPrice??null,
+    valorTotal:source.valorTotal??source.valorTotalEstimado??source.totalEstimatedValue??null
+  };
 }
 
 async function searchPncp(query){
@@ -1220,14 +1233,14 @@ async function importPncpPreview(){
     const {data:tender,error:tenderError}=await supabase.from('tenders').insert(row).select().single();
     if(tenderError)throw tenderError;
 
-    const items=(data.items||[]).map(i=>({
+    const items=(data.items||[]).map((raw,index)=>{const i=normalizePncpItem(raw,index);return {
       tender_id:tender.id,
-      item_number:Number(i.numeroItem||1),
+      item_number:Number(i.numeroItem||index+1),
       description:String(i.descricao||'Item PNCP'),
       quantity:Number(i.quantidade||1),
       unit:String(i.unidadeMedida||'UN'),
       estimated_unit_price:i.valorUnitarioEstimado==null?null:Number(i.valorUnitarioEstimado)
-    }));
+    };});
 
     for(let start=0;start<items.length;start+=400){
       const chunk=items.slice(start,start+400);

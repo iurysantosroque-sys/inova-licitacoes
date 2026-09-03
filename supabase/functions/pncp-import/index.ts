@@ -49,7 +49,7 @@ function compraMatches(row:any,target:{numero:number,ano:number}){
   return [...raw.matchAll(/(?:^|\D)0*(\d{1,6})(?:\D|$)/g)].some(match=>Number(match[1])===target.numero)
 }
 function rowsFromPayload(payload:any){
-  return Array.isArray(payload)?payload:Array.isArray(payload?.data)?payload.data:Array.isArray(payload?.content)?payload.content:Array.isArray(payload?.itens)?payload.itens:[]
+  return Array.isArray(payload)?payload:Array.isArray(payload?.data)?payload.data:Array.isArray(payload?.content)?payload.content:Array.isArray(payload?.itens)?payload.itens:Array.isArray(payload?.items)?payload.items:Array.isArray(payload?.resultado)?payload.resultado:[]
 }
 function decodeHtmlAttribute(value:string){
   return value.replace(/&quot;/g,'"').replace(/&#039;|&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
@@ -234,10 +234,19 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
         const payload=await getJson(url.toString(),deadline,metrics)
         const rows=rowsFromPayload(payload)
         if(rows.length){sourceHadRows=true;itemSourceWorked=true}
-        for(const row of rows){
-          const key=String(row?.numeroItem??`${page}-${items.length}`)
+        for(const [rowIndex,row] of rows.entries()){
+          const normalized={
+            ...row,
+            numeroItem:Number(row?.numeroItem??row?.numero??row?.item??row?.itemNumero??((page-1)*500+rowIndex+1)),
+            descricao:String(row?.descricao??row?.descricaoItem??row?.nome??row?.nomeItem??row?.description??'Item PNCP'),
+            quantidade:row?.quantidade??row?.quantidadeItem??row?.qtd??row?.quantity??1,
+            unidadeMedida:String(row?.unidadeMedida??row?.unidade??row?.unidadeFornecimento??row?.unit??'UN'),
+            valorUnitarioEstimado:row?.valorUnitarioEstimado??row?.valorUnitario??row?.precoUnitario??row?.estimatedUnitPrice??null,
+            valorTotal:row?.valorTotal??row?.valorTotalEstimado??row?.totalEstimatedValue??null
+          }
+          const key=String(normalized.numeroItem)
           if(seen.has(key))continue
-          seen.add(key);items.push(row)
+          seen.add(key);items.push(normalized)
         }
         if(!source.paginated)break
         const totalPagesRaw=payload?.totalPaginas??payload?.totalPages??payload?.pagination?.totalPages

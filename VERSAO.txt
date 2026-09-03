@@ -1,1 +1,1 @@
-42.1.0 - Leitura ampliada de formatos de cotação em PDF.
+42.2.0 - Normalização ampliada dos itens retornados pelo PNCP.
