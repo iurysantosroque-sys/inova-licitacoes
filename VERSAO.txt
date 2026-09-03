@@ -1,1 +1,1 @@
-36.95.0 - Lista de declarações redesenhada em cartões compactos e leitura direta.
+36.96.0 - Seletor recolhido de declarações com lista expansível.

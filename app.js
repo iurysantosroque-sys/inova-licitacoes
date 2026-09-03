@@ -10150,6 +10150,8 @@ function renderDeclarationWorkspace(){
     templateChoices.innerHTML=DECLARATION_TEMPLATES.map(template=>`<label class="declaration-choice"><input type="checkbox" value="${template.id}" ${selectedIds.includes(template.id)?'checked':''}><span class="declaration-choice-number">${template.number}</span><span class="declaration-choice-name">${esc(template.name)}</span></label>`).join('');
   }
   if(selectAll)selectAll.checked=selectedTemplateIds.length===DECLARATION_TEMPLATES.length;
+  const pickerLabel=$('#declarationPickerLabel');
+  if(pickerLabel)pickerLabel.textContent=selectedTemplateIds.length===0?'Selecionar declarações':selectedTemplateIds.length===1?'1 declaração selecionada':`${selectedTemplateIds.length} declarações selecionadas`;
   if(templateSelect)templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
   tenderSelect.value=state.declarationTenderId||'';
   if(templateSelect)templateSelect.value=state.declarationTemplateId||'';
