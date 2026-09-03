@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -9661,6 +9661,10 @@ function renderDashboardModel(){
     .map(l=>({l,meta:dashboardDeadlineMeta(l)}))
     .filter(x=>x.meta&&x.meta.days>=0&&x.meta.days<=7)
     .sort((a,b)=>a.meta.date-b.meta.date);
+  const deadlinePageSize=6;
+  const deadlinePageCount=Math.max(1,Math.ceil(upcoming.length/deadlinePageSize));
+  state.dashboardDeadlinePage=Math.min(Math.max(0,state.dashboardDeadlinePage||0),deadlinePageCount-1);
+  const visibleDeadlines=upcoming.slice(state.dashboardDeadlinePage*deadlinePageSize,(state.dashboardDeadlinePage+1)*deadlinePageSize);
 
   const nextTasks=activeTenders
     .map(l=>{
@@ -9799,7 +9803,7 @@ function renderDashboardModel(){
           </div>
 
           <div class="db-deadlines">
-            ${upcoming.length?upcoming.map(({l,meta})=>{
+            ${upcoming.length?visibleDeadlines.map(({l,meta})=>{
               const officialUrl=officialPncpTenderUrl(l);
               const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
               const pdfAction=tenderDocument&&tenderDocumentIsPdf(tenderDocument)
@@ -9822,6 +9826,7 @@ function renderDashboardModel(){
                 </div>
               </div>
             `}).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
+            ${deadlinePageCount>1?`<div class="db-task-pagination"><button type="button" id="dbDeadlinePrev" ${state.dashboardDeadlinePage===0?'disabled':''}>‹</button><span>Página ${state.dashboardDeadlinePage+1} de ${deadlinePageCount}</span><button type="button" id="dbDeadlineNext" ${state.dashboardDeadlinePage===deadlinePageCount-1?'disabled':''}>›</button></div>`:''}
           </div>
         </section>
 
@@ -9967,6 +9972,8 @@ function renderDashboardModel(){
 
   $('#dbTaskPrev')?.addEventListener('click',()=>{state.dashboardTaskPage=Math.max(0,state.dashboardTaskPage-1);renderDashboardModel();});
   $('#dbTaskNext')?.addEventListener('click',()=>{state.dashboardTaskPage=Math.min(taskPageCount-1,state.dashboardTaskPage+1);renderDashboardModel();});
+  $('#dbDeadlinePrev')?.addEventListener('click',()=>{state.dashboardDeadlinePage=Math.max(0,state.dashboardDeadlinePage-1);renderDashboardModel();});
+  $('#dbDeadlineNext')?.addEventListener('click',()=>{state.dashboardDeadlinePage=Math.min(deadlinePageCount-1,state.dashboardDeadlinePage+1);renderDashboardModel();});
 
   shell.querySelectorAll('[data-db-tender]').forEach(btn=>{
     btn.addEventListener('click',()=>{

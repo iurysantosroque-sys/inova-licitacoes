@@ -1,1 +1,1 @@
-36.99.0 - Paginação de próximas tarefas com máximo de 12 licitações por página.
+37.0.0 - Paginação de próximos prazos com máximo de 6 licitações por página.
