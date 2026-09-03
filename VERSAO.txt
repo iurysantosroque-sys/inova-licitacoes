@@ -1,1 +1,1 @@
-37.6.0 - Ícone personalizado nas pastas do Controle de Documentos.
+37.7.0 - Pastas lado a lado com órgão e edital centralizados sobre o ícone.

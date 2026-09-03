@@ -1,4 +1,4 @@
-INOVA V37.6.0
+INOVA V37.7.0
 
 - Numeração completa do edital PNCP aplicada em todas as abas e seletores do sistema.
 
