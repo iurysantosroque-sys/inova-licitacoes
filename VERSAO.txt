@@ -1,1 +1,1 @@
-38.6.0 - Nova subpasta Proposta dentro de cada licitação.
+38.7.0 - Geração automática das declarações dentro da subpasta Declarações.
