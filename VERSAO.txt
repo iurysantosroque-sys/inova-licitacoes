@@ -1,1 +1,1 @@
-37.8.0 - Pastas no modelo compacto, lado a lado, com fundo integrado.
+37.9.0 - Pastas do Controle de Documentos abrem em subtela própria.
