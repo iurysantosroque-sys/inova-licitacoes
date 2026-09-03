@@ -1,1 +1,1 @@
-40.2.1 - Botão Produtos sem símbolo adicional.
+41.0.0 - Cadastro de novo produto com fornecedor e importação.

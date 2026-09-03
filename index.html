@@ -190,7 +190,7 @@
 
       <section id="fornecedores" class="tab">
         <div class="panel supplier-form-panel" id="fornecedorFormPanel">
-          <div class="panel-title"><h2>Novo fornecedor</h2><button type="button" class="supplier-new-btn" id="novoFornecedor">＋ Novo fornecedor</button></div>
+          <div class="panel-title"><h2>Novo fornecedor</h2><div class="supplier-new-actions"><button type="button" class="supplier-new-btn" id="novoFornecedor">＋ Novo fornecedor</button><button type="button" class="supplier-new-product-btn" id="novoProduto">＋ Novo Produto</button></div></div>
           <form id="fornecedorForm" class="grid-form" hidden>
             <input name="nome" placeholder="Nome/Razão social" required />
             <input name="nome_fantasia" placeholder="Nome fantasia (manual)" />
@@ -600,6 +600,17 @@
       </section>
     </main>
 
+    <div id="supplierProductModal" class="supplier-product-modal" hidden role="dialog" aria-modal="true" aria-labelledby="supplierProductTitle">
+      <div class="supplier-product-modal-card">
+        <div class="supplier-product-modal-head"><div><span class="eyebrow">Cadastro de produtos</span><h2 id="supplierProductTitle">Novo Produto</h2><p class="hint">Escolha o fornecedor e importe a lista de produtos.</p></div><button type="button" class="supplier-product-modal-close" id="closeSupplierProductButton" aria-label="Fechar">×</button></div>
+        <div class="supplier-product-tabs"><button type="button" class="supplier-product-tab active" data-supplier-product-tab="fornecedor">Fornecedor</button><button type="button" class="supplier-product-tab" data-supplier-product-tab="importar">Importar produtos</button></div>
+        <div class="supplier-product-panel" data-supplier-product-panel="fornecedor"><label>Fornecedor<select id="supplierProductSupplier"><option value="">Selecione o fornecedor</option></select></label><p class="supplier-product-help">A lista será vinculada ao fornecedor selecionado.</p></div>
+        <div class="supplier-product-panel" data-supplier-product-panel="importar" hidden><label>Arquivo de produtos<input id="supplierProductFile" type="file" accept=".csv,.xlsx,.xls,.pdf"></label><p class="supplier-product-help">Importe uma planilha ou PDF com os produtos do fornecedor.</p></div>
+        <div id="supplierProductStatus" class="notice compact" hidden aria-live="polite"></div>
+        <div class="supplier-product-modal-actions"><button type="button" class="secondary" id="cancelSupplierProductButton">Cancelar</button><button type="button" id="saveSupplierProductButton">Salvar produtos</button></div>
+      </div>
+    </div>
+
     <div id="declarationImportModal" class="declaration-modal" hidden role="dialog" aria-modal="true" aria-labelledby="declarationImportTitle">
       <div class="declaration-modal-card">
         <div class="declaration-modal-head"><div><h2 id="declarationImportTitle">Importar edital/modelo</h2><p class="hint">Envie um PDF e dê um nome para ele aparecer na lista de declarações.</p></div><button type="button" class="declaration-modal-close" id="closeDeclarationImportButton" aria-label="Fechar">×</button></div>
@@ -614,7 +625,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 40.2.1</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 41.0.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -630,6 +641,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=40.2.1"></script>
+  <script type="module" src="./app.js?v=41.0.0"></script>
 </body>
 </html>
