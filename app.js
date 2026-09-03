@@ -10109,9 +10109,9 @@ function renderTeamManagement(){
 }
 
 function activateDocumentTab(tab='editais',focus=false){
-  const selected=['editais','habilitacao','propostas','cotacoes','declaracoes'].includes(tab)?tab:'editais';
+  const selected=['editais','habilitacao','propostas','cotacoes','declaracoes','controle'].includes(tab)?tab:'editais';
   state.documentTab=selected;
-  const documentLabels={editais:['Editais','Gerencie os editais cadastrados e seus arquivos.'],habilitacao:['Habilitação fiscal','Cadastre e acompanhe as certidões e seus vencimentos.'],propostas:['Propostas','Monte e acompanhe as propostas das suas licitações.'],cotacoes:['Cotações','Consulte e organize as cotações dos fornecedores.'],declaracoes:['Declarações','Consulte e organize as declarações utilizadas nas suas propostas.']};
+  const documentLabels={editais:['Editais','Gerencie os editais cadastrados e seus arquivos.'],habilitacao:['Habilitação fiscal','Cadastre e acompanhe as certidões e seus vencimentos.'],propostas:['Propostas','Monte e acompanhe as propostas das suas licitações.'],cotacoes:['Cotações','Consulte e organize as cotações dos fornecedores.'],declaracoes:['Declarações','Consulte e organize as declarações utilizadas nas suas propostas.'],controle:['Controle de Documentos','Organize as pastas das licitações aguardando habilitação.']};
   const label=documentLabels[selected]||documentLabels.editais;
   if($('#documentationTitle'))$('#documentationTitle').textContent=label[0];
   if($('#documentationSubtitle'))$('#documentationSubtitle').textContent=label[1];
@@ -10126,13 +10126,24 @@ function activateDocumentTab(tab='editais',focus=false){
   const propostas=$('#documentPanelPropostas');
   const cotacoes=$('#documentPanelCotacoes');
   const declaracoes=$('#documentPanelDeclaracoes');
+  const controle=$('#documentPanelControle');
   if(editais)editais.hidden=selected!=='editais';
   if(habilitacao)habilitacao.hidden=selected!=='habilitacao';
   if(propostas)propostas.hidden=selected!=='propostas';
   if(cotacoes)cotacoes.hidden=selected!=='cotacoes';
   if(declaracoes)declaracoes.hidden=selected!=='declaracoes';
+  if(controle)controle.hidden=selected!=='controle';
   if(selected==='propostas')renderProposalWorkspace();
   if(selected==='declaracoes')renderDeclarationWorkspace();
+  if(selected==='controle')renderDocumentControlWorkspace();
+}
+
+function renderDocumentControlWorkspace(){
+  const el=$('#documentControlWorkspace'); if(!el)return;
+  const eligible=state.licitacoes.filter(tender=>String(tender.situation||'aguardando_disputa')==='aguardando_habilitacao');
+  if(!eligible.length){el.innerHTML='<div class="document-control-empty"><strong>Nenhuma licitação aguardando habilitação.</strong><span>Quando uma licitação mudar para esse status, a pasta aparecerá aqui automaticamente.</span></div>';return;}
+  el.innerHTML=`<div class="document-control-grid">${eligible.map(tender=>`<button type="button" class="document-control-folder" data-control-tender="${esc(tender.id)}"><span class="document-folder-icon">▰</span><span><strong>${esc(tender.numero||'Edital')}</strong><small>${esc(tender.orgao||tender.cidade||'Órgão não informado')}</small><em>${esc(tender.cidade||'')}</em></span><span class="document-folder-arrow">›</span></button>`).join('')}</div><div class="document-control-note">As pastas são vinculadas ao edital e ficam prontas para receber as subpastas que você definir.</div>`;
+  el.querySelectorAll('[data-control-tender]').forEach(folder=>folder.addEventListener('click',()=>toast('Pasta da licitação selecionada. As subpastas serão adicionadas nesta área.')));
 }
 
 const DECLARATION_TITLES=[

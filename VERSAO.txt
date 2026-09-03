@@ -1,1 +1,1 @@
-37.4.0 - Paginação de licitações com números, reticências e intervalo exibido.
+37.5.0 - Nova aba Controle de Documentos com pastas por licitação aguardando habilitação.
