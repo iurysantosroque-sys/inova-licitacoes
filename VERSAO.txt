@@ -1,1 +1,1 @@
-40.1.0 - Botão Produtos destacado antes do nome do fornecedor.
+40.2.0 - Botão Produtos no padrão do Novo fornecedor.
