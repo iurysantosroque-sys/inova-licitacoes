@@ -1,1 +1,1 @@
-38.7.0 - Geração automática das declarações dentro da subpasta Declarações.
+38.8.0 - Conteúdo das declarações organizado dentro da subpasta com ícones e nomes.
