@@ -10139,18 +10139,20 @@ function renderDeclarationWorkspace(){
   const tenderSelect=$('#declarationTenderSelect');
   const templateSelect=$('#declarationTemplateSelect');
   const templateChoices=$('#declarationTemplateChoices');
+  const selectAll=$('#declarationSelectAll');
   const button=$('#declarationGenerateButton');
   const context=$('#declarationContext');
   if(!tenderSelect||!button)return;
+  const selectedTemplateIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
   tenderSelect.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
   if(templateChoices){
     const selectedIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
     templateChoices.innerHTML=DECLARATION_TEMPLATES.map(template=>`<label class="declaration-choice"><input type="checkbox" value="${template.id}" ${selectedIds.includes(template.id)?'checked':''}><span>${esc(template.number)}. ${esc(template.name)}</span></label>`).join('');
   }
+  if(selectAll)selectAll.checked=selectedTemplateIds.length===DECLARATION_TEMPLATES.length;
   if(templateSelect)templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
   tenderSelect.value=state.declarationTenderId||'';
   if(templateSelect)templateSelect.value=state.declarationTemplateId||'';
-  const selectedTemplateIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
   button.disabled=!tenderSelect.value||(!templateSelect?.value&&!selectedTemplateIds.length);
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderSelect.value));
   const template=DECLARATION_TEMPLATES.find(row=>row.id===templateSelect?.value||row.id===selectedTemplateIds[0]);
@@ -12103,6 +12105,11 @@ $('#declarationTemplateChoices')?.addEventListener('change',event=>{
   if(!event.target.matches('input[type="checkbox"]'))return;
   state.declarationTemplateIds=[...$('#declarationTemplateChoices').querySelectorAll('input:checked')].map(input=>input.value);
   state.declarationTemplateId=state.declarationTemplateIds.length===1?state.declarationTemplateIds[0]:'';
+  renderDeclarationWorkspace();
+});
+$('#declarationSelectAll')?.addEventListener('change',event=>{
+  state.declarationTemplateIds=event.target.checked?DECLARATION_TEMPLATES.map(template=>template.id):[];
+  state.declarationTemplateId='';
   renderDeclarationWorkspace();
 });
 $('#declarationGenerateButton')?.addEventListener('click',()=>Array.isArray(state.declarationTemplateIds)&&state.declarationTemplateIds.length>1?generateDeclarationZip():generateDeclarationPdf());
