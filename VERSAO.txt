@@ -1,1 +1,1 @@
-37.0.0 - Paginação de próximos prazos com máximo de 6 licitações por página.
+37.1.0 - Quadros do dashboard uniformes com paginação alinhada ao rodapé.
