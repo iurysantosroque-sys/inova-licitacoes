@@ -1,4 +1,4 @@
-INOVA V38.1.0
+INOVA V38.2.0
 
 - Numeração completa do edital PNCP aplicada em todas as abas e seletores do sistema.
 
