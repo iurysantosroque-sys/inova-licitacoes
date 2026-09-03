@@ -1,1 +1,1 @@
-39.3.0 - Correção dos números de edital nas declarações.
+40.0.0 - Subpágina de produtos por fornecedor.
