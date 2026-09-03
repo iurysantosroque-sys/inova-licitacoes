@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -9736,6 +9736,10 @@ function renderDashboardModel(){
 
   const ended=Math.max(0,allTenders.length-activeTenders.length);
   const quoteRate=allItems.length?(quotedItems.length/allItems.length)*100:0;
+  const taskPageSize=12;
+  const taskPageCount=Math.max(1,Math.ceil(nextTasks.length/taskPageSize));
+  state.dashboardTaskPage=Math.min(Math.max(0,state.dashboardTaskPage||0),taskPageCount-1);
+  const visibleTasks=nextTasks.slice(state.dashboardTaskPage*taskPageSize,(state.dashboardTaskPage+1)*taskPageSize);
 
   shell.innerHTML=`
     <main class="db-main">
@@ -9860,7 +9864,8 @@ function renderDashboardModel(){
           </div>
 
           <div class="db-company db-tasks-list">
-            ${nextTasks.length?nextTasks.map(({l,meta,missing})=>`<button type="button" class="db-task" data-db-open-tab="cotacoes" title="Abrir cotações do edital ${esc(l.numero||'')}"><span class="db-task-date">${dateBR(l.proposalEndAt||l.raw?.dispute_at,false)}</span><span class="db-task-name">Edital ${esc(l.numero||'')} • ${esc(l.cidade||l.orgao||'')}</span><span class="db-task-meta">${missing} ${missing===1?'item':'itens'} sem cotação</span></button>`).join(''):'<div class="db-tip">Nenhuma cotação pendente nos próximos 15 dias.</div>'}
+            ${nextTasks.length?visibleTasks.map(({l,meta,missing})=>`<button type="button" class="db-task" data-db-open-tab="cotacoes" title="Abrir cotações do edital ${esc(l.numero||'')}"><span class="db-task-date">${dateBR(l.proposalEndAt||l.raw?.dispute_at,false)}</span><span class="db-task-name">Edital ${esc(l.numero||'')} • ${esc(l.cidade||l.orgao||'')}</span><span class="db-task-meta">${missing} ${missing===1?'item':'itens'} sem cotação</span></button>`).join(''):'<div class="db-tip">Nenhuma cotação pendente nos próximos 15 dias.</div>'}
+            ${taskPageCount>1?`<div class="db-task-pagination"><button type="button" id="dbTaskPrev" ${state.dashboardTaskPage===0?'disabled':''}>‹</button><span>Página ${state.dashboardTaskPage+1} de ${taskPageCount}</span><button type="button" id="dbTaskNext" ${state.dashboardTaskPage===taskPageCount-1?'disabled':''}>›</button></div>`:''}
           </div>
         </section>
       </div>
@@ -9959,6 +9964,9 @@ function renderDashboardModel(){
     state.dashboardCalendarDate=new Date(now.getFullYear(),now.getMonth(),1);
     renderDashboardModel();
   });
+
+  $('#dbTaskPrev')?.addEventListener('click',()=>{state.dashboardTaskPage=Math.max(0,state.dashboardTaskPage-1);renderDashboardModel();});
+  $('#dbTaskNext')?.addEventListener('click',()=>{state.dashboardTaskPage=Math.min(taskPageCount-1,state.dashboardTaskPage+1);renderDashboardModel();});
 
   shell.querySelectorAll('[data-db-tender]').forEach(btn=>{
     btn.addEventListener('click',()=>{

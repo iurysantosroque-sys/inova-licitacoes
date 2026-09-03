@@ -1,1 +1,1 @@
-36.98.0 - Importação de edital/modelo em modal sobre a aba atual.
+36.99.0 - Paginação de próximas tarefas com máximo de 12 licitações por página.
