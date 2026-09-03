@@ -1,1 +1,1 @@
-37.9.0 - Pastas do Controle de Documentos abrem em subtela própria.
+38.0.0 - Subpastas iniciais de Habilitação Jurídica e Declarações.
