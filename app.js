@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -8889,11 +8889,7 @@ function renderTenderManagement(){
 
     <div class="tx-footer">
       <span id="txCount"></span>
-      <div class="tx-pages">
-        <span class="tx-page">‹</span>
-        <span class="tx-page active">1</span>
-        <span class="tx-page">›</span>
-      </div>
+      <div class="tx-pages"><button type="button" class="tx-page" id="txPagePrev" aria-label="Página anterior">‹</button><span class="tx-page active" id="txPageLabel">Página 1 de 1</span><button type="button" class="tx-page" id="txPageNext" aria-label="Próxima página">›</button></div>
     </div>
 
     <div class="tx-info">
@@ -8914,10 +8910,14 @@ function renderTenderManagement(){
 
   const renderRows=()=>{
     const rows=getFiltered();
+    const pageSize=8;
+    const pageCount=Math.max(1,Math.ceil(rows.length/pageSize));
+    state.tenderPage=Math.min(Math.max(0,state.tenderPage||0),pageCount-1);
+    const visibleRows=rows.slice(state.tenderPage*pageSize,(state.tenderPage+1)*pageSize);
     const tbody=shell.querySelector('#txTenderRows');
     if(!tbody)return;
 
-    tbody.innerHTML=rows.map(l=>{
+    tbody.innerHTML=visibleRows.map(l=>{
       const status=tenderStatusInfo(l);
       const itemCount=state.itens.filter(i=>String(i.licitacao_id)===String(l.id)).length;
       const tenderDocument=state.tenderDocuments.find(document=>String(document.tender_id)===String(l.id));
@@ -8993,7 +8993,11 @@ function renderTenderManagement(){
     }).join('');
 
     const count=shell.querySelector('#txCount');
-    if(count)count.textContent=`Exibindo ${rows.length?1:0} a ${rows.length} de ${rows.length} editais`;
+    if(count){const start=rows.length?state.tenderPage*pageSize+1:0;const end=Math.min((state.tenderPage+1)*pageSize,rows.length);count.textContent=`Exibindo ${start} a ${end} de ${rows.length} editais`;}
+    const pagePrev=shell.querySelector('#txPagePrev'),pageNext=shell.querySelector('#txPageNext'),pageLabel=shell.querySelector('#txPageLabel');
+    if(pagePrev){pagePrev.disabled=state.tenderPage===0;pagePrev.onclick=()=>{state.tenderPage--;renderRows();};}
+    if(pageNext){pageNext.disabled=state.tenderPage>=pageCount-1;pageNext.onclick=()=>{state.tenderPage++;renderRows();};}
+    if(pageLabel)pageLabel.textContent=`Página ${state.tenderPage+1} de ${pageCount}`;
 
     tbody.querySelectorAll('[data-situation-menu]').forEach(button=>button.addEventListener('click',event=>{
       const id=event.currentTarget.dataset.situationMenu;
@@ -9054,12 +9058,13 @@ function renderTenderManagement(){
     }));
   };
 
-  shell.querySelector('#txSearch')?.addEventListener('input',event=>{state.tenderSearch=event.target.value;renderRows();});
-  shell.querySelector('#txStatus')?.addEventListener('change',event=>{state.tenderStatusFilter=event.target.value;renderRows();});
-  shell.querySelector('#txSort')?.addEventListener('change',event=>{state.tenderSort=event.target.value;renderRows();});
+  shell.querySelector('#txSearch')?.addEventListener('input',event=>{state.tenderSearch=event.target.value;state.tenderPage=0;renderRows();});
+  shell.querySelector('#txStatus')?.addEventListener('change',event=>{state.tenderStatusFilter=event.target.value;state.tenderPage=0;renderRows();});
+  shell.querySelector('#txSort')?.addEventListener('change',event=>{state.tenderSort=event.target.value;state.tenderPage=0;renderRows();});
   shell.querySelectorAll('[data-tender-view]').forEach(button=>button.addEventListener('click',()=>{
     const view=button.dataset.tenderView||'active';
     state.tenderView=view;
+    state.tenderPage=0;
     shell.querySelectorAll('[data-tender-view]').forEach(tab=>{
       const active=tab.dataset.tenderView===view;
       tab.classList.toggle('active',active);
@@ -9826,7 +9831,7 @@ function renderDashboardModel(){
                 </div>
               </div>
             `}).join(''):'<div class="db-tip">Nenhum fechamento futuro encontrado.</div>'}
-            ${deadlinePageCount>1?`<div class="db-task-pagination"><button type="button" id="dbDeadlinePrev" ${state.dashboardDeadlinePage===0?'disabled':''}>‹</button><span>Página ${state.dashboardDeadlinePage+1} de ${deadlinePageCount}</span><button type="button" id="dbDeadlineNext" ${state.dashboardDeadlinePage===deadlinePageCount-1?'disabled':''}>›</button></div>`:''}
+            ${deadlinePageCount>1?`<div class="db-task-pagination"><span>Exibindo ${state.dashboardDeadlinePage*deadlinePageSize+1} a ${Math.min((state.dashboardDeadlinePage+1)*deadlinePageSize,upcoming.length)} de ${upcoming.length}</span><button type="button" id="dbDeadlinePrev" ${state.dashboardDeadlinePage===0?'disabled':''}>‹</button><span>Página ${state.dashboardDeadlinePage+1} de ${deadlinePageCount}</span><button type="button" id="dbDeadlineNext" ${state.dashboardDeadlinePage===deadlinePageCount-1?'disabled':''}>›</button></div>`:''}
           </div>
         </section>
 
@@ -9870,7 +9875,7 @@ function renderDashboardModel(){
 
           <div class="db-company db-tasks-list">
             ${nextTasks.length?visibleTasks.map(({l,meta,missing})=>`<button type="button" class="db-task" data-db-open-tab="cotacoes" title="Abrir cotações do edital ${esc(l.numero||'')}"><span class="db-task-date">${dateBR(l.proposalEndAt||l.raw?.dispute_at,false)}</span><span class="db-task-name">Edital ${esc(l.numero||'')} • ${esc(l.cidade||l.orgao||'')}</span><span class="db-task-meta">${missing} ${missing===1?'item':'itens'} sem cotação</span></button>`).join(''):'<div class="db-tip">Nenhuma cotação pendente nos próximos 15 dias.</div>'}
-            ${taskPageCount>1?`<div class="db-task-pagination"><button type="button" id="dbTaskPrev" ${state.dashboardTaskPage===0?'disabled':''}>‹</button><span>Página ${state.dashboardTaskPage+1} de ${taskPageCount}</span><button type="button" id="dbTaskNext" ${state.dashboardTaskPage===taskPageCount-1?'disabled':''}>›</button></div>`:''}
+            ${taskPageCount>1?`<div class="db-task-pagination"><span>Exibindo ${state.dashboardTaskPage*taskPageSize+1} a ${Math.min((state.dashboardTaskPage+1)*taskPageSize,nextTasks.length)} de ${nextTasks.length}</span><button type="button" id="dbTaskPrev" ${state.dashboardTaskPage===0?'disabled':''}>‹</button><span>Página ${state.dashboardTaskPage+1} de ${taskPageCount}</span><button type="button" id="dbTaskNext" ${state.dashboardTaskPage===taskPageCount-1?'disabled':''}>›</button></div>`:''}
           </div>
         </section>
       </div>
