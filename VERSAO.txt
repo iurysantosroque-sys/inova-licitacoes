@@ -1,1 +1,1 @@
-36.93.0 - Seleção múltipla de declarações, marcar todas e download individual ou ZIP automático.
+36.94.0 - Lista de declarações com caixas ao lado dos nomes e ações de download discretas.

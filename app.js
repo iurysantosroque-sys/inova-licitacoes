@@ -10154,6 +10154,7 @@ function renderDeclarationWorkspace(){
   tenderSelect.value=state.declarationTenderId||'';
   if(templateSelect)templateSelect.value=state.declarationTemplateId||'';
   button.disabled=!tenderSelect.value||(!templateSelect?.value&&!selectedTemplateIds.length);
+  button.textContent=selectedTemplateIds.length>1?'Baixar ZIP':(selectedTemplateIds.length===1?'Baixar PDF':'Gerar declaração');
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderSelect.value));
   const template=DECLARATION_TEMPLATES.find(row=>row.id===templateSelect?.value||row.id===selectedTemplateIds[0]);
   if(context){
