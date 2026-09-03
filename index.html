@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="styles.css?v=36.91.0" />
   <script src="./app-config.js?v=36.91.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
 </head>
@@ -358,7 +359,7 @@
         <div id="documentPanelDeclaracoes" class="document-panel" role="tabpanel" hidden>
           <div class="panel">
             <div class="panel-title"><div><h2>Gerar declarações</h2><p class="hint">Escolha o edital e gere as declarações com órgão, número e data preenchidos automaticamente.</p></div><span class="badge neutral">Modelos inteligentes</span></div>
-            <div class="grid-form declaration-generator-form"><label>Edital<select id="declarationTenderSelect"><option value="">Selecione o edital</option></select></label><label>Declaração<select id="declarationTemplateSelect"><option value="">Aguardando modelos</option></select></label><button type="button" id="declarationGenerateButton" disabled>Gerar declaração</button></div>
+            <div class="grid-form declaration-generator-form"><label>Edital<select id="declarationTenderSelect"><option value="">Selecione o edital</option></select></label><div><span class="field-label">Declarações</span><div id="declarationTemplateChoices" class="declaration-template-choices"><span class="hint">Aguardando modelos</span></div></div><button type="button" id="declarationGenerateButton" disabled>Gerar declaração</button></div>
             <div id="declarationContext" class="declaration-context" hidden></div>
             <div id="declarationGeneratorStatus" class="notice compact">Ao gerar, o sistema substituirá automaticamente o nome do órgão, o número do edital e a data de emissão.</div>
             <div class="declaration-import panel-soft"><h3>Importar modelo de declaração</h3><p class="hint">A importação de novos modelos será liberada com armazenamento privado para toda a equipe.</p><div class="grid-form"><label>Nome do modelo<input id="declarationTemplateName" placeholder="Ex.: Declaração de inexistência de fatos impeditivos" disabled></label><label>Arquivo PDF<input id="declarationTemplateFile" type="file" accept=".pdf,application/pdf" disabled></label><button type="button" id="declarationImportButton" disabled>Importação em revisão</button></div><div id="declarationImportStatus" class="hint" aria-live="polite">Os 16 modelos oficiais continuam disponíveis acima.</div></div>
@@ -599,7 +600,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 36.91.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 36.92.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -615,6 +616,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=36.91.0"></script>
+  <script type="module" src="./app.js?v=36.92.0"></script>
 </body>
 </html>

@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -10138,16 +10138,22 @@ const DECLARATION_TEMPLATES=Array.from({length:16},(_,index)=>{
 function renderDeclarationWorkspace(){
   const tenderSelect=$('#declarationTenderSelect');
   const templateSelect=$('#declarationTemplateSelect');
+  const templateChoices=$('#declarationTemplateChoices');
   const button=$('#declarationGenerateButton');
   const context=$('#declarationContext');
-  if(!tenderSelect||!templateSelect||!button)return;
+  if(!tenderSelect||!button)return;
   tenderSelect.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
-  templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
+  if(templateChoices){
+    const selectedIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
+    templateChoices.innerHTML=DECLARATION_TEMPLATES.map(template=>`<label class="declaration-choice"><input type="checkbox" value="${template.id}" ${selectedIds.includes(template.id)?'checked':''}><span>${esc(template.number)}. ${esc(template.name)}</span></label>`).join('');
+  }
+  if(templateSelect)templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
   tenderSelect.value=state.declarationTenderId||'';
-  templateSelect.value=state.declarationTemplateId||'';
-  button.disabled=!tenderSelect.value||!templateSelect.value;
+  if(templateSelect)templateSelect.value=state.declarationTemplateId||'';
+  const selectedTemplateIds=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
+  button.disabled=!tenderSelect.value||(!templateSelect?.value&&!selectedTemplateIds.length);
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderSelect.value));
-  const template=DECLARATION_TEMPLATES.find(row=>row.id===templateSelect.value);
+  const template=DECLARATION_TEMPLATES.find(row=>row.id===templateSelect?.value||row.id===selectedTemplateIds[0]);
   if(context){
     context.hidden=!tender;
     context.textContent=tender?`Edital selecionado: ${tender.numero||'-'} | Órgão: ${tender.orgao||tender.cidade||'Não informado'} | Declaração: ${template?.name||'não selecionada'} | Data: ${declarationToday()}`:'';
@@ -10168,9 +10174,9 @@ function declarationReplacementText(text,tender,generatedDate=declarationToday()
     .replace(/\b01[\/-]09[\/-]2026\b/g,generatedDate);
 }
 
-async function generateDeclarationPdf(){
+async function generateDeclarationPdf(options={}){
   const tender=state.licitacoes.find(row=>String(row.id)===String(state.declarationTenderId));
-  const template=DECLARATION_TEMPLATES.find(row=>row.id===state.declarationTemplateId);
+  const template=options.template||DECLARATION_TEMPLATES.find(row=>row.id===state.declarationTemplateId);
   if(!tender)return toast('Selecione o edital da declaração.','error');
   if(!template)return toast('Selecione o modelo de declaração.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
@@ -10238,6 +10244,7 @@ async function generateDeclarationPdf(){
     const link=document.createElement('a');
     link.href=url;
     link.download=`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')} - ${generatedDate.replace(/\//g,'-')}.pdf`;
+    if(options.returnBytes)return bytes;
     link.click();
     setTimeout(()=>URL.revokeObjectURL(url),1200);
     if(status){status.classList.remove('is-error');status.textContent=`Declaração gerada para ${tender.orgao||'órgão selecionado'} - Edital ${tender.numero||'-'} - Data ${generatedDate}. O arquivo foi nomeado com esses dados.`;}
@@ -10248,6 +10255,27 @@ async function generateDeclarationPdf(){
     button.disabled=false;
     button.textContent='Gerar declaração';
   }
+}
+
+async function generateDeclarationZip(){
+  const tender=state.licitacoes.find(row=>String(row.id)===String(state.declarationTenderId));
+  const ids=Array.isArray(state.declarationTemplateIds)?state.declarationTemplateIds:[];
+  if(!tender||ids.length<2)return generateDeclarationPdf();
+  if(!window.JSZip)return toast('O gerador ZIP ainda está carregando. Tente novamente.','error');
+  const status=$('#declarationGeneratorStatus');
+  const button=$('#declarationGenerateButton'); button.disabled=true; button.textContent='Gerando ZIP…';
+  try{
+    const zip=new JSZip();
+    const date=declarationToday();
+    for(const id of ids){
+      const template=DECLARATION_TEMPLATES.find(row=>row.id===id); if(!template)continue;
+      const bytes=await generateDeclarationPdf({template,returnBytes:true});
+      if(bytes)zip.file(`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')} - ${date.replace(/\//g,'-')}.pdf`,bytes);
+    }
+    const blob=await zip.generateAsync({type:'blob'}); const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`Declaracoes - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')}.zip`; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1200);
+    if(status){status.classList.remove('is-error');status.textContent=`${ids.length} declarações geradas em um único arquivo ZIP.`;}
+  }catch(error){if(status){status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar o ZIP.';}toast(error.message||'Não foi possível gerar o ZIP.','error');}
+  finally{button.disabled=false;button.textContent='Gerar declaração';renderDeclarationWorkspace();}
 }
 
 function proposalRows(tenderId){
@@ -12068,9 +12096,16 @@ $('#declarationTenderSelect')?.addEventListener('change',event=>{
 });
 $('#declarationTemplateSelect')?.addEventListener('change',event=>{
   state.declarationTemplateId=event.target.value||'';
+  state.declarationTemplateIds=state.declarationTemplateId?[state.declarationTemplateId]:[];
   renderDeclarationWorkspace();
 });
-$('#declarationGenerateButton')?.addEventListener('click',generateDeclarationPdf);
+$('#declarationTemplateChoices')?.addEventListener('change',event=>{
+  if(!event.target.matches('input[type="checkbox"]'))return;
+  state.declarationTemplateIds=[...$('#declarationTemplateChoices').querySelectorAll('input:checked')].map(input=>input.value);
+  state.declarationTemplateId=state.declarationTemplateIds.length===1?state.declarationTemplateIds[0]:'';
+  renderDeclarationWorkspace();
+});
+$('#declarationGenerateButton')?.addEventListener('click',()=>Array.isArray(state.declarationTemplateIds)&&state.declarationTemplateIds.length>1?generateDeclarationZip():generateDeclarationPdf());
 let forceRefreshInFlight=false;
 $('#forceRefreshBtn')?.addEventListener('click',async event=>{
   if(forceRefreshInFlight)return;
