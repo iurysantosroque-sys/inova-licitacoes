@@ -1,1 +1,1 @@
-39.1.0 - Declarações vinculadas ao órgão e edital de cada pasta.
+39.2.0 - Declarações salvas na pasta para reutilização.
