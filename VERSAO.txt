@@ -1,1 +1,1 @@
-39.0.0 - Nomes das declarações abreviados e exibidos em branco.
+39.0.1 - Nomes das declarações abreviados e exibidos em branco.
