@@ -1,1 +1,1 @@
-36.88.0 - Declarações com órgão, edital, data e nome do arquivo preenchidos automaticamente.
+36.90.0 - Numeração completa de editais do PNCP em todas as abas e nas declarações.

@@ -928,6 +928,25 @@ function pncpLinkParts(value){
   }
 }
 
+// O PNCP frequentemente devolve apenas o número sequencial da compra
+// (ex.: "50"), embora o edital seja identificado como "50/2026". Quando há
+// link/controle PNCP, completa o ano sem alterar números digitados manualmente.
+function normalizeTenderNumber(value,sourceUrl='',control='',yearHint=''){
+  const text=String(value??'').trim();
+  if(!text)return text;
+  const parts=pncpLinkParts(sourceUrl)||pncpControlParts(control);
+  const year=Number(yearHint||parts?.ano||0);
+  if(!year||/(?:\/|-)20\d{2}\b/.test(text))return text;
+  const match=text.match(/^(.*?)(\d{1,8})\s*$/);
+  if(!match)return text;
+  const prefix=match[1].trim();
+  return `${prefix?`${prefix} `:''}${match[2]}/${year}`.trim();
+}
+
+function pncpDisplayNumber(tender){
+  return normalizeTenderNumber(tender?.numeroCompra||tender?.processo||tender?.numeroControlePNCP||'', '', tender?.numeroControlePNCP||'', tender?.anoCompra||'');
+}
+
 function officialPncpTenderUrl(tender){
   const controlParts=pncpControlParts(tender?.pncp_control);
   if(controlParts){
@@ -989,7 +1008,7 @@ function renderPncpSearchResults(results=[]){
       ${results.map(r=>`
         <article class="pncp-result-card">
           <div class="pncp-result-main">
-            <strong>${esc(r.numeroCompra||r.processo||r.numeroControlePNCP||'Contratação')}</strong>
+            <strong>${esc(normalizeTenderNumber(r.numeroCompra||r.processo||r.numeroControlePNCP||'Contratação','',r.numeroControlePNCP||'',r.anoCompra||''))}</strong>
             <span>${esc(r.orgao||'-')}</span>
             <small>${esc([r.municipio,r.uf].filter(Boolean).join('/')||'-')} • ${esc(r.modalidadeNome||'-')}</small>
           </div>
@@ -1027,7 +1046,7 @@ function renderPncpPreview(data){
     <div class="pncp-preview-title">
       <div>
         <span class="badge good">Encontrado no PNCP</span>
-        <h3>${esc(t.numeroCompra||control||'Licitação')}</h3>
+        <h3>${esc(pncpDisplayNumber(t)||'Licitação')}</h3>
         <p>${esc(orgao)} • ${esc(cidade)}</p>
       </div>
       <div class="pncp-preview-actions">
@@ -1162,23 +1181,26 @@ async function importPncpPreview(){
   const t=data?.tender;
   if(!t || state.demo)return toast('Entre no modo online para importar.','error');
 
+  const importedNumber=normalizeTenderNumber(t.numeroCompra||t.processo||t.numeroControlePNCP||'PNCP','',t.numeroControlePNCP||'',t.anoCompra||'');
   const duplicate=state.licitacoes.find(l=>
+    String(l.numero||'').trim().toUpperCase()===String(importedNumber).trim().toUpperCase() ||
     String(l.numero||'').trim().toUpperCase()===String(t.numeroCompra||'').trim().toUpperCase() ||
     (t.processo && String(l.processo||'').trim().toUpperCase()===String(t.processo).trim().toUpperCase())
   );
 
   if(duplicate && !confirm(`Já existe uma licitação parecida (${duplicate.numero}). Deseja importar mesmo assim?`))return;
 
-  if(!confirm(`Importar ${t.numeroCompra||'esta licitação'} e ${data.items?.length||0} itens para a INOVA?`))return;
+  if(!confirm(`Importar ${importedNumber||'esta licitação'} e ${data.items?.length||0} itens para a INOVA?`))return;
 
   const btn=$('#pncpImportBtn');
   if(btn){btn.disabled=true;btn.textContent='Importando…';}
   setPncpStatus('Salvando licitação no sistema…','loading');
 
   try{
+    const pncpSourceUrl=(()=>{const p=pncpControlParts(t.numeroControlePNCP||'');return p?`https://pncp.gov.br/app/editais/${p.cnpj}/${p.ano}/${p.sequencial}`:(t.linkSistemaOrigem||null)})();
     const row={
       company_id:currentCompanyId(),
-      number:t.numeroCompra || t.numeroControlePNCP || 'PNCP',
+      number:importedNumber || t.numeroControlePNCP || 'PNCP',
       process_number:t.processo || t.numeroControlePNCP || null,
       agency:t.orgaoEntidade?.razaoSocial || null,
       city:t.unidadeOrgao?.municipioNome || null,
@@ -1191,7 +1213,7 @@ async function importPncpPreview(){
       proposal_open_at:t.dataAberturaProposta || null,
       proposal_end_at:t.dataEncerramentoProposta || null,
       pncp_control:t.numeroControlePNCP || null,
-      source_url:(()=>{const p=pncpControlParts(t.numeroControlePNCP||'');return p?`https://pncp.gov.br/app/editais/${p.cnpj}/${p.ano}/${p.sequencial}`:(t.linkSistemaOrigem||null)})(),
+      source_url:pncpSourceUrl,
       created_by:state.user.id
     };
 
@@ -4704,7 +4726,7 @@ async function refreshAll(){
     const dt=toLocalDateTime(primary);
     return {
       id:t.id,
-      numero:t.number,
+      numero:normalizeTenderNumber(t.number,t.source_url||'',t.pncp_control||''),
       processo:t.process_number,
       orgao:t.agency||'',
       cidade:[t.city,t.state].filter(Boolean).join('/'),

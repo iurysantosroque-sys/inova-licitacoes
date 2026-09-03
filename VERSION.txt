@@ -1,4 +1,8 @@
-INOVA V36.88.0
+INOVA V36.90.0
+
+- Numeração completa do edital PNCP aplicada em todas as abas e seletores do sistema.
+
+- Numeração de editais do PNCP usa automaticamente o ano do link/controle (ex.: 50/2026).
 
 - Declarações substituem órgão, número do edital e data de emissão dentro do PDF.
 - Arquivos gerados recebem nome com modelo, órgão, edital e data.
