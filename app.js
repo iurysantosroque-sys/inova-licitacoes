@@ -10111,10 +10111,28 @@ function activateDocumentTab(tab='editais',focus=false){
   if(selected==='declaracoes')renderDeclarationWorkspace();
 }
 
+const DECLARATION_TITLES=[
+  'Declaração de inexistência de fatos impeditivos',
+  'Declaração de cumprimento dos requisitos de habilitação',
+  'Declaração de não emprego de menor',
+  'Declaração de enquadramento como ME/EPP',
+  'Declaração de elaboração independente da proposta',
+  'Declaração de cumprimento da reserva de cargos',
+  'Declaração de não utilização de trabalho degradante',
+  'Declaração de idoneidade',
+  'Declaração de inexistência de parentesco',
+  'Declaração de autenticidade dos documentos',
+  'Declaração de responsabilidade pelas informações',
+  'Declaração de conhecimento e aceitação do edital',
+  'Declaração de visita/conhecimento do local',
+  'Declaração de acessibilidade e inclusão',
+  'Declaração de conformidade com a LGPD',
+  'Declaração de cumprimento da legislação aplicável'
+];
 const DECLARATION_TEMPLATES=Array.from({length:16},(_,index)=>{
   const number=index+1;
   const file=`DECLARAÇÕES COMPLETAS - EDITAL 13-2026 - SALGADO DE SÃO FÉLIX-${number}.pdf`;
-  return {id:`builtin:${number}`,name:`Declaração ${number}`,url:`assets/declaracoes/${file}`};
+  return {id:`builtin:${number}`,number,name:DECLARATION_TITLES[index],url:`assets/declaracoes/${file}`};
 });
 
 function renderDeclarationWorkspace(){
@@ -10124,14 +10142,15 @@ function renderDeclarationWorkspace(){
   const context=$('#declarationContext');
   if(!tenderSelect||!templateSelect||!button)return;
   tenderSelect.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
-  templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.name)}</option>`).join('');
+  templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.number)}. ${esc(template.name)}</option>`).join('');
   tenderSelect.value=state.declarationTenderId||'';
   templateSelect.value=state.declarationTemplateId||'';
   button.disabled=!tenderSelect.value||!templateSelect.value;
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderSelect.value));
+  const template=DECLARATION_TEMPLATES.find(row=>row.id===templateSelect.value);
   if(context){
     context.hidden=!tender;
-    context.textContent=tender?`Edital selecionado: ${tender.numero||'-'} | Órgão: ${tender.orgao||tender.cidade||'Não informado'} | Data: ${declarationToday()}`:'';
+    context.textContent=tender?`Edital selecionado: ${tender.numero||'-'} | Órgão: ${tender.orgao||tender.cidade||'Não informado'} | Declaração: ${template?.name||'não selecionada'} | Data: ${declarationToday()}`:'';
   }
 }
 

@@ -1,1 +1,1 @@
-36.90.0 - Numeração completa de editais do PNCP em todas as abas e nas declarações.
+36.91.0 - Títulos reais/descritivos das declarações no seletor e no nome dos arquivos baixados.
