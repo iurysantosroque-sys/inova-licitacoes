@@ -8994,10 +8994,14 @@ function renderTenderManagement(){
 
     const count=shell.querySelector('#txCount');
     if(count){const start=rows.length?state.tenderPage*pageSize+1:0;const end=Math.min((state.tenderPage+1)*pageSize,rows.length);count.textContent=`Exibindo ${start} a ${end} de ${rows.length} editais`;}
-    const pagePrev=shell.querySelector('#txPagePrev'),pageNext=shell.querySelector('#txPageNext'),pageLabel=shell.querySelector('#txPageLabel');
-    if(pagePrev){pagePrev.disabled=state.tenderPage===0;pagePrev.onclick=()=>{state.tenderPage--;renderRows();};}
-    if(pageNext){pageNext.disabled=state.tenderPage>=pageCount-1;pageNext.onclick=()=>{state.tenderPage++;renderRows();};}
-    if(pageLabel)pageLabel.textContent=`Página ${state.tenderPage+1} de ${pageCount}`;
+    const pages=shell.querySelector('.tx-pages');
+    if(pages){
+      const nums=[]; for(let i=0;i<pageCount;i++){if(i===0||i===pageCount-1||Math.abs(i-state.tenderPage)<=1)nums.push(i);else if(nums[nums.length-1]!=='…')nums.push('…');}
+      pages.innerHTML=`<button type="button" class="tx-page" data-tx-page-prev ${state.tenderPage===0?'disabled':''}>‹</button>${nums.map(i=>i==='…'?'<span class="tx-page tx-page-ellipsis">…</span>':`<button type="button" class="tx-page ${i===state.tenderPage?'active':''}" data-tx-page="${i}">${i+1}</button>`).join('')}<button type="button" class="tx-page" data-tx-page-next ${state.tenderPage>=pageCount-1?'disabled':''}>›</button><span class="tx-page-size">8</span>`;
+      pages.querySelector('[data-tx-page-prev]')?.addEventListener('click',()=>{state.tenderPage--;renderRows();});
+      pages.querySelector('[data-tx-page-next]')?.addEventListener('click',()=>{state.tenderPage++;renderRows();});
+      pages.querySelectorAll('[data-tx-page]').forEach(btn=>btn.addEventListener('click',()=>{state.tenderPage=Number(btn.dataset.txPage);renderRows();}));
+    }
 
     tbody.querySelectorAll('[data-situation-menu]').forEach(button=>button.addEventListener('click',event=>{
       const id=event.currentTarget.dataset.situationMenu;

@@ -1,1 +1,1 @@
-37.3.0 - Indicador de página compacto e sem quebra de linha.
+37.4.0 - Paginação de licitações com números, reticências e intervalo exibido.
