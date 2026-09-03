@@ -1,1 +1,1 @@
-38.0.0 - Subpastas iniciais de Habilitação Jurídica e Declarações.
+38.1.0 - Subpastas empilhadas em layout minimalista e compacto.
