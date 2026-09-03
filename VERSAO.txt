@@ -1,1 +1,1 @@
-38.4.0 - Botão de retorno das pastas reduzido e discreto.
+38.5.0 - Espaçamento entre subpastas e botão de retorno.
