@@ -1,1 +1,1 @@
-36.96.0 - Seletor recolhido de declarações com lista expansível.
+36.97.0 - Remoção do aviso fixo da geração de declarações.

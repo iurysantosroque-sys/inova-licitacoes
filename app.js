@@ -10252,9 +10252,9 @@ async function generateDeclarationPdf(options={}){
     if(options.returnBytes)return bytes;
     link.click();
     setTimeout(()=>URL.revokeObjectURL(url),1200);
-    if(status){status.classList.remove('is-error');status.textContent=`Declaração gerada para ${tender.orgao||'órgão selecionado'} - Edital ${tender.numero||'-'} - Data ${generatedDate}. O arquivo foi nomeado com esses dados.`;}
+    if(status){status.hidden=false;status.classList.remove('is-error');status.textContent=`Declaração gerada para ${tender.orgao||'órgão selecionado'} - Edital ${tender.numero||'-'} - Data ${generatedDate}. O arquivo foi nomeado com esses dados.`;}
   }catch(error){
-    if(status){status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar a declaração.';}
+    if(status){status.hidden=false;status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar a declaração.';}
     toast(error.message||'Não foi possível gerar a declaração.','error');
   }finally{
     button.disabled=false;
@@ -10278,8 +10278,8 @@ async function generateDeclarationZip(){
       if(bytes)zip.file(`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')} - ${date.replace(/\//g,'-')}.pdf`,bytes);
     }
     const blob=await zip.generateAsync({type:'blob'}); const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`Declaracoes - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')}.zip`; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1200);
-    if(status){status.classList.remove('is-error');status.textContent=`${ids.length} declarações geradas em um único arquivo ZIP.`;}
-  }catch(error){if(status){status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar o ZIP.';}toast(error.message||'Não foi possível gerar o ZIP.','error');}
+    if(status){status.hidden=false;status.classList.remove('is-error');status.textContent=`${ids.length} declarações geradas em um único arquivo ZIP.`;}
+  }catch(error){if(status){status.hidden=false;status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar o ZIP.';}toast(error.message||'Não foi possível gerar o ZIP.','error');}
   finally{button.disabled=false;button.textContent='Gerar declaração';renderDeclarationWorkspace();}
 }
 
