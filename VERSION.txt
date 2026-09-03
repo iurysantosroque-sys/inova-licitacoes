@@ -1,4 +1,14 @@
-INOVA V36.86.0
+INOVA V36.88.0
+
+- Declarações substituem órgão, número do edital e data de emissão dentro do PDF.
+- Arquivos gerados recebem nome com modelo, órgão, edital e data.
+
+- Navegação consolidada: menus abrem junto ao item, mantêm a página atual e fecham corretamente.
+- Licitações com filtros persistentes, painel PNCP único e cadastro manual organizado.
+- Cotações já concluídas continuam acessíveis para consulta, correção e renovação de preços.
+- Declarações geradas em PDF com órgão e número do edital selecionado.
+- Botão Atualizar força a busca da versão nova do aplicativo.
+- Conteúdo principal e rodapé utilizam melhor a largura disponível.
 
 - Formulários manuais e modo demonstração funcionais.
 - Cotações diretas em três áreas: importar PDF, revisar dúvidas e itens cotados.

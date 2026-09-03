@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0, gasolina:0, outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+  licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -4796,7 +4796,9 @@ async function refreshAll(){
 
 
 function quoteTenderOptions(selectedId=''){
-  const available=state.licitacoes.filter(l=>!l.is_quoted);
+  // Uma licitação marcada como cotada continua acessível: o usuário pode
+  // consultar, corrigir ou renovar preços sem precisar desmarcá-la primeiro.
+  const available=state.licitacoes;
   return `<option value="">Selecione uma licitação</option>`+(available.length?'':'<option value="" disabled>Nenhum edital disponível</option>')+available.map(l=>
     `<option value="${l.id}" ${String(l.id)===String(selectedId)?'selected':''}>${esc(l.numero)} • ${esc(l.orgao)}</option>`
   ).join('');
@@ -5015,7 +5017,7 @@ async function exportQuotePdf(tenderIdOverride=''){
 
 function renderQuotesWorkspace(){
   ensureQuoteWorkspaceStyles();
-  const availableTenders=state.licitacoes.filter(l=>!l.is_quoted);
+  const availableTenders=state.licitacoes;
   const exists=availableTenders.some(l=>String(l.id)===String(state.quoteViewTenderId));
   if(state.quoteViewTenderId&&!exists)state.quoteViewTenderId='';
   const tenderId=state.quoteViewTenderId||'';
@@ -8719,8 +8721,11 @@ function renderTenderManagement(){
   // apenas ocultos até o botão "+ Novo edital" ser clicado.
   const panels=[...section.querySelectorAll(':scope > .panel')];
   const listPanel=panels.find(p=>p.contains(list));
-  panels.forEach(panel=>panel.classList.toggle('tender-manual-panel',Boolean(panel.querySelector('#licitacaoForm, #itemForm'))));
+  const manualTenderPanel=panels.find(panel=>panel.querySelector('#licitacaoForm'));
+  const manualItemPanel=panels.find(panel=>panel.querySelector('#itemForm'));
+  panels.forEach(panel=>panel.classList.toggle('tender-manual-panel',panel===manualTenderPanel));
   if(listPanel)listPanel.style.display='none';
+  if(manualItemPanel)manualItemPanel.style.display='none';
 
   let shell=section.querySelector('.tender-exact-shell');
   if(!shell){
@@ -8730,18 +8735,16 @@ function renderTenderManagement(){
   }
 
   const getFiltered=()=>{
-    const tenderView=shell.dataset.tenderView||'all';
-    const query=quoteNormalize(shell.querySelector('#txSearch')?.value||'');
-    const statusFilter=shell.querySelector('#txStatus')?.value||'all';
-    const sort=shell.querySelector('#txSort')?.value||'deadline';
+    const tenderView=state.tenderView||'all';
+    const query=quoteNormalize(state.tenderSearch||'');
+    const statusFilter=state.tenderStatusFilter||'all';
+    const sort=state.tenderSort||'deadline';
 
     let rows=[...state.licitacoes].filter(l=>{
       const isClosed=tenderStatusInfo(l).label==='Encerrado';
       const situation=String(l.situation||'aguardando_disputa');
-      if(tenderView==='closed')return isClosed&&situation==='aguardando_disputa';
-      if(tenderView==='all')return !isClosed;
-      if(isClosed&&situation==='aguardando_disputa')return false;
-      if(situation!==tenderView)return false;
+      if(tenderView==='closed'&&!isClosed)return false;
+      if(tenderView!=='all'&&tenderView!=='closed'&&situation!==tenderView)return false;
       if(query && !quoteNormalize(`${l.numero} ${l.orgao} ${l.cidade} ${l.plataforma}`).includes(query))return false;
       if(statusFilter!=='all'){
         const s=tenderStatusInfo(l);
@@ -8789,10 +8792,10 @@ function renderTenderManagement(){
           <div><small>Editais ativos</small><strong>${active}</strong><span>ativos</span></div>
         </div>
       </div>
-      <button type="button" class="tx-primary" id="txNewTender">＋ Novo edital</button>
+      <button type="button" class="tx-primary" id="txNewTender">${state.tenderNewPanelOpen?'× Fechar novo edital':'＋ Novo edital'}</button>
     </div>
 
-    <div class="tx-new-panel" id="txNewTenderPanel">
+    <div class="tx-new-panel ${state.tenderNewPanelOpen?'open':''}" id="txNewTenderPanel">
       <div class="tx-new-title">
         <div>
           <h3>Importar edital automaticamente do PNCP</h3>
@@ -8820,26 +8823,26 @@ function renderTenderManagement(){
     </div>
 
     <div class="tx-toolbar">
-      <input id="txSearch" type="search" placeholder="⌕  Buscar edital (órgão, cidade, número, plataforma...)" autocomplete="off">
+      <input id="txSearch" type="search" value="${esc(state.tenderSearch||'')}" placeholder="⌕  Buscar edital (órgão, cidade, número, plataforma...)" autocomplete="off">
       <select id="txStatus">
-        <option value="all">Todos os status</option>
-        <option value="active">Ativos</option>
-        <option value="soon">Prazo próximo</option>
-        <option value="closed">Encerrados</option>
+        <option value="all" ${state.tenderStatusFilter==='all'?'selected':''}>Todos os status</option>
+        <option value="active" ${state.tenderStatusFilter==='active'?'selected':''}>Ativos</option>
+        <option value="soon" ${state.tenderStatusFilter==='soon'?'selected':''}>Prazo próximo</option>
+        <option value="closed" ${state.tenderStatusFilter==='closed'?'selected':''}>Encerrados</option>
       </select>
       <select id="txSort">
-        <option value="deadline">Ordenar por: Prazo (mais próximo)</option>
-        <option value="number">Ordenar por: Número</option>
-        <option value="agency">Ordenar por: Órgão</option>
+        <option value="deadline" ${state.tenderSort==='deadline'?'selected':''}>Ordenar por: Prazo (mais próximo)</option>
+        <option value="number" ${state.tenderSort==='number'?'selected':''}>Ordenar por: Número</option>
+        <option value="agency" ${state.tenderSort==='agency'?'selected':''}>Ordenar por: Órgão</option>
       </select>
       <div></div>
       <button type="button" class="tx-export" id="txExport">⇩ Exportar</button>
     </div>
 
     <div class="tx-list-tabs" role="tablist" aria-label="Filtrar licitações por situação">
-      <button type="button" class="active" data-tender-view="all" role="tab" aria-selected="true">Todas</button>
-      ${TENDER_SITUATIONS.map(item=>`<button type="button" data-tender-view="${item.value}" role="tab" aria-selected="false">${item.label}</button>`).join('')}
-      <button type="button" data-tender-view="closed" role="tab" aria-selected="false">Encerradas</button>
+      <button type="button" class="${state.tenderView==='all'?'active':''}" data-tender-view="all" role="tab" aria-selected="${state.tenderView==='all'}">Todas</button>
+      ${TENDER_SITUATIONS.map(item=>`<button type="button" class="${state.tenderView===item.value?'active':''}" data-tender-view="${item.value}" role="tab" aria-selected="${state.tenderView===item.value}">${item.label}</button>`).join('')}
+      <button type="button" class="${state.tenderView==='closed'?'active':''}" data-tender-view="closed" role="tab" aria-selected="${state.tenderView==='closed'}">Encerradas</button>
     </div>
 
     <div class="tx-table-wrap">
@@ -9029,19 +9032,17 @@ function renderTenderManagement(){
     }));
   };
 
-  shell.querySelector('#txSearch')?.addEventListener('input',renderRows);
-  shell.querySelector('#txStatus')?.addEventListener('change',renderRows);
-  shell.querySelector('#txSort')?.addEventListener('change',renderRows);
+  shell.querySelector('#txSearch')?.addEventListener('input',event=>{state.tenderSearch=event.target.value;renderRows();});
+  shell.querySelector('#txStatus')?.addEventListener('change',event=>{state.tenderStatusFilter=event.target.value;renderRows();});
+  shell.querySelector('#txSort')?.addEventListener('change',event=>{state.tenderSort=event.target.value;renderRows();});
   shell.querySelectorAll('[data-tender-view]').forEach(button=>button.addEventListener('click',()=>{
     const view=button.dataset.tenderView||'active';
-    shell.dataset.tenderView=view;
+    state.tenderView=view;
     shell.querySelectorAll('[data-tender-view]').forEach(tab=>{
       const active=tab.dataset.tenderView===view;
       tab.classList.toggle('active',active);
       tab.setAttribute('aria-selected',String(active));
     });
-    const statusSelect=shell.querySelector('#txStatus');
-    if(statusSelect)statusSelect.value='all';
     renderRows();
   }));
 
@@ -9052,6 +9053,7 @@ function renderTenderManagement(){
   shell.querySelector('#txNewTender')?.addEventListener('click',()=>{
     const panel=shell.querySelector('#txNewTenderPanel');
     const open=!panel?.classList.contains('open');
+    state.tenderNewPanelOpen=open;
     panel?.classList.toggle('open',open);
 
     const btn=shell.querySelector('#txNewTender');
@@ -10087,10 +10089,124 @@ function activateDocumentTab(tab='editais',focus=false){
   if(selected==='declaracoes')renderDeclarationWorkspace();
 }
 
+const DECLARATION_TEMPLATES=Array.from({length:16},(_,index)=>{
+  const number=index+1;
+  const file=`DECLARAÇÕES COMPLETAS - EDITAL 13-2026 - SALGADO DE SÃO FÉLIX-${number}.pdf`;
+  return {id:`builtin:${number}`,name:`Declaração ${number}`,url:`assets/declaracoes/${file}`};
+});
+
 function renderDeclarationWorkspace(){
-  const select=$('#declarationTenderSelect');
-  if(!select)return;
-  select.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
+  const tenderSelect=$('#declarationTenderSelect');
+  const templateSelect=$('#declarationTemplateSelect');
+  const button=$('#declarationGenerateButton');
+  const context=$('#declarationContext');
+  if(!tenderSelect||!templateSelect||!button)return;
+  tenderSelect.innerHTML='<option value="">Selecione o edital</option>'+state.licitacoes.map(t=>`<option value="${esc(t.id)}">${esc(t.numero)} • ${esc(t.orgao||t.cidade||'Órgão não informado')}</option>`).join('');
+  templateSelect.innerHTML='<option value="">Selecione a declaração</option>'+DECLARATION_TEMPLATES.map(template=>`<option value="${template.id}">${esc(template.name)}</option>`).join('');
+  tenderSelect.value=state.declarationTenderId||'';
+  templateSelect.value=state.declarationTemplateId||'';
+  button.disabled=!tenderSelect.value||!templateSelect.value;
+  const tender=state.licitacoes.find(row=>String(row.id)===String(tenderSelect.value));
+  if(context){
+    context.hidden=!tender;
+    context.textContent=tender?`Edital selecionado: ${tender.numero||'-'} | Órgão: ${tender.orgao||tender.cidade||'Não informado'} | Data: ${declarationToday()}`:'';
+  }
+}
+
+function declarationToday(){
+  const now=new Date();
+  return `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+}
+
+function declarationReplacementText(text,tender,generatedDate=declarationToday()){
+  return String(text||'')
+    .replace(/Prefeitura\s+Municipal\s+de\s+Salgado\s+de\s+S[aã]o\s+F[eé]lix\/?PB/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
+    .replace(/Prefeitura\s+Municipal\s+de\s+Salgado\s+de\s+S[aã]o\s*$/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
+    .replace(/^\s*F[eé]lix\/?PB\b\s*/giu,'')
+    .replace(/Edital\s*n[ºo°]?\s*13\s*[\/-]\s*2026/giu,`Edital nº ${tender.numero||'-'}`)
+    .replace(/\b01[\/-]09[\/-]2026\b/g,generatedDate);
+}
+
+async function generateDeclarationPdf(){
+  const tender=state.licitacoes.find(row=>String(row.id)===String(state.declarationTenderId));
+  const template=DECLARATION_TEMPLATES.find(row=>row.id===state.declarationTemplateId);
+  if(!tender)return toast('Selecione o edital da declaração.','error');
+  if(!template)return toast('Selecione o modelo de declaração.','error');
+  if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
+  const button=$('#declarationGenerateButton');
+  const status=$('#declarationGeneratorStatus');
+  button.disabled=true;
+  button.textContent='Gerando…';
+  try{
+    const generatedDate=declarationToday();
+    const response=await fetch(template.url,{cache:'no-store'});
+    if(!response.ok)throw new Error('Modelo de declaração não encontrado.');
+    const sourceBytes=await response.arrayBuffer();
+    const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
+    const output=await PDFDocument.load(sourceBytes.slice(0));
+    const font=await output.embedFont(StandardFonts.Helvetica);
+    const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+    const source=await pdfjs.getDocument({data:sourceBytes.slice(0)}).promise;
+    let replacements=0;
+    for(let pageNumber=1;pageNumber<=source.numPages;pageNumber++){
+      const sourcePage=await source.getPage(pageNumber);
+      const content=await sourcePage.getTextContent({normalizeWhitespace:true,disableCombineTextItems:false});
+      const targetPage=output.getPages()[pageNumber-1];
+      const lines=[];
+      for(const item of content.items){
+        if(!item?.str||!item?.transform)continue;
+        const baseline=Number(item.transform[5]||0);
+        let line=lines.find(row=>Math.abs(row.baseline-baseline)<=2.5);
+        if(!line){line={baseline,items:[]};lines.push(line);}
+        line.items.push(item);
+      }
+      for(const line of lines){
+        line.items.sort((a,b)=>Number(a.transform?.[4]||0)-Number(b.transform?.[4]||0));
+        let original='',previousRight=null;
+        for(const item of line.items){
+          const x=Number(item.transform[4]||0);
+          const itemSize=Math.max(7,Math.abs(Number(item.transform[3]||item.height||10)));
+          if(original&&previousRight!=null&&x-previousRight>Math.max(.8,itemSize*.08)&&!original.endsWith(' ')&&!String(item.str).startsWith(' '))original+=' ';
+          original+=String(item.str);
+          previousRight=Math.max(previousRight??x,x+Number(item.width||0));
+        }
+        const replacement=declarationReplacementText(original,tender,generatedDate);
+        if(replacement===original)continue;
+        const x=Math.min(...line.items.map(item=>Number(item.transform?.[4]||0)));
+        const right=Math.max(...line.items.map(item=>Number(item.transform?.[4]||0)+Number(item.width||0)));
+        const baseline=line.baseline;
+        const size=Math.max(7,Math.min(13,...line.items.map(item=>Math.abs(Number(item.transform?.[3]||item.height||10)))));
+        const originalWidth=Math.max(right-x,20);
+        const replacementWidth=font.widthOfTextAtSize(replacement,size);
+        const fittedSize=Math.max(6,Math.min(size,(originalWidth/Math.max(replacementWidth,1))*size));
+        targetPage.drawRectangle({x:x-1,y:baseline-2,width:originalWidth+3,height:size+5,color:rgb(1,1,1)});
+        if(replacement.trim())targetPage.drawText(replacement,{x,y:baseline,size:fittedSize,font,color:rgb(.08,.08,.08)});
+        replacements++;
+      }
+    }
+    const firstPage=output.getPages()[0];
+    const {width,height}=firstPage.getSize();
+    const metadata=`Órgão: ${tender.orgao||tender.cidade||'Não informado'}  |  Edital: ${tender.numero||'-'}  |  Data: ${generatedDate}`;
+    const metadataSize=Math.max(6.5,Math.min(9,((width-100)/Math.max(font.widthOfTextAtSize(metadata,9),1))*9));
+    firstPage.drawRectangle({x:48,y:height-296,width:width-96,height:18,color:rgb(1,1,1),borderColor:rgb(.72,.52,.08),borderWidth:.7});
+    firstPage.drawText(metadata,{x:56,y:height-290,size:metadataSize,font,color:rgb(.08,.08,.08)});
+    const bytes=await output.save();
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(tender.orgao||tender.cidade||'orgao')} - Edital ${quoteExportSafePart(tender.numero||'edital')} - ${generatedDate.replace(/\//g,'-')}.pdf`;
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1200);
+    if(status){status.classList.remove('is-error');status.textContent=`Declaração gerada para ${tender.orgao||'órgão selecionado'} - Edital ${tender.numero||'-'} - Data ${generatedDate}. O arquivo foi nomeado com esses dados.`;}
+  }catch(error){
+    if(status){status.classList.add('is-error');status.textContent=error.message||'Não foi possível gerar a declaração.';}
+    toast(error.message||'Não foi possível gerar a declaração.','error');
+  }finally{
+    button.disabled=false;
+    button.textContent='Gerar declaração';
+  }
 }
 
 function proposalRows(tenderId){
@@ -11711,6 +11827,62 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{const target=$('#'+btn.dataset.tab);if(!target)return;document.querySelectorAll('.tabs button[data-tab],.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');target.classList.add('active');}));
+function initGroupedNavigation(){
+  let closeTimer=null;
+  const triggers=[...document.querySelectorAll('[data-menu]')];
+  const popovers=[...document.querySelectorAll('.nav-menu-popover')];
+  const closeAll=()=>{
+    clearTimeout(closeTimer);
+    popovers.forEach(menu=>menu.hidden=true);
+    triggers.forEach(trigger=>{trigger.classList.remove('menu-open');trigger.setAttribute('aria-expanded','false');});
+  };
+  const openMenu=trigger=>{
+    clearTimeout(closeTimer);
+    const menu=document.querySelector(`[data-popover="${trigger.dataset.menu}"]`);
+    if(!menu)return;
+    closeAll();
+    const header=document.querySelector('.topbar-v27');
+    const triggerRect=trigger.getBoundingClientRect();
+    const headerRect=header?.getBoundingClientRect();
+    menu.hidden=false;
+    menu.style.left=`${Math.max(8,triggerRect.left-(headerRect?.left||0))}px`;
+    menu.style.top=`${header?.offsetHeight||72}px`;
+    trigger.classList.add('menu-open');
+    trigger.setAttribute('aria-expanded','true');
+  };
+  const scheduleClose=()=>{closeTimer=setTimeout(closeAll,180);};
+  triggers.forEach(trigger=>{
+    trigger.setAttribute('aria-haspopup','menu');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.addEventListener('mouseenter',()=>openMenu(trigger));
+    trigger.addEventListener('mouseleave',scheduleClose);
+    trigger.addEventListener('click',event=>{
+      event.stopPropagation();
+      openMenu(trigger);
+    });
+    trigger.addEventListener('keydown',event=>{
+      if(['Enter',' ','ArrowDown'].includes(event.key)){event.preventDefault();openMenu(trigger);document.querySelector(`[data-popover="${trigger.dataset.menu}"] button`)?.focus();}
+      if(event.key==='Escape')closeAll();
+    });
+  });
+  popovers.forEach(menu=>{
+    menu.setAttribute('role','menu');
+    menu.addEventListener('mouseenter',()=>clearTimeout(closeTimer));
+    menu.addEventListener('mouseleave',scheduleClose);
+  });
+  document.querySelectorAll('[data-menu-tab]').forEach(item=>item.addEventListener('click',()=>{
+    document.querySelector(`#mainTabs [data-tab="${item.dataset.menuTab}"]`)?.click();
+    closeAll();
+  }));
+  document.querySelectorAll('[data-document-menu-tab]').forEach(item=>item.addEventListener('click',()=>{
+    document.querySelector('#mainTabs [data-tab="arquivos"]')?.click();
+    activateDocumentTab(item.dataset.documentMenuTab);
+    closeAll();
+  }));
+  document.addEventListener('click',closeAll);
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')closeAll();});
+}
+initGroupedNavigation();
 $('#bidAgentTender')?.addEventListener('change',event=>{
   state.bidAgentTenderId=event.target.value||'';
   state.bidAgentItemId=state.itens.find(item=>String(item.licitacao_id)===String(state.bidAgentTenderId))?.id||'';
@@ -11849,6 +12021,15 @@ $('#proposalValidityDays')?.addEventListener('input',event=>{
   state.proposalValidityDays=event.target.value||'';
 });
 $('#proposalPdfButton')?.addEventListener('click',exportProposalPdf);
+$('#declarationTenderSelect')?.addEventListener('change',event=>{
+  state.declarationTenderId=event.target.value||'';
+  renderDeclarationWorkspace();
+});
+$('#declarationTemplateSelect')?.addEventListener('change',event=>{
+  state.declarationTemplateId=event.target.value||'';
+  renderDeclarationWorkspace();
+});
+$('#declarationGenerateButton')?.addEventListener('click',generateDeclarationPdf);
 let forceRefreshInFlight=false;
 $('#forceRefreshBtn')?.addEventListener('click',async event=>{
   if(forceRefreshInFlight)return;
@@ -11858,7 +12039,15 @@ $('#forceRefreshBtn')?.addEventListener('click',async event=>{
   button.textContent='↻ Atualizando…';
   try{
     if(state.demo){renderAll();toast('Dados da demonstração atualizados.','success');}
-    else {await refreshAll();toast('Dados atualizados.','success');}
+    else {await refreshAll();}
+    if('serviceWorker' in navigator){
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(registration=>registration.update().catch(()=>null)));
+    }
+    const url=new URL(location.href);
+    url.searchParams.set('atualizacao',Date.now().toString());
+    toast('Aplicativo atualizado. Recarregando…','success');
+    setTimeout(()=>location.replace(url.toString()),350);
   }catch(error){toast(`Não foi possível atualizar: ${error.message||error}`,'error');}
   finally{forceRefreshInFlight=false;button.disabled=false;button.textContent='↻ Atualizar';}
 });
@@ -11960,14 +12149,6 @@ $('#simItem')?.addEventListener('change', () => {
 $('#simBid')?.addEventListener('input', renderBidSimulator);
 
 initAppearanceControls();
-
-$('#pncpYear') && ($('#pncpYear').value = new Date().getFullYear());
-
-$('#pncpSearchForm')?.addEventListener('submit',async e=>{
-  e.preventDefault();
-  const f=Object.fromEntries(new FormData(e.target));
-  await searchPncp(String(f.query||'').trim());
-});
 
 document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-pncp-control],[data-pncp-cnpj]');

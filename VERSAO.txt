@@ -1,1 +1,1 @@
-36.86.0 - Adiciona abas Automática e Seleção manual para produtos da cotação.
+36.88.0 - Declarações com órgão, edital, data e nome do arquivo preenchidos automaticamente.
