@@ -1,1 +1,1 @@
-39.2.0 - Declarações salvas na pasta para reutilização.
+39.3.0 - Correção dos números de edital nas declarações.

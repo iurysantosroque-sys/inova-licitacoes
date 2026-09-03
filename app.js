@@ -10138,7 +10138,7 @@ function activateDocumentTab(tab='editais',focus=false){
   if(selected==='controle')renderDocumentControlWorkspace();
 }
 
-const CONTROL_DECLARATIONS_STORAGE_KEY='inova-control-declarations-v1';
+const CONTROL_DECLARATIONS_STORAGE_KEY='inova-control-declarations-v2';
 function controlDeclarationBytesToBase64(bytes){let binary='';const data=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);for(let index=0;index<data.length;index+=0x8000)binary+=String.fromCharCode(...data.subarray(index,index+0x8000));return btoa(binary);}
 function controlDeclarationBase64ToBytes(value){const binary=atob(value||'');const bytes=new Uint8Array(binary.length);for(let index=0;index<binary.length;index++)bytes[index]=binary.charCodeAt(index);return bytes;}
 function controlDeclarationStorageRead(){try{return JSON.parse(localStorage.getItem(CONTROL_DECLARATIONS_STORAGE_KEY)||'{}')||{};}catch{return {};}}
@@ -10233,7 +10233,7 @@ function declarationReplacementText(text,tender,generatedDate=declarationToday()
     .replace(/SALGADO\s+DE\s+S[AÃ]O\s+F[EÉ]LIX\s*\/?\s*PB?/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
     .replace(/^\s*F[eé]lix\/?PB\b\s*/giu,'')
     .replace(/Edital\s*n[ºo°]?\s*13\s*[\/-]\s*2026/giu,`Edital nº ${tender.numero||'-'}`)
-    .replace(/Edital\s*n[ºo°]?\s*13\s*\/\s*2026/giu,`Edital nº ${tender.numero||'-'}`)
+    .replace(/\b13\s*[\/-]\s*2026\b/giu,String(tender.numero||'-'))
     .replace(/\b01[\/-]09[\/-]2026\b/g,generatedDate);
 }
 
