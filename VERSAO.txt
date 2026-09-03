@@ -1,1 +1,1 @@
-38.8.0 - Conteúdo das declarações organizado dentro da subpasta com ícones e nomes.
+38.9.0 - Lista de declarações simplificada com ícone pequeno e nome ao lado.
