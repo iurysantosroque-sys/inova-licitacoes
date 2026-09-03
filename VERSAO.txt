@@ -1,1 +1,1 @@
-37.5.0 - Nova aba Controle de Documentos com pastas por licitação aguardando habilitação.
+37.6.0 - Ícone personalizado nas pastas do Controle de Documentos.
