@@ -1,1 +1,1 @@
-38.2.0 - Remoção das descrições extras nas subpastas.
+38.3.0 - Remoção do aviso auxiliar dentro da pasta da licitação.
