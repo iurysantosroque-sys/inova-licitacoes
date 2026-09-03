@@ -1,1 +1,1 @@
-39.0.1 - Nomes das declarações abreviados e exibidos em branco.
+39.1.0 - Declarações vinculadas ao órgão e edital de cada pasta.

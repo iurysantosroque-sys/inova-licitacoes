@@ -10155,7 +10155,7 @@ function renderDocumentControlWorkspace(){
   const close=()=>{if(modal)modal.hidden=true;};
   let activeTender=null;
   el.querySelectorAll('[data-control-tender]').forEach(folder=>folder.addEventListener('click',()=>{const tender=eligible.find(row=>String(row.id)===String(folder.dataset.controlTender));if(!tender)return;activeTender=tender;el.querySelector('#documentControlFolderTitle').textContent=`Edital ${tender.numero||'-'}`;el.querySelector('#documentControlFolderSubtitle').textContent=`${tender.orgao||tender.cidade||'Órgão não informado'}${tender.cidade?' • '+tender.cidade:''}`;modal.hidden=false;}));
-  el.querySelector('[data-control-subfolder="declaracoes"]')?.addEventListener('click',async()=>{if(!activeTender)return;const area=el.querySelector('#documentControlDeclarationsArea');el.querySelector('.document-subfolder-grid').hidden=true;area.hidden=false;area.innerHTML='<div class="document-control-generating">Gerando declarações para este edital…</div>';state.declarationTenderId=activeTender.id;const files=state.controlFolderFiles[activeTender.id]||[];if(files.length){renderControlDeclarationFiles(area,files);return;}const generated=[];for(const template of DECLARATION_TEMPLATES){const bytes=await generateDeclarationPdf({template,returnBytes:true});if(bytes){const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));generated.push({name:`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(activeTender.orgao||activeTender.cidade||'orgao')} - Edital ${quoteExportSafePart(activeTender.numero||'edital')}.pdf`,displayName:declarationShortName(template.name),url});}}state.controlFolderFiles[activeTender.id]=generated;renderControlDeclarationFiles(area,generated);});
+  el.querySelector('[data-control-subfolder="declaracoes"]')?.addEventListener('click',async()=>{if(!activeTender)return;const area=el.querySelector('#documentControlDeclarationsArea');el.querySelector('.document-subfolder-grid').hidden=true;area.hidden=false;area.innerHTML='<div class="document-control-generating">Gerando declarações para este edital…</div>';state.declarationTenderId=activeTender.id;const previous=state.controlFolderFiles[activeTender.id]||[];previous.forEach(file=>{if(file.url)URL.revokeObjectURL(file.url);});const generated=[];for(const template of DECLARATION_TEMPLATES){const bytes=await generateDeclarationPdf({template,tenderId:activeTender.id,returnBytes:true});if(bytes){const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));generated.push({name:`${quoteExportSafePart(template.name)} - ${quoteExportSafePart(activeTender.orgao||activeTender.cidade||'orgao')} - Edital ${quoteExportSafePart(activeTender.numero||'edital')}.pdf`,displayName:declarationShortName(template.name),url});}}state.controlFolderFiles[activeTender.id]=generated;renderControlDeclarationFiles(area,generated);});
   el.addEventListener('click',event=>{if(!event.target.closest('[data-control-subfolders-back]'))return;el.querySelector('.document-subfolder-grid').hidden=false;el.querySelector('#documentControlDeclarationsArea').hidden=true;});
   el.querySelector('#documentControlFolderClose')?.addEventListener('click',close);el.querySelector('#documentControlFolderBack')?.addEventListener('click',close);modal?.addEventListener('click',event=>{if(event.target===modal)close();});
 }
@@ -10223,13 +10223,16 @@ function declarationReplacementText(text,tender,generatedDate=declarationToday()
   return String(text||'')
     .replace(/Prefeitura\s+Municipal\s+de\s+Salgado\s+de\s+S[aã]o\s+F[eé]lix\/?PB/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
     .replace(/Prefeitura\s+Municipal\s+de\s+Salgado\s+de\s+S[aã]o\s*$/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
+    .replace(/MUNIC[IÍ]PIO\s+DE\s+SALGADO\s+DE\s+S[AÃ]O\s+F[EÉ]LIX\s*\/?\s*PB?/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
+    .replace(/SALGADO\s+DE\s+S[AÃ]O\s+F[EÉ]LIX\s*\/?\s*PB?/giu,String(tender.orgao||tender.cidade||'Órgão não informado'))
     .replace(/^\s*F[eé]lix\/?PB\b\s*/giu,'')
     .replace(/Edital\s*n[ºo°]?\s*13\s*[\/-]\s*2026/giu,`Edital nº ${tender.numero||'-'}`)
+    .replace(/Edital\s*n[ºo°]?\s*13\s*\/\s*2026/giu,`Edital nº ${tender.numero||'-'}`)
     .replace(/\b01[\/-]09[\/-]2026\b/g,generatedDate);
 }
 
 async function generateDeclarationPdf(options={}){
-  const tender=state.licitacoes.find(row=>String(row.id)===String(state.declarationTenderId));
+  const tender=state.licitacoes.find(row=>String(row.id)===String(options.tenderId||state.declarationTenderId));
   const template=options.template||DECLARATION_TEMPLATES.find(row=>row.id===state.declarationTemplateId);
   if(!tender)return toast('Selecione o edital da declaração.','error');
   if(!template)return toast('Selecione o modelo de declaração.','error');
