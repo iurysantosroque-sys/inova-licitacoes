@@ -805,3 +805,12 @@ tr:hover td{background:#0a141a}
 .declaration-bulk-actions button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:700px){.declaration-bulk-actions button{margin-left:0;width:100%}}
 .declaration-generator-form>button{align-self:end;min-width:150px;width:auto;padding:10px 14px;font-size:.82rem}
+.declaration-import-trigger{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #1d3440}
+.declaration-import-trigger button{border:1px solid #35515e;border-radius:7px;background:transparent;color:#dce6eb;padding:8px 12px;font-size:.78rem;cursor:pointer}
+.declaration-import-trigger button:hover{border-color:var(--gold,#efb126);color:var(--gold,#efb126)}
+.declaration-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(2,9,13,.72);backdrop-filter:blur(4px)}
+.declaration-modal[hidden]{display:none}
+.declaration-modal-card{width:min(640px,100%);border:1px solid #2d4d5b;border-radius:14px;background:#0a1b25;box-shadow:0 24px 70px rgba(0,0,0,.5);padding:22px}
+.declaration-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.declaration-modal-head h2{margin:0 0 5px;color:var(--gold,#efb126);font-size:1.15rem}.declaration-modal-close{border:0;background:transparent;color:#9fb0b8;font-size:1.7rem;line-height:1;cursor:pointer}.declaration-modal-close:hover{color:#fff}
+.declaration-modal-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}.declaration-modal-form label{display:grid;gap:7px;color:#cfd9de;font-size:.8rem}.declaration-modal-form input{width:100%;box-sizing:border-box;border:1px solid #294654;border-radius:8px;background:#07151d;color:#e6edf0;padding:11px;font:inherit}.declaration-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.declaration-modal-actions button{border:1px solid var(--gold,#efb126);border-radius:8px;padding:10px 16px;background:var(--gold,#efb126);color:#101820;font-weight:700;cursor:pointer}.declaration-modal-actions .secondary{background:transparent;color:#dce6eb;border-color:#39515d}
+@media(max-width:650px){.declaration-modal-form{grid-template-columns:1fr}.declaration-import-trigger{align-items:flex-start;flex-direction:column}}

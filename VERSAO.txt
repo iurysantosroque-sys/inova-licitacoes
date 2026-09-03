@@ -1,1 +1,1 @@
-36.97.0 - Remoção do aviso fixo da geração de declarações.
+36.98.0 - Importação de edital/modelo em modal sobre a aba atual.

@@ -12116,6 +12116,20 @@ $('#declarationSelectAll')?.addEventListener('change',event=>{
   renderDeclarationWorkspace();
 });
 $('#declarationGenerateButton')?.addEventListener('click',()=>Array.isArray(state.declarationTemplateIds)&&state.declarationTemplateIds.length>1?generateDeclarationZip():generateDeclarationPdf());
+const declarationImportModal=$('#declarationImportModal');
+const closeDeclarationImport=()=>{if(declarationImportModal)declarationImportModal.hidden=true;};
+$('#openDeclarationImportButton')?.addEventListener('click',()=>{if(declarationImportModal)declarationImportModal.hidden=false;});
+$('#closeDeclarationImportButton')?.addEventListener('click',closeDeclarationImport);
+$('#cancelDeclarationImportButton')?.addEventListener('click',closeDeclarationImport);
+declarationImportModal?.addEventListener('click',event=>{if(event.target===declarationImportModal)closeDeclarationImport();});
+$('#declarationImportButton')?.addEventListener('click',()=>{
+  const name=$('#declarationTemplateName')?.value.trim();
+  const file=$('#declarationTemplateFile')?.files?.[0];
+  const status=$('#declarationImportStatus');
+  if(!name||!file){if(status){status.hidden=false;status.classList.add('is-error');status.textContent='Informe o nome e selecione um arquivo PDF.';}return;}
+  if(file.type!=='application/pdf'){if(status){status.hidden=false;status.classList.add('is-error');status.textContent='Selecione um arquivo PDF válido.';}return;}
+  if(status){status.hidden=false;status.classList.remove('is-error');status.textContent='Modelo recebido. O armazenamento da equipe será concluído ao conectar o Storage privado.';}
+});
 let forceRefreshInFlight=false;
 $('#forceRefreshBtn')?.addEventListener('click',async event=>{
   if(forceRefreshInFlight)return;
