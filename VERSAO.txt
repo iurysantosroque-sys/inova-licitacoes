@@ -1,1 +1,1 @@
-37.7.0 - Pastas lado a lado com órgão e edital centralizados sobre o ícone.
+37.8.0 - Pastas no modelo compacto, lado a lado, com fundo integrado.
