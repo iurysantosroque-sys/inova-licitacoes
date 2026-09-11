@@ -152,6 +152,8 @@ let state = {
 licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
+state.quotedProducts=[];
+
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
 
 const TENDER_SITUATIONS=[
@@ -254,6 +256,81 @@ function dateBR(v,withTime=false){
     year:'numeric',
     ...(withTime?{hour:'2-digit',minute:'2-digit',hour12:false}:{})
   }).format(d).replace(',','');
+}
+
+let supplierCatalogView='fornecedores';
+
+function quotedProductIsExpired(product,now=Date.now()){
+  const expiresAt=new Date(product?.expires_at||'').getTime();
+  return Number.isFinite(expiresAt)&&expiresAt<=now;
+}
+
+function quotedProductSupplierName(product){
+  return state.fornecedores.find(supplier=>String(supplier.id)===String(product?.supplier_id))?.nome||'Fornecedor não encontrado';
+}
+
+function quotedProductCsvCell(value){
+  const text=String(value??'').replace(/"/g,'""');
+  return /[;"\r\n]/.test(text)?`"${text}"`:text;
+}
+
+function downloadQuotedProductsCsv(products){
+  if(!products?.length)return toast('Não há itens vencidos para baixar.','error');
+  const header=['Produto','Fornecedor','Unidade','Quantidade','Valor unitário','Cotado em','Venceu em'];
+  const lines=[header,...products.map(product=>[
+    product.product_name,
+    quotedProductSupplierName(product),
+    product.unit||'',
+    product.quoted_quantity??'',
+    Number(product.unit_price||0).toFixed(2).replace('.',','),
+    dateBR(product.quoted_at),
+    dateBR(product.expires_at)
+  ])].map(row=>row.map(quotedProductCsvCell).join(';'));
+  const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');
+  link.href=url;
+  link.download='itens-vencidos-para-nova-cotacao.csv';
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function renderSupplierCatalogTabs(){
+  const showingQuotes=supplierCatalogView==='cotados';
+  const directory=$('#supplierDirectoryView'), catalog=$('#supplierQuotedProductsView');
+  if(directory)directory.hidden=showingQuotes;
+  if(catalog)catalog.hidden=!showingQuotes;
+  document.querySelectorAll('[data-supplier-catalog-view]').forEach(button=>{
+    const active=button.dataset.supplierCatalogView===supplierCatalogView;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-selected',String(active));
+  });
+}
+
+function renderQuotedProductsCatalog(){
+  const target=$('#quotedProductsList');
+  if(!target)return;
+  const rows=state.quotedProducts||[];
+  const active=rows.filter(product=>!quotedProductIsExpired(product));
+  const expired=rows.filter(product=>quotedProductIsExpired(product));
+  const download=$('#downloadExpiredQuotedProducts');
+  if(download){download.hidden=!expired.length;download.disabled=!expired.length;}
+  const activeRows=active.map(product=>[
+    esc(product.product_name||'-'),
+    esc(quotedProductSupplierName(product)),
+    esc(product.unit||'-'),
+    esc(product.quoted_quantity??'-'),
+    money(product.unit_price),
+    `<span class="quoted-product-date">${dateBR(product.expires_at)}</span>`
+  ]);
+  const expiredRows=expired.map(product=>[
+    esc(product.product_name||'-'),
+    esc(quotedProductSupplierName(product)),
+    esc(product.unit||'-'),
+    esc(product.quoted_quantity??'-'),
+    money(product.unit_price),
+    `<button type="button" class="quoted-product-download" data-download-expired-product="${esc(product.id)}">Baixar</button>`
+  ]);
+  target.innerHTML=`<div class="quoted-products-summary"><span><b>${active.length}</b> ativo${active.length===1?'':'s'}</span><span><b>${expired.length}</b> vencido${expired.length===1?'':'s'}</span></div>${active.length?`<section class="quoted-products-section"><h3>Itens ativos</h3><p>Disponíveis até 20 dias após a cotação.</p>${table(['Produto','Fornecedor','Unidade','Qtd.','Valor unitário','Válido até'],activeRows)}</section>`:''}${expired.length?`<section class="quoted-products-section quoted-products-expired"><h3>Itens vencidos</h3><p>Baixe estes itens para solicitar uma nova cotação.</p>${table(['Produto','Fornecedor','Unidade','Qtd.','Último valor',''],expiredRows)}</section>`:''}${!rows.length?'<p class="hint quoted-products-empty">Nenhum item cotado ainda. Os itens e valores unitários das próximas cotações serão registrados aqui automaticamente.</p>':''}`;
 }
 
 function weekdayBR(v){
@@ -4741,14 +4818,15 @@ async function fetchAllSupabaseRows(table,filterColumn,ids,orderColumns=[]){
 async function refreshAll(){
   if(state.demo){ renderAll(); return; }
   const cid=currentCompanyId(); if(!cid)return;
-  const [settings,tenders,suppliers,quotes,members]=await Promise.all([
+  const [settings,tenders,suppliers,quotes,members,quotedProducts]=await Promise.all([
     supabase.from('pricing_settings').select('*').eq('company_id',cid).maybeSingle(),
     supabase.from('tenders').select('*').eq('company_id',cid).order('dispute_at',{ascending:true,nullsFirst:false}),
     supabase.from('suppliers').select('*').eq('company_id',cid).order('name'),
     supabase.from('quotes').select('*').eq('company_id',cid).order('created_at',{ascending:false}),
-    supabase.from('company_members').select('*').eq('company_id',cid).order('created_at')
+    supabase.from('company_members').select('*').eq('company_id',cid).order('created_at'),
+    supabase.from('quoted_products').select('*').eq('company_id',cid).order('expires_at',{ascending:true})
   ]);
-  const err=[settings,tenders,suppliers,quotes,members].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
+  const err=[settings,tenders,suppliers,quotes,members,quotedProducts].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
   state.config={
     imposto:Number(settings.data?.tax_percent??6),margem_alvo:Number(settings.data?.target_margin_percent??25),
     lucro_minimo:Number(settings.data?.minimum_profit_amount??500),margem_minima:Number(settings.data?.minimum_margin_percent??10),
@@ -4781,6 +4859,12 @@ async function refreshAll(){
   state.fornecedores=(suppliers.data||[]).map(f=>({id:f.id,nome:f.name,nome_fantasia:f.trade_name||'',uf:supplierUfFromPhone(f.phone||'')||((f.state_uf||'').length===2?f.state_uf:''),cnpj:f.cnpj,vendedor:f.contact_name||'',telefone:f.phone||'',email:f.email||'',frete_padrao:Number(f.default_freight_amount||0),pedido_minimo:Number(f.minimum_order||0),prazo_dias:f.delivery_days,raw:f}));
   if(!state.demo){const needsUf=(suppliers.data||[]).filter(f=>supplierUfFromPhone(f.phone||'')&&supplierUfFromPhone(f.phone||'')!==f.state_uf);if(needsUf.length)Promise.all(needsUf.map(f=>supabase.from('suppliers').update({state_uf:supplierUfFromPhone(f.phone)}).eq('id',f.id))).catch(()=>{});}
   state.quotes=quotes.data||[];
+  state.quotedProducts=(quotedProducts.data||[]).map(product=>({
+    ...product,
+    unit_price:Number(product.unit_price||0),
+    quoted_quantity:product.quoted_quantity===null?null:Number(product.quoted_quantity),
+    package_base_quantity:Number(product.package_base_quantity||1)
+  }));
   const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
   if(tenderDocumentsResp.error){
     state.tenderDocuments=[];
@@ -11381,6 +11465,8 @@ function renderAll(){
     }))
     : '<p class="hint">Nenhum fornecedor cadastrado ainda.</p>';
   $('#fornecedoresLista').innerHTML=`<div class="supplier-kpis"><article class="supplier-kpi"><span>Total de fornecedores</span><strong>${state.fornecedores.length}</strong><small>cadastrados</small></article><article class="supplier-kpi"><span>Com telefone</span><strong>${supplierWithPhone}</strong><small>contatos registrados</small></article><article class="supplier-kpi"><span>WhatsApp disponível</span><strong>${supplierWhatsapp}</strong><small>acesso em um clique</small></article></div><div class="supplier-list">${supplierList}</div>`;
+  renderQuotedProductsCatalog();
+  renderSupplierCatalogTabs();
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   if($('#itemLicitacao'))$('#itemLicitacao').innerHTML=licOpts;
   if($('#arquivoLicitacao'))$('#arquivoLicitacao').innerHTML=licOpts;
@@ -11435,6 +11521,8 @@ function demoSeed(){
   state.pricingItemResultsLoadedFor='';loadLocalPricingItemResults();
   state.licitacoes=[{id:'l1',numero:'PE 050/2026',orgao:'Prefeitura Municipal',cidade:'PB',data:'2026-08-26',horario:'09:00',plataforma:'Portal de Compras Públicas',pncp_control:'11308823000103-1-000027/2026',source_url:'https://pncp.gov.br/app/editais/11308823000103/2026/27'}];
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
+  const quotedAt=new Date();
+  state.quotedProducts=[{id:'qp-demo-1',supplier_id:'f1',product_name:'Desengraxante líquido',unit:'L',quoted_quantity:500,unit_price:6.38,quoted_at:quotedAt.toISOString(),expires_at:new Date(quotedAt.getTime()+20*86400000).toISOString()}];
   state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.qualificationDocuments=[{id:'qd1',company_id:'demo',tender_id:null,document_series_id:'qs1',version:1,document_type:'FGTS/CRF',name:'Certificado de Regularidade do FGTS',issuer:'Caixa Econômica Federal',issued_on:'2026-08-01',expires_on:'2026-09-12',has_no_expiry:false,file_name:'crf-demo.pdf',storage_path:'demo/qs1/qd1-crf-demo.pdf',created_at:new Date().toISOString()}];state.qualificationError='';state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
 }
 
@@ -11509,6 +11597,17 @@ $('#novoFornecedor')?.addEventListener('click',()=>{const form=$('#fornecedorFor
 function closeSupplierProductModal(){const modal=$('#supplierProductModal');if(modal)modal.hidden=true;}
 function openSupplierProductModal(supplierId=''){const modal=$('#supplierProductModal');if(!modal)return;const select=$('#supplierProductSupplier');if(select)select.innerHTML='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${esc(f.id)}">${esc(f.nome)}</option>`).join('');if(select)select.value=supplierId||'';$('#supplierProductFile').value='';$('#supplierProductStatus').hidden=true;document.querySelectorAll('[data-supplier-product-tab]').forEach((tab,index)=>tab.classList.toggle('active',index===0));document.querySelectorAll('[data-supplier-product-panel]').forEach((panel,index)=>panel.hidden=index!==0);modal.hidden=false;select?.focus();}
 $('#novoProduto')?.addEventListener('click',openSupplierProductModal);$('#closeSupplierProductButton')?.addEventListener('click',closeSupplierProductModal);$('#cancelSupplierProductButton')?.addEventListener('click',closeSupplierProductModal);$('#supplierProductModal')?.addEventListener('click',event=>{if(event.target.id==='supplierProductModal')closeSupplierProductModal();});
+document.querySelectorAll('[data-supplier-catalog-view]').forEach(button=>button.addEventListener('click',()=>{
+  supplierCatalogView=button.dataset.supplierCatalogView==='cotados'?'cotados':'fornecedores';
+  renderSupplierCatalogTabs();
+}));
+$('#downloadExpiredQuotedProducts')?.addEventListener('click',()=>downloadQuotedProductsCsv((state.quotedProducts||[]).filter(quotedProductIsExpired)));
+document.addEventListener('click',event=>{
+  const button=event.target.closest('[data-download-expired-product]');
+  if(!button)return;
+  const product=(state.quotedProducts||[]).find(row=>String(row.id)===String(button.dataset.downloadExpiredProduct));
+  if(product)downloadQuotedProductsCsv([product]);
+});
 document.querySelectorAll('[data-supplier-product-tab]').forEach(tab=>tab.addEventListener('click',()=>{const selected=tab.dataset.supplierProductTab;document.querySelectorAll('[data-supplier-product-tab]').forEach(item=>item.classList.toggle('active',item===tab));document.querySelectorAll('[data-supplier-product-panel]').forEach(panel=>panel.hidden=panel.dataset.supplierProductPanel!==selected);}));
 $('#saveSupplierProductButton')?.addEventListener('click',async()=>{const supplier=$('#supplierProductSupplier')?.value;const file=$('#supplierProductFile')?.files?.[0];const status=$('#supplierProductStatus');if(!supplier)return toast('Selecione um fornecedor.','error');if(!file)return toast('Selecione um arquivo PDF de cotação.','error');if(!/\.pdf$/i.test(file.name))return toast('Por enquanto, importe um PDF de cotação.','error');const button=$('#saveSupplierProductButton');if(button){button.disabled=true;button.textContent='Lendo PDF…';}try{const rows=compactExtractedQuoteRows(await parsePdfFile(file));if(!rows.length)throw new Error('Não encontrei produtos com preço no PDF.');const stored=readSupplierProducts();const existing=stored[String(supplier)]||[];stored[String(supplier)]=existing.concat(rows.map(row=>({...row,source_file:file.name,imported_at:new Date().toISOString()})));writeSupplierProducts(stored);closeSupplierProductModal();const item=state.fornecedores.find(row=>String(row.id)===String(supplier));if(item)openSupplierProducts(item);toast(`${rows.length} produto(s) importado(s) com sucesso.`);}catch(error){if(status){status.hidden=false;status.classList.add('is-error');status.textContent=error.message||'Não foi possível ler o PDF.';}toast(error.message||'Não foi possível ler o PDF.','error');}finally{if(button){button.disabled=false;button.textContent='Salvar produtos';}}});
 let supplierCnpjLookupTimer;

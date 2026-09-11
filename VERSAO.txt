@@ -1,1 +1,1 @@
-42.2.0 - Normalização ampliada dos itens retornados pelo PNCP.
+43.0.0 - Catálogo persistente de produtos cotados, validade de 20 dias e exportação de itens vencidos.
