@@ -8021,9 +8021,8 @@ async function savePricingWinningUnit(itemId,value){
 }
 
 function pricingSheetMoney(value){
-  return value==null||!Number.isFinite(Number(value))
-    ? '<span class="pricing-sheet-pending">Pendente</span>'
-    : money(Number(value));
+  if(value==null||!Number.isFinite(Number(value)))return '<span class="pricing-sheet-pending">Pendente</span>';
+  return (Math.trunc(Number(value)*1000)/1000).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:3});
 }
 
 function renderPricingExactModel(){
@@ -8311,16 +8310,22 @@ function renderPricingExactModel(){
       }
       const quote=await findOrCreateQuote(tenderId,supplierId);
       if(!quote)return;
-      const {error}=await supabase.from('quote_items').insert({
+      const {data:insertedQuoteItem,error}=await supabase.from('quote_items').insert({
         quote_id:quote.id,tender_item_id:item.id,supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,
         brand:String(values.marca||'').trim()||null,
         package_description:String(values.apresentacao||'').trim()||null,
         package_base_quantity:factor,unit_price:price,freight_per_package:freight
-      });
+      }).select().single();
       if(error)throw error;
+      const localQuote={id:insertedQuoteItem.id,quote_id:quote.id,item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim(),supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,origem_licitacao_id:tenderId,quote_tender_id:tenderId,origem_item_descricao:item.descricao,origem_item_unidade:item.unidade};
+      state.cotacoes=state.cotacoes.filter(row=>!(String(row.item_id)===String(item.id)&&String(row.fornecedor_id)===supplierId&&String(row.quote_id)===String(quote.id)));
+      state.cotacoes.push(localQuote);
+      state.pricingMap=state.pricingMap.filter(row=>String(row.item_id)!==String(item.id));
       manualDialog?.close?.();
       toast('Cotação manual salva. Valores e marca atualizados na tabela.');
-      await refreshAll();
+      renderPricingExactModel();
+      // Limpa versões anteriores sem bloquear a atualização visual.
+      supabase.from('quote_items').delete().eq('quote_id',quote.id).eq('tender_item_id',item.id).neq('id',insertedQuoteItem.id).then(()=>{}).catch(()=>{});
     }catch(error){
       toast(error?.message||'Não foi possível salvar a cotação manual.','error');
     }finally{
