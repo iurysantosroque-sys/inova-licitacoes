@@ -5150,7 +5150,7 @@ function renderQuoteRequestHub(tender,items){
     const email=String(supplier?.email||'').trim();
     const requestTender=state.licitacoes.find(item=>String(item.id)===String(request.tender_id));
     const emailHref=email?`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Cotação — Edital ${requestTender?.numero||''}`)}&body=${encodeURIComponent(message)}`:'';
-    return `<article class="quote-request-card"><div><strong>${esc(supplier?.nome||'Fornecedor')}</strong><span class="badge ${status.className}">${status.label}</span><small>${coverage.answered.length}/${coverage.requested.length} itens com preço • prazo ${dateBR(row.due_at||request.due_at,true)}</small>${row.reminder_count?`<small>${row.reminder_count} cobrança${row.reminder_count===1?'':'s'} registrada${row.reminder_count===1?'':'s'}</small>`:''}</div><div class="quote-request-actions"><button type="button" class="action-btn" data-copy-quote-request="${esc(row.id)}">Copiar mensagem</button>${whatsapp?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(whatsapp)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:''}${emailHref?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(emailHref)}">E-mail</a>`:''}${!whatsapp&&!emailHref?'<span class="hint">Sem canal cadastrado</span>':''}<button type="button" class="action-btn" data-remind-quote-request="${esc(row.id)}" ${row.status==='received'||row.status==='cancelled'?'disabled':''}>Cobrar</button></div></article>`;
+    return `<article class="quote-request-card"><div><strong>${esc(supplier?.nome||'Fornecedor')}</strong><span class="badge ${status.className}">${status.label}</span><small>${coverage.answered.length}/${coverage.requested.length} itens com preço • prazo ${dateBR(row.due_at||request.due_at,true)}</small>${row.reminder_count?`<small>${row.reminder_count} cobrança${row.reminder_count===1?'':'s'} registrada${row.reminder_count===1?'':'s'}</small>`:''}</div><div class="quote-request-actions"><button type="button" class="action-btn" data-copy-quote-request="${esc(row.id)}">Copiar mensagem</button>${whatsapp?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(whatsapp)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:''}${emailHref?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(emailHref)}">E-mail</a>`:''}${!whatsapp&&!emailHref?'<span class="hint">Sem canal cadastrado</span>':''}<button type="button" class="action-btn" data-remind-quote-request="${esc(row.id)}" ${row.status==='received'||row.status==='cancelled'?'disabled':''}>Cobrar</button><button type="button" class="action-btn danger-btn" data-delete-quote-request="${esc(row.id)}">Excluir</button></div></article>`;
   }).join(''):'<p class="hint quote-request-empty">Nenhuma solicitação aberta para este edital.</p>';
   return `<section class="quote-request-hub" aria-labelledby="quoteRequestHubTitle"><div class="quote-request-head"><div><h2 id="quoteRequestHubTitle">Solicitações de cotação</h2><p class="hint">Crie a solicitação, envie a mensagem pelo canal que preferir e acompanhe o retorno aqui.</p></div><span class="badge ${viability.className}">${viability.label}</span></div><div class="quote-request-summary"><span><b>${items.length}</b> itens</span><span><b>${viability.quoted.length}</b> com preço</span><span><b>${awaiting}</b> aguardando</span><span><b>${late}</b> atrasadas</span><span><b>${received}</b> recebidas</span></div><p class="quote-request-viability ${viability.className}">${esc(viability.detail)}</p><details class="quote-request-form" ${effectiveRows.length?'':'open'}><summary>+ Nova solicitação</summary><form id="quoteRequestForm"><label>Prazo de resposta<input name="due_at" type="datetime-local" value="${quoteRequestDefaultDueValue(tender)}" required></label><label>Observação interna<input name="notes" maxlength="500" placeholder="Ex.: prioridade para itens de limpeza"></label><fieldset><legend>Fornecedores</legend><div class="quote-request-options">${state.fornecedores.map(supplier=>`<label><input type="checkbox" name="supplier_ids" value="${esc(supplier.id)}" ${checkedSuppliers.has(String(supplier.id))?'checked':''}>${esc(supplier.nome)}</label>`).join('')||'<span class="hint">Cadastre fornecedores antes de criar a solicitação.</span>'}</div></fieldset><fieldset><legend>Itens solicitados</legend><div class="quote-request-options">${items.map(item=>`<label><input type="checkbox" name="item_ids" value="${esc(item.id)}" ${checkedItems.has(String(item.id))?'checked':''}>Item ${esc(item.numero)} — ${esc(item.descricao)}</label>`).join('')}</div></fieldset><button type="submit" class="quote-request-create">Gerar solicitações</button></form></details><div class="quote-request-list">${requestCards}</div></section>`;
 }
@@ -5182,6 +5182,19 @@ async function updateQuoteRequestSupplier(id,changes,successMessage){
   if(state.demo){Object.assign(row,changes);renderAll();if(successMessage)toast(successMessage,'success');return;}
   const {error}=await supabase.from('quote_request_suppliers').update(changes).eq('id',id).eq('company_id',currentCompanyId());
   if(error)return toast(error.message,'error');if(successMessage)toast(successMessage,'success');await refreshAll();
+}
+
+async function deleteQuoteRequestSupplier(id){
+  const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));
+  if(!row)return;
+  if(!window.confirm('Excluir esta solicitação deste fornecedor? Os demais fornecedores não serão alterados.'))return;
+  if(state.demo){
+    state.quoteRequestSuppliers=state.quoteRequestSuppliers.filter(item=>String(item.id)!==String(id));
+    renderAll();toast('Solicitação excluída.','success');return;
+  }
+  const {error}=await supabase.from('quote_request_suppliers').delete().eq('id',id).eq('company_id',currentCompanyId());
+  if(error)return toast(error.message,'error');
+  toast('Solicitação excluída.','success');await refreshAll();
 }
 
 async function copyQuoteRequestMessage(id,reminder=false){
@@ -12667,6 +12680,12 @@ document.addEventListener('click',async e=>{
     const id=sent.dataset.sendQuoteRequest;
     const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));
     if(row&&row.status==='draft')await updateQuoteRequestSupplier(id,{status:'sent',sent_at:new Date().toISOString()},'Envio registrado.');
+    return;
+  }
+  const remove=e.target.closest('[data-delete-quote-request]');
+  if(remove){
+    e.preventDefault();
+    await deleteQuoteRequestSupplier(remove.dataset.deleteQuoteRequest);
     return;
   }
   const reminder=e.target.closest('[data-remind-quote-request]');

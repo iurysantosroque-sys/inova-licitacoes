@@ -1,1 +1,1 @@
-44.0.0 - Solicitações de cotação por fornecedor, prazo, cobrança e viabilidade por edital.
+44.0.1 - Exclusão individual de solicitações por fornecedor.
