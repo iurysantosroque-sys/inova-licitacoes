@@ -1,1 +1,1 @@
-45.0.16 - Adição de cotações pela aba Produtos cotados com vínculo por fornecedor.
+45.0.17 - Importação de cotações recebidas diretamente por fornecedor.

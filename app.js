@@ -12705,10 +12705,7 @@ $('#quoteHeaderAdd')?.addEventListener('click',()=>{
 });
 $('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
 $('#productsAddQuoteButton')?.addEventListener('click',()=>{
-  state.quoteWorkspaceMode='import';
-  state.quoteWorkspaceSection='import';
-  document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
-  setTimeout(()=>document.querySelector('#quoteImportSupplier')?.focus(),0);
+  openSupplierProductModal();
 });
 document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();});
 document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
