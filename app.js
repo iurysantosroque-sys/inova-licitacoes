@@ -444,14 +444,22 @@ function bestQuote(itemId){
   );
 
   if(server){
+    const sourceQuote=quotesForItem(itemId).find(q=>String(q.fornecedor_id)===String(server.supplier_id));
+    const storedFactor=Number(server.package_base_quantity||sourceQuote?.fator_equivalencia||0);
+    const inferredFactor=quotePackageFactor(server.package_description||sourceQuote?.apresentacao||'',item?.unidade||'',sourceQuote?.supplier_description||'');
+    const factor=Math.max(storedFactor>1?storedFactor:inferredFactor,0.0001);
+    const packagePrice=Number(server.package_price||sourceQuote?.preco||0);
+    const productUnit=packagePrice>0?packagePrice/factor:Number(server.product_unit_cost||0);
+    const realUnit=productUnit+Number(server.freight_unit||0);
     return {
       fornecedor_id:server.supplier_id,
-      custoEq:Number(server.real_unit_cost||0),
-      custoProduto:Number(server.product_unit_cost||0),
+      custoEq:realUnit>0?realUnit:Number(server.real_unit_cost||0),
+      custoProduto:productUnit,
       freteUnit:Number(server.freight_unit||0),
       freteTotal:Number(server.freight_total||0),
-      apresentacao:server.package_description||'',
+      apresentacao:server.package_description||sourceQuote?.apresentacao||'',
       marca:'',
+      fator_equivalencia:factor,
       origem:'motor'
     };
   }
@@ -461,7 +469,9 @@ function bestQuote(itemId){
   const qs=quotesForItem(itemId)
     .filter(q=>Number(q.preco||0)>0)
     .map(q=>{
-      const fator=Math.max(Number(q.fator_equivalencia||1),0.0001);
+      const storedFactor=Number(q.fator_equivalencia||0);
+      const inferredFactor=quotePackageFactor(q.apresentacao,q.origem_item_unidade||item?.unidade,q.supplier_description);
+      const fator=Math.max(storedFactor>1?storedFactor:inferredFactor,0.0001);
       const fornecedor=state.fornecedores.find(
         f=>String(f.id)===String(q.fornecedor_id)
       );
@@ -2257,6 +2267,33 @@ function quotePdfMoneyRegex(){
   return '(?:\\d{1,3}(?:\\.\\d{3})*|\\d+),\\d{2,4}';
 }
 
+// Identifica quantas unidades existem na embalagem informada pela cotação.
+// O preço original continua sendo preservado como preço da embalagem; este
+// fator é usado somente para calcular o equivalente por unidade.
+function quotePackageFactor(presentation='',unit='',description=''){
+  const text=String(presentation||'').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+  if(!text)return 1;
+  const explicit=text.match(/(?:^|[\s/-])([0-9]+(?:[.,][0-9]+)?)\s*(?:UN|UND|UNID|UNIDADE(?:S)?|PC|PCS|PÇ|PECAS?)\b/);
+  if(explicit){
+    const value=Number(String(explicit[1]).replace(',','.'));
+    if(Number.isFinite(value)&&value>0)return value;
+  }
+  const packageOnly=text.match(/(?:CX|CAIXA|PCT|PACOTE|POTE|FD|FARDO|KIT|JG|JOGO|DZ)[\s-]*([0-9]+(?:[.,][0-9]+)?)/);
+  if(packageOnly){
+    const value=Number(String(packageOnly[1]).replace(',','.'));
+    if(Number.isFinite(value)&&value>0)return value;
+  }
+  const descriptionMatch=String(description||'').toUpperCase().match(/(?:COM|C\/|CONTENDO)\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:UN|UND|UNID|UNIDADE(?:S)?|PC|PCS|PÇ|PECAS?)\b/);
+  if(descriptionMatch){
+    const value=Number(String(descriptionMatch[1]).replace(',','.'));
+    if(Number.isFinite(value)&&value>0)return value;
+  }
+  return 1;
+}
+
 function parseQuotePdfProduct(raw){
   const line=String(raw||'')
     .replace(/\u00a0/g,' ')
@@ -2291,7 +2328,7 @@ function parseQuotePdfProduct(raw){
       const simpleUnit=String(simple[3]||'').trim().toUpperCase();
       const simpleQuantity=parseBrazilianNumber(simple[4]);
       const simplePrice=parseBrazilianNumber(simple[5]);
-      if(/\\d/.test(simpleCode)&&simpleDescription&&simplePrice>0)return {code:simpleCode,description:simpleDescription,quantity:simpleQuantity,unit:simpleUnit,price:simplePrice,subtotal:null,brand:'',presentation:'',factor:1,selected:true};
+      if(/\\d/.test(simpleCode)&&simpleDescription&&simplePrice>0)return {code:simpleCode,description:simpleDescription,quantity:simpleQuantity,unit:simpleUnit,price:simplePrice,subtotal:null,brand:'',presentation:'',factor:quotePackageFactor('',simpleUnit,simpleDescription),selected:true};
     }
     return null;
   }
@@ -2333,7 +2370,7 @@ function parseQuotePdfProduct(raw){
     subtotal,
     brand,
     presentation:'',
-    factor:1,
+    factor:quotePackageFactor('',unit,description),
     selected:true
   };
 }
@@ -2410,7 +2447,7 @@ function parseStimulsoftQuoteProduct(raw,pendingSubtotal=null){
   const subtotal=inlineSubtotal??pendingSubtotal;
 
   if(!/\d/.test(code)||!description||!(price>0))return null;
-  return {code,description,quantity,unit,price,subtotal,brand:'',presentation,factor:1,selected:true};
+  return {code,description,quantity,unit,price,subtotal,brand:'',presentation,factor:quotePackageFactor(presentation,unit,description),selected:true};
 }
 
 function rowsFromStimulsoftColumnItems(items){
@@ -2464,7 +2501,7 @@ function rowsFromStimulsoftColumnItems(items){
       subtotal:Number.isFinite(subtotal)?subtotal:null,
       brand,
       presentation,
-      factor:1,
+      factor:quotePackageFactor(presentation,unit,description),
       selected:true
     });
   }
@@ -2700,7 +2737,8 @@ function compactExtractedQuoteRows(rows){
       unit_price:unitPrice,
       subtotal:Number.isFinite(subtotal)&&subtotal>0?subtotal:null,
       brand:String(source?.brand||'').trim().slice(0,160),
-      presentation:String(source?.presentation||'').trim().slice(0,300)
+      presentation:String(source?.presentation||'').trim().slice(0,300),
+      package_base_quantity:Math.max(Number(source?.package_base_quantity||source?.factor||quotePackageFactor(source?.presentation,source?.unit,description))||1,0.0001)
     });
   }
   return compact;
@@ -3058,7 +3096,7 @@ async function startAutomaticQuoteImport(force=false){
         state.quoteImportRows=extractedRows.map((row,index)=>({
           originalOrder:index,code:row.code,description:row.description,quantity:row.quantity,unit:row.unit,
           price:Number(row.unit_price||0),subtotal:row.subtotal,brand:row.brand,presentation:row.presentation,
-          factor:1,page:null,itemId:'',editalItemNumber:null,manualMatched:false,aiMatched:false,
+          factor:Math.max(Number(row.package_base_quantity||row.factor||1),0.0001),page:null,itemId:'',editalItemNumber:null,manualMatched:false,aiMatched:false,
           autoTextMatched:false,aiMatchConfidence:null,factorConfidence:.5,
           aiReason:'Leitura textual direta do PDF',incompatibilities:[],safeToSave:false,needsReview:true,
           selected:false,savedAutomatically:false,savedAfterReview:false,ignored:false
@@ -3105,7 +3143,7 @@ async function startAutomaticQuoteImport(force=false){
       subtotal:row.subtotal,
       brand:row.brand,
       presentation:row.presentation,
-      factor:1,
+      factor:Math.max(Number(row.package_base_quantity||row.factor||1),0.0001),
       page:null,
       itemId:'',
       editalItemNumber:null,
@@ -8094,7 +8132,7 @@ function renderPricingExactModel(){
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingSheetMoney(row.governmentUnit)}</td>
                   <td>${pricingSheetMoney(row.governmentTotal)}</td>
-                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
