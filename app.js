@@ -359,7 +359,7 @@ function renderProductsCatalog(){
     return filter==='all'||(filter==='active'&&active.length)||(filter==='expires5'&&soon)||(filter==='expires10'&&soon10)||(filter==='noactive'&&!active.length)||(filter==='expired'&&rows.some(row=>!snapshotIsActive(row,now)));
   });
   const activeCount=snapshots.filter(row=>snapshotIsActive(row,now)).length, expiredCount=snapshots.length-activeCount;
-  const summary=$('#productsCatalogSummary'); if(summary)summary.innerHTML=`<span><b>${activeCount}</b> preços ativos</span><span><b>${expiredCount}</b> no histórico vencido</span><span><b>${groups.filter(group=>!group.rows.some(row=>snapshotIsActive(row,now))).length}</b> sem cotação ativa</span>`;
+  const summary=$('#productsCatalogSummary'); if(summary)summary.innerHTML=`<span><b>${groups.length}</b> produtos</span><span><b>${activeCount}</b> preços ativos</span><span><b>${expiredCount}</b> no histórico vencido</span><span><b>${groups.filter(group=>!group.rows.some(row=>snapshotIsActive(row,now))).length}</b> sem cotação ativa</span>`;
   target.innerHTML=filtered.length?table(['Produto','Melhor preço ativo','Fornecedor','Válido até','Histórico','Vencidos'],filtered.map(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)).sort((a,b)=>Number(a.unit_price)-Number(b.unit_price)); const best=active[0]; const expired=rows.filter(row=>!snapshotIsActive(row,now));
     const expiredControls=expired.length?expired.map(row=>`<label class="expired-select"><input type="checkbox" data-expired-snapshot="${esc(row.id)}" ${selected.has(row.id)?'checked':''}> ${esc(row.original_unit||product.normalized_unit||'UN')}</label>`).join(' '):'-';

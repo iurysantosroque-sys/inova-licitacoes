@@ -1,1 +1,1 @@
-45.0.4 - Catálogo completo de produtos já cotados por fornecedor.
+45.0.5 - Ajuste da contagem de produtos e preços ativos.
