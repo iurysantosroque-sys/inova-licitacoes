@@ -1,1 +1,1 @@
-45.0.1 - Seleção manual de produtos por fornecedor na precificação.
+45.0.2 - Ajuste do filtro de produtos cotados por fornecedor.

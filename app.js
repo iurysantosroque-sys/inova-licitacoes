@@ -8126,7 +8126,10 @@ function renderPricingExactModel(){
     const itemId=String(manualForm?.elements?.item_id?.value||'');
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
-    const choices=(state.cotacoes||[]).filter(row=>String(row.fornecedor_id)===supplierId&&String(row.quote_tender_id||row.origem_licitacao_id)===String(tenderId)&&Number(row.preco)>0);
+    const choices=(state.cotacoes||[]).filter(row=>{
+      const rowTender=row.quote_tender_id||row.origem_licitacao_id||state.itens.find(item=>String(item.id)===String(row.item_id))?.licitacao_id;
+      return String(row.fornecedor_id)===supplierId&&String(rowTender)===String(tenderId)&&Number(row.preco)>0;
+    });
     if(!choices.length){target.innerHTML='<p>Nenhum produto cotado por este fornecedor nesta licitação.</p>';return;}
     target.innerHTML=`<div class="pricing-manual-choices-head"><strong>Produtos enviados por este fornecedor</strong><small>${choices.length} produto${choices.length===1?'':'s'} encontrado${choices.length===1?'':'s'}</small></div><div class="pricing-manual-choices-list">${choices.map(row=>`<button type="button" class="pricing-manual-choice ${String(row.item_id)===itemId?'selected':''}" data-select-pricing-source="${esc(row.id)}"><span>${esc(row.supplier_description||row.apresentacao||'Produto sem descrição')}</span><small>${money(row.preco)} • ${esc(row.marca||'Marca não informada')} • fator ${esc(row.fator_equivalencia||1)}</small></button>`).join('')}</div>`;
   };
