@@ -1,1 +1,1 @@
-45.0.12 - Salvamento rápido de cotações manuais sem recarregar a aplicação inteira.
+45.0.13 - Janela de cotação manual simplificada.

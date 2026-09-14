@@ -8170,12 +8170,11 @@ function renderPricingExactModel(){
     <dialog id="pricingManualQuoteDialog" class="pricing-item-dialog pricing-manual-dialog" aria-labelledby="pricingManualQuoteTitle">
       <form id="pricingManualQuoteForm" novalidate>
         <div class="pricing-item-dialog-head">
-          <div><span class="pricing-manual-badge">COTAÇÃO MANUAL</span><h2 id="pricingManualQuoteTitle">Informar cotação do item</h2><p>Use esta opção quando o valor foi recebido por telefone, mensagem ou outro canal. A marca e os valores da tabela serão atualizados ao salvar.</p></div>
+          <div><span class="pricing-manual-badge">COTAÇÃO MANUAL</span><h2 id="pricingManualQuoteTitle">Informar cotação</h2></div>
           <button type="button" data-close-pricing-manual-dialog aria-label="Fechar">×</button>
         </div>
-        <div class="pricing-manual-steps" aria-label="Etapas da cotação manual"><span><b>1</b> Escolha o fornecedor</span><span><b>2</b> Clique no produto correto</span><span><b>3</b> Salve a cotação preenchida</span></div>
         <section class="pricing-manual-item" aria-label="Item selecionado">
-          <span>Item do edital</span><strong id="pricingManualQuoteItem">Selecione um item na tabela</strong><small id="pricingManualQuoteDetails"></small>
+          <span>Item do edital</span><strong id="pricingManualQuoteItem">Selecione um item na tabela</strong>
         </section>
         <input id="pricingManualQuoteItemId" name="item_id" type="hidden">
         <input id="pricingManualQuoteSourceDescription" name="source_description" type="hidden">
@@ -8183,8 +8182,8 @@ function renderPricingExactModel(){
         <div class="pricing-item-form-grid pricing-manual-form-grid">
           <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
           <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Preenchido pela cotação" required readonly></label>
-          <label>Marca <small>(da cotação)</small><input name="marca" maxlength="120" readonly></label>
-          <label>Apresentação <small>(da cotação)</small><input name="apresentacao" maxlength="160" readonly></label>
+          <label>Marca<input name="marca" maxlength="120" readonly></label>
+          <label>Apresentação<input name="apresentacao" maxlength="160" readonly></label>
           <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required readonly></label>
           <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.01" value="0"></label>
         </div>
