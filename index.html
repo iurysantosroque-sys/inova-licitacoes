@@ -95,13 +95,13 @@
         <button type="button" data-menu="gestao"><span>Gestão</span><i class="menu-chevron">⌄</i></button>
         <button type="button" data-menu="documentacao"><span>Documentação</span><i class="menu-chevron">⌄</i></button>
         <span hidden aria-hidden="true">
-          <button data-tab="licitacoes"></button><button data-tab="cotacoes"></button><button data-tab="precificacao"></button>
+          <button data-tab="licitacoes"></button><button data-tab="cotacoes"></button><button data-tab="precificacao"></button><button data-tab="produtos"></button>
           <button data-tab="agente-lances"></button><button data-tab="fornecedores"></button><button data-tab="financeiro"></button>
           <button data-tab="arquivos"></button><button data-tab="equipe"></button>
         </span>
       </nav>
       <div class="nav-menu-popover" data-popover="central" hidden>
-        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-menu-tab="agente-lances">Agente de Lances</button>
+        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-menu-tab="produtos">Produtos cotados</button><button data-menu-tab="agente-lances">Agente de Lances</button>
       </div>
       <div class="nav-menu-popover nav-menu-popover-small" data-popover="cadastros" hidden>
         <button data-menu-tab="fornecedores">Fornecedores</button><button data-menu-tab="equipe">Equipe</button>
@@ -210,6 +210,14 @@
         </div>
         <div id="supplierQuotedProductsView" hidden>
           <div class="panel"><div class="panel-title"><div><h2>Produtos cotados</h2><p class="hint">Valores ativos por 20 dias. Itens vencidos podem ser baixados para uma nova cotação.</p></div><button type="button" id="downloadExpiredQuotedProducts" class="action-btn" hidden>⇩ Baixar itens vencidos</button></div><div id="quotedProductsList" class="table-wrap"></div></div>
+        </div>
+      </section>
+
+      <section id="produtos" class="tab" aria-labelledby="productsPageTitle">
+        <div class="panel products-catalog-panel">
+          <div class="panel-title"><div><h1 id="productsPageTitle">Produtos cotados</h1><p class="hint">Histórico por fornecedor. Apenas preços válidos entram como referência.</p></div><button type="button" id="exportExpiredProducts" class="action-btn">⇩ Baixar selecionados</button></div>
+          <div class="products-toolbar"><input id="productsCatalogSearch" type="search" placeholder="Buscar por produto, marca, unidade ou fornecedor" /><select id="productsCatalogFilter"><option value="active">Com cotação ativa</option><option value="expires5">Vence em até 5 dias</option><option value="expires10">Vence em até 10 dias</option><option value="noactive">Sem cotação ativa</option><option value="expired">Cotações vencidas</option><option value="all">Todos os produtos</option></select></div>
+          <div id="productsCatalogSummary" class="quoted-products-summary"></div><div id="productsCatalogList" class="table-wrap"></div>
         </div>
       </section>
 
@@ -634,7 +642,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 44.0.2</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 45.0.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -650,6 +658,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=44.0.2"></script>
+  <script type="module" src="./app.js?v=45.0.0"></script>
 </body>
 </html>

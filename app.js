@@ -153,6 +153,11 @@ licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[],
 };
 
 state.quotedProducts=[];
+state.catalogProducts=[];
+state.productQuoteSnapshots=[];
+state.productsCatalogFilter='active';
+state.productsCatalogSearch='';
+state.selectedExpiredSnapshotIds=[];
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
 
@@ -331,6 +336,42 @@ function renderQuotedProductsCatalog(){
     `<button type="button" class="quoted-product-download" data-download-expired-product="${esc(product.id)}">Baixar</button>`
   ]);
   target.innerHTML=`<div class="quoted-products-summary"><span><b>${active.length}</b> ativo${active.length===1?'':'s'}</span><span><b>${expired.length}</b> vencido${expired.length===1?'':'s'}</span></div>${active.length?`<section class="quoted-products-section"><h3>Itens ativos</h3><p>Disponíveis até 20 dias após a cotação.</p>${table(['Produto','Fornecedor','Unidade','Qtd.','Valor unitário','Válido até'],activeRows)}</section>`:''}${expired.length?`<section class="quoted-products-section quoted-products-expired"><h3>Itens vencidos</h3><p>Baixe estes itens para solicitar uma nova cotação.</p>${table(['Produto','Fornecedor','Unidade','Qtd.','Último valor',''],expiredRows)}</section>`:''}${!rows.length?'<p class="hint quoted-products-empty">Nenhum item cotado ainda. Os itens e valores unitários das próximas cotações serão registrados aqui automaticamente.</p>':''}`;
+}
+
+function productSnapshotSupplier(snapshot){return state.fornecedores.find(s=>String(s.id)===String(snapshot.supplier_id))?.nome||'Fornecedor não encontrado';}
+function snapshotIsActive(snapshot,now=Date.now()){return new Date(snapshot.expires_at||0).getTime()>now&&snapshot.match_status==='confirmed';}
+function productPriceVariation(snapshot,history){
+  const prior=history.filter(row=>String(row.supplier_id)===String(snapshot.supplier_id)&&new Date(row.quoted_at).getTime()<new Date(snapshot.quoted_at).getTime()).sort((a,b)=>new Date(b.quoted_at)-new Date(a.quoted_at))[0];
+  if(!prior||!Number(prior.unit_price))return '-';
+  const value=((Number(snapshot.unit_price)-Number(prior.unit_price))/Number(prior.unit_price))*100;
+  return `<span class="${value>0?'price-rise':value<0?'price-drop':''}">${value>0?'+':''}${value.toFixed(1)}%</span>`;
+}
+function renderProductsCatalog(){
+  const target=$('#productsCatalogList'); if(!target)return;
+  const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active';
+  const snapshots=state.productQuoteSnapshots||[];
+  const groups=(state.catalogProducts||[]).map(product=>({product,rows:snapshots.filter(row=>String(row.product_id)===String(product.id))}));
+  const selected=new Set(state.selectedExpiredSnapshotIds||[]);
+  const filtered=groups.filter(({product,rows})=>{
+    const active=rows.filter(row=>snapshotIsActive(row,now)); const soon=active.some(row=>new Date(row.expires_at).getTime()-now<=5*864e5); const soon10=active.some(row=>new Date(row.expires_at).getTime()-now<=10*864e5);
+    const hay=[product.name,product.normalized_unit,...rows.flatMap(row=>[row.original_name,row.original_description,row.brand,row.original_unit,productSnapshotSupplier(row)])].join(' ').toLocaleLowerCase('pt-BR');
+    if(search&&!hay.includes(search))return false;
+    return filter==='all'||(filter==='active'&&active.length)||(filter==='expires5'&&soon)||(filter==='expires10'&&soon10)||(filter==='noactive'&&!active.length)||(filter==='expired'&&rows.some(row=>!snapshotIsActive(row,now)));
+  });
+  const activeCount=snapshots.filter(row=>snapshotIsActive(row,now)).length, expiredCount=snapshots.length-activeCount;
+  const summary=$('#productsCatalogSummary'); if(summary)summary.innerHTML=`<span><b>${activeCount}</b> preços ativos</span><span><b>${expiredCount}</b> no histórico vencido</span><span><b>${groups.filter(group=>!group.rows.some(row=>snapshotIsActive(row,now))).length}</b> sem cotação ativa</span>`;
+  target.innerHTML=filtered.length?table(['Produto','Melhor preço ativo','Fornecedor','Válido até','Histórico','Vencidos'],filtered.map(({product,rows})=>{
+    const active=rows.filter(row=>snapshotIsActive(row,now)).sort((a,b)=>Number(a.unit_price)-Number(b.unit_price)); const best=active[0]; const expired=rows.filter(row=>!snapshotIsActive(row,now));
+    const expiredControls=expired.length?expired.map(row=>`<label class="expired-select"><input type="checkbox" data-expired-snapshot="${esc(row.id)}" ${selected.has(row.id)?'checked':''}> ${esc(row.original_unit||product.normalized_unit||'UN')}</label>`).join(' '):'-';
+    return [esc(product.name),best?money(best.unit_price):'<span class="review-note">SEM COTAÇÃO ATIVA</span>',best?esc(productSnapshotSupplier(best)):'-',best?dateBR(best.expires_at):'-',`${rows.length} registro${rows.length===1?'':'s'}${best?` • ${productPriceVariation(best,rows)}`:''}`,expiredControls];
+  })):'<p class="hint">Nenhum produto corresponde aos filtros.</p>';
+}
+function exportSelectedExpiredProducts(){
+  const selected=new Set(state.selectedExpiredSnapshotIds||[]); const rows=(state.productQuoteSnapshots||[]).filter(row=>selected.has(row.id)&&!snapshotIsActive(row));
+  if(!rows.length)return toast('Selecione ao menos uma cotação vencida para baixar.','error');
+  const data=rows.map((row,index)=>({'ITEM':index+1,'PRODUTO':row.original_name||'','DESCRIÇÃO':row.original_description||'','UNIDADE':row.original_unit||row.normalized_unit||'','QUANTIDADE':row.original_quantity??'','VALOR UNITÁRIO':'','MARCA':row.brand||'','OBSERVAÇÃO':'Nova cotação solicitada'}));
+  if(window.XLSX){const sheet=XLSX.utils.json_to_sheet(data);const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'Itens vencidos');XLSX.writeFile(book,'itens-vencidos-para-nova-cotacao.xlsx');}
+  else downloadQuotedProductsCsv(rows.map(row=>({product_name:row.original_name,supplier_id:row.supplier_id,unit:row.original_unit,quoted_quantity:row.original_quantity,unit_price:row.unit_price,quoted_at:row.quoted_at,expires_at:row.expires_at})));
 }
 
 function weekdayBR(v){
@@ -4818,15 +4859,17 @@ async function fetchAllSupabaseRows(table,filterColumn,ids,orderColumns=[]){
 async function refreshAll(){
   if(state.demo){ renderAll(); return; }
   const cid=currentCompanyId(); if(!cid)return;
-  const [settings,tenders,suppliers,quotes,members,quotedProducts]=await Promise.all([
+  const [settings,tenders,suppliers,quotes,members,quotedProducts,catalogProducts,productSnapshots]=await Promise.all([
     supabase.from('pricing_settings').select('*').eq('company_id',cid).maybeSingle(),
     supabase.from('tenders').select('*').eq('company_id',cid).order('dispute_at',{ascending:true,nullsFirst:false}),
     supabase.from('suppliers').select('*').eq('company_id',cid).order('name'),
     supabase.from('quotes').select('*').eq('company_id',cid).order('created_at',{ascending:false}),
     supabase.from('company_members').select('*').eq('company_id',cid).order('created_at'),
-    supabase.from('quoted_products').select('*').eq('company_id',cid).order('expires_at',{ascending:true})
+    supabase.from('quoted_products').select('*').eq('company_id',cid).order('expires_at',{ascending:true}),
+    supabase.from('catalog_products').select('*').eq('company_id',cid).order('name'),
+    supabase.from('quote_price_snapshots').select('*').eq('company_id',cid).order('quoted_at',{ascending:false})
   ]);
-  const err=[settings,tenders,suppliers,quotes,members,quotedProducts].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
+  const err=[settings,tenders,suppliers,quotes,members,quotedProducts,catalogProducts,productSnapshots].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
   state.config={
     imposto:Number(settings.data?.tax_percent??6),margem_alvo:Number(settings.data?.target_margin_percent??25),
     lucro_minimo:Number(settings.data?.minimum_profit_amount??500),margem_minima:Number(settings.data?.minimum_margin_percent??10),
@@ -4865,6 +4908,8 @@ async function refreshAll(){
     quoted_quantity:product.quoted_quantity===null?null:Number(product.quoted_quantity),
     package_base_quantity:Number(product.package_base_quantity||1)
   }));
+  state.catalogProducts=catalogProducts.data||[];
+  state.productQuoteSnapshots=(productSnapshots.data||[]).map(snapshot=>({...snapshot,unit_price:Number(snapshot.unit_price||0),original_quantity:snapshot.original_quantity===null?null:Number(snapshot.original_quantity)}));
   const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
   if(tenderDocumentsResp.error){
     state.tenderDocuments=[];
@@ -11466,6 +11511,7 @@ function renderAll(){
     : '<p class="hint">Nenhum fornecedor cadastrado ainda.</p>';
   $('#fornecedoresLista').innerHTML=`<div class="supplier-kpis"><article class="supplier-kpi"><span>Total de fornecedores</span><strong>${state.fornecedores.length}</strong><small>cadastrados</small></article><article class="supplier-kpi"><span>Com telefone</span><strong>${supplierWithPhone}</strong><small>contatos registrados</small></article><article class="supplier-kpi"><span>WhatsApp disponível</span><strong>${supplierWhatsapp}</strong><small>acesso em um clique</small></article></div><div class="supplier-list">${supplierList}</div>`;
   renderQuotedProductsCatalog();
+  renderProductsCatalog();
   renderSupplierCatalogTabs();
   const licOpts='<option value="">Selecione a licitação</option>'+state.licitacoes.map(l=>`<option value="${l.id}">${esc(l.numero)} • ${esc(l.orgao)}</option>`).join('');
   if($('#itemLicitacao'))$('#itemLicitacao').innerHTML=licOpts;
@@ -11523,6 +11569,8 @@ function demoSeed(){
   state.itens=[{id:'i1',licitacao_id:'l1',numero:20,descricao:'Desengraxante líquido',quantidade:500,unidade:'L',valor_estimado:11.95},{id:'i2',licitacao_id:'l1',numero:21,descricao:'Detergente líquido',quantidade:300,unidade:'UN',valor_estimado:7.8}];
   const quotedAt=new Date();
   state.quotedProducts=[{id:'qp-demo-1',supplier_id:'f1',product_name:'Desengraxante líquido',unit:'L',quoted_quantity:500,unit_price:6.38,quoted_at:quotedAt.toISOString(),expires_at:new Date(quotedAt.getTime()+20*86400000).toISOString()}];
+  state.catalogProducts=[{id:'cp-demo-1',name:'Desengraxante líquido',normalized_unit:'L'}];
+  state.productQuoteSnapshots=[{id:'qs-demo-1',product_id:'cp-demo-1',supplier_id:'f1',original_name:'Desengraxante líquido',original_description:'Desengraxante líquido',original_unit:'L',normalized_unit:'L',original_quantity:500,unit_price:6.38,quoted_at:quotedAt.toISOString(),expires_at:new Date(quotedAt.getTime()+20*86400000).toISOString(),match_status:'confirmed'}];
   state.fornecedores=[{id:'f1',nome:'Fornecedor A',frete_padrao:0},{id:'f2',nome:'Fornecedor B',frete_padrao:0}];state.cotacoes=[{id:'c1',item_id:'i1',fornecedor_id:'f1',preco:31.9,fator_equivalencia:5,frete_rateado:0,apresentacao:'Galão 5 L',marca:'Marca A'},{id:'c2',item_id:'i1',fornecedor_id:'f2',preco:7.1,fator_equivalencia:1,frete_rateado:0,apresentacao:'Frasco 1 L',marca:'Marca B'}];state.pricingMap=[];state.documentos=[];state.qualificationDocuments=[{id:'qd1',company_id:'demo',tender_id:null,document_series_id:'qs1',version:1,document_type:'FGTS/CRF',name:'Certificado de Regularidade do FGTS',issuer:'Caixa Econômica Federal',issued_on:'2026-08-01',expires_on:'2026-09-12',has_no_expiry:false,file_name:'crf-demo.pdf',storage_path:'demo/qs1/qd1-crf-demo.pdf',created_at:new Date().toISOString()}];state.qualificationError='';state.equipe=[{nome:'Administrador',papel:'admin',created_at:new Date().toISOString()}];renderAll();showOnly('appShell');
 }
 
@@ -11602,6 +11650,10 @@ document.querySelectorAll('[data-supplier-catalog-view]').forEach(button=>button
   renderSupplierCatalogTabs();
 }));
 $('#downloadExpiredQuotedProducts')?.addEventListener('click',()=>downloadQuotedProductsCsv((state.quotedProducts||[]).filter(quotedProductIsExpired)));
+$('#productsCatalogSearch')?.addEventListener('input',event=>{state.productsCatalogSearch=event.target.value;renderProductsCatalog();});
+$('#productsCatalogFilter')?.addEventListener('change',event=>{state.productsCatalogFilter=event.target.value;renderProductsCatalog();});
+$('#exportExpiredProducts')?.addEventListener('click',exportSelectedExpiredProducts);
+document.addEventListener('change',event=>{const input=event.target.closest('[data-expired-snapshot]');if(!input)return;const selected=new Set(state.selectedExpiredSnapshotIds||[]);if(input.checked)selected.add(input.dataset.expiredSnapshot);else selected.delete(input.dataset.expiredSnapshot);state.selectedExpiredSnapshotIds=[...selected];});
 document.addEventListener('click',event=>{
   const button=event.target.closest('[data-download-expired-product]');
   if(!button)return;
@@ -12016,6 +12068,11 @@ document.addEventListener('click',async e=>{
     const row=state.documentos.find(document=>String(document.id)===String(deleteQuoteDocument.dataset.deleteQuoteDocument));
     if(!row)return toast('Cotação não encontrada. Atualize a página e tente novamente.','error');
     if(!currentMemberIsAdmin())return toast('Somente administradores podem excluir arquivos enviados.','error');
+    if(!state.demo&&configured&&supabase){
+      const {count,error:historyError}=await supabase.from('quote_price_snapshots').select('id',{count:'exact',head:true}).eq('quote_id',row.id);
+      if(historyError)return toast(`Não foi possível conferir o histórico: ${historyError.message||historyError}`,'error');
+      if(Number(count||0)>0)return toast('Esta cotação possui histórico de preços. Para preservar o arquivo original, ela não pode ser excluída.','error');
+    }
     const supplier=state.fornecedores.find(item=>String(item.id)===String(row.fornecedor_id));
     const tender=state.licitacoes.find(item=>String(item.id)===String(row.licitacao_id));
     const affectedCount=Number(row.itens_afetados||state.cotacoes.filter(item=>String(item.quote_id)===String(row.id)).length);

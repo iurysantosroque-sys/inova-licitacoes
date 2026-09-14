@@ -1,1 +1,1 @@
-44.0.2 - Removido o fluxo de solicitações de cotação.
+45.0.0 - Histórico permanente de produtos cotados por fornecedor.
