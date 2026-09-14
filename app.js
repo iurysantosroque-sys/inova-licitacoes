@@ -1727,6 +1727,7 @@ function autoRelateSafeQuoteRows(tenderId,rows){
       gap>=.025||nameScore>=.86||quantityConfirmed
     );
     if(!strong)continue;
+    const supplierDescription=`${row.description||''} ${row.presentation||''}`.trim();
 
     row.itemId=item.id;
     row.editalItemNumber=Number(item.numero);
@@ -3905,20 +3906,20 @@ function renderQuoteImportReviewCompact(){
         <label>Quantidade<input data-q-field="quantity" type="number" min="0" step="0.001" value="${row.quantity??''}"></label>
         <label>Marca<input data-q-field="brand" value="${esc(row.brand||'')}" placeholder="Opcional"></label>
       </div>`:''}
-      ${localSuggestions.length?`<div style="grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <span style="color:var(--muted);font-size:.75rem">Sugestões por nome → unidade → quantidade:</span>
+      ${localSuggestions.length?`<div class="quote-review-suggestions">
+        <span>Sugestões encontradas:</span>
         ${localSuggestions.map(candidate=>`<button type="button" class="action-btn" data-quote-suggestion-row="${index}" data-quote-suggestion-item="${esc(candidate.item.id)}" title="${esc(candidate.item.descricao)}${candidate.measureConflict?' — confira a medida/apresentação':''}${candidate.unitConflict?' — confira a unidade':''}">Item ${esc(candidate.item.numero)} • aderência ${Math.round(candidate.score*100)}%${candidate.measureConflict||candidate.unitConflict?' ⚠':''}</button>`).join('')}
       </div>`:''}
-      <label>Item correto do edital
+      <label class="quote-review-item-field">Item do edital
         <select data-q-field="itemId">
           <option value="">Selecione o item…</option>
           ${items.map(item=>`<option value="${esc(item.id)}" ${String(row.itemId)===String(item.id)?'selected':''}>Item ${esc(item.numero)} — ${esc(item.descricao)}</option>`).join('')}
         </select>
       </label>
-      <label>Preço
+      <label class="quote-review-price-field">Preço unitário
         <input data-q-field="price" type="number" min="0.0001" step="0.0001" value="${Number(row.price||0)}">
       </label>
-      <label>Fator
+      <label class="quote-review-factor-field">Fator de conversão
         <input data-q-field="factor" type="number" min="0.0001" step="0.001" value="${Number(row.factor)>0?Number(row.factor):''}" placeholder="Confirme o fator">
       </label>
       <div class="quote-review-actions">
