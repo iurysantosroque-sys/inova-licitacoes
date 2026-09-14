@@ -1,1 +1,1 @@
-45.0.15 - Remoção do botão Novo Produto da área de fornecedores.
+45.0.16 - Adição de cotações pela aba Produtos cotados com vínculo por fornecedor.

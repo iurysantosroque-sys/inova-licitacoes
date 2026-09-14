@@ -370,7 +370,8 @@ function renderProductsCatalog(){
   target.innerHTML=filtered.length?table(['Produto','Melhor preço ativo','Fornecedor','Válido até','Histórico','Vencidos'],filtered.map(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)).sort((a,b)=>Number(a.unit_price)-Number(b.unit_price)); const best=active[0]; const expired=rows.filter(row=>!snapshotIsActive(row,now));
     const expiredControls=expired.length?expired.map(row=>`<label class="expired-select"><input type="checkbox" data-expired-snapshot="${esc(row.id)}" ${selected.has(row.id)?'checked':''}> ${esc(row.original_unit||product.normalized_unit||'UN')}</label>`).join(' '):'-';
-    return [esc(product.name),best?money(best.unit_price):'<span class="review-note">SEM COTAÇÃO ATIVA</span>',best?esc(productSnapshotSupplier(best)):'-',best?dateBR(best.expires_at):'-',`${rows.length} registro${rows.length===1?'':'s'}${best?` • ${productPriceVariation(best,rows)}`:''}`,expiredControls];
+    const supplierNames=[...new Set(active.map(productSnapshotSupplier))];
+    return [esc(product.name),best?money(best.unit_price):'<span class="review-note">SEM COTAÇÃO ATIVA</span>',best?esc(supplierNames.join(' • ')):'-',best?dateBR(best.expires_at):'-',`${rows.length} registro${rows.length===1?'':'s'}${best?` • ${productPriceVariation(best,rows)}`:''}`,expiredControls];
   })):'<p class="hint">Nenhum produto corresponde aos filtros.</p>';
 }
 function exportSelectedExpiredProducts(){
@@ -12703,6 +12704,12 @@ $('#quoteHeaderAdd')?.addEventListener('click',()=>{
   setTimeout(()=>document.querySelector('#pricingAddItemButton')?.click(),0);
 });
 $('#quoteNewBtn')?.addEventListener('click',()=>{state.quoteWorkspaceMode='import';state.quoteWorkspaceSection='import';renderQuotesWorkspace();document.querySelector('#quoteImportSupplier')?.focus();});
+$('#productsAddQuoteButton')?.addEventListener('click',()=>{
+  state.quoteWorkspaceMode='import';
+  state.quoteWorkspaceSection='import';
+  document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
+  setTimeout(()=>document.querySelector('#quoteImportSupplier')?.focus(),0);
+});
 document.addEventListener('click',e=>{if(e.target.closest('#quoteExportPdf'))exportQuotePdf();});
 document.querySelectorAll('[data-quote-section]').forEach(button=>button.addEventListener('click',()=>{
   setQuoteWorkspaceSection(button.dataset.quoteSection||'import');
