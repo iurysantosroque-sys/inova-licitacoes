@@ -1,1 +1,1 @@
-45.0.6 - Cadastro de todas as linhas importadas da cotação.
+45.0.7 - Deduplicação de produtos com mesmo fornecedor e preço.

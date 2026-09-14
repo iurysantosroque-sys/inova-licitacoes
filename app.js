@@ -350,7 +350,14 @@ function renderProductsCatalog(){
   const target=$('#productsCatalogList'); if(!target)return;
   const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active';
   const snapshots=state.productQuoteSnapshots||[];
-  const groups=(state.catalogProducts||[]).map(product=>({product,rows:snapshots.filter(row=>String(row.product_id)===String(product.id))}));
+  const uniqueSnapshotMap=new Map();
+  snapshots.forEach(row=>{
+    const key=`${row.product_id}|${row.supplier_id}|${Number(row.unit_price||0).toFixed(6)}`;
+    const prior=uniqueSnapshotMap.get(key);
+    if(!prior||new Date(row.quoted_at||0)>new Date(prior.quoted_at||0))uniqueSnapshotMap.set(key,row);
+  });
+  const uniqueSnapshots=[...uniqueSnapshotMap.values()];
+  const groups=(state.catalogProducts||[]).map(product=>({product,rows:uniqueSnapshots.filter(row=>String(row.product_id)===String(product.id))}));
   const selected=new Set(state.selectedExpiredSnapshotIds||[]);
   const filtered=groups.filter(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)); const soon=active.some(row=>new Date(row.expires_at).getTime()-now<=5*864e5); const soon10=active.some(row=>new Date(row.expires_at).getTime()-now<=10*864e5);
@@ -358,7 +365,7 @@ function renderProductsCatalog(){
     if(search&&!hay.includes(search))return false;
     return filter==='all'||(filter==='active'&&active.length)||(filter==='expires5'&&soon)||(filter==='expires10'&&soon10)||(filter==='noactive'&&!active.length)||(filter==='expired'&&rows.some(row=>!snapshotIsActive(row,now)));
   });
-  const activeCount=snapshots.filter(row=>snapshotIsActive(row,now)).length, expiredCount=snapshots.length-activeCount;
+  const activeCount=uniqueSnapshots.filter(row=>snapshotIsActive(row,now)).length, expiredCount=uniqueSnapshots.length-activeCount;
   const summary=$('#productsCatalogSummary'); if(summary)summary.innerHTML=`<span><b>${groups.length}</b> produtos</span><span><b>${activeCount}</b> preços ativos</span><span><b>${expiredCount}</b> no histórico vencido</span><span><b>${groups.filter(group=>!group.rows.some(row=>snapshotIsActive(row,now))).length}</b> sem cotação ativa</span>`;
   target.innerHTML=filtered.length?table(['Produto','Melhor preço ativo','Fornecedor','Válido até','Histórico','Vencidos'],filtered.map(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)).sort((a,b)=>Number(a.unit_price)-Number(b.unit_price)); const best=active[0]; const expired=rows.filter(row=>!snapshotIsActive(row,now));
@@ -2758,7 +2765,14 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   // exigir `safeToSave` aqui fazia todas as linhas "para revisão" sumirem da
   // tabela. Sugestões exclusivamente da IA continuam fora do salvamento
   // automático (`autoTextMatched` falso).
-  const allRows=rows.filter(r=>Number(r.price)>0&&Number(r.factor)>0);
+  let allRows=rows.filter(r=>Number(r.price)>0&&Number(r.factor)>0);
+  const seenQuoteRows=new Set();
+  allRows=allRows.filter(r=>{
+    const identity=r.itemId||`${quoteCanonicalDescription(r.description||r.presentation||'')}|${quoteCanonicalUnit(r.unit||'')}`;
+    const key=`${identity}|${Number(r.price).toFixed(6)}`;
+    if(seenQuoteRows.has(key))return false;
+    seenQuoteRows.add(key); return true;
+  });
   const eligible=allRows.filter(r=>r.itemId&&r.autoTextMatched===true);
   const counts=new Map();
   eligible.forEach(r=>counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1));
@@ -8125,7 +8139,9 @@ function renderPricingExactModel(){
     const itemId=String(manualForm?.elements?.item_id?.value||'');
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
-    const choices=(state.cotacoes||[]).filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
+    const rawChoices=(state.cotacoes||[]).filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
+    const seenChoices=new Set();
+    const choices=rawChoices.filter(row=>{const key=`${quoteCanonicalDescription(row.supplier_description||row.apresentacao||'')}|${Number(row.preco).toFixed(6)}`;if(seenChoices.has(key))return false;seenChoices.add(key);return true;});
     const search=manualQuoteSearch.trim().toLocaleLowerCase('pt-BR');
     const visible=search?choices.filter(row=>{const origin=state.licitacoes.find(t=>String(t.id)===String(row.quote_tender_id||row.origem_licitacao_id));return [row.supplier_description,row.apresentacao,row.marca,row.brand,row.model,row.code,row.preco,origin?.numero,origin?.orgao].join(' ').toLocaleLowerCase('pt-BR').includes(search);}):choices;
     if(!choices.length){target.innerHTML='<p>Nenhum produto cotado por este fornecedor nesta licitação.</p>';return;}
