@@ -173,7 +173,7 @@ const TENDER_SITUATIONS=[
 const tenderSituationInfo=value=>TENDER_SITUATIONS.find(item=>item.value===value)||TENDER_SITUATIONS[0];
 
 const MAX_QUOTE_FILE_SIZE=25*1024*1024;
-const QUOTE_PARSER_VERSION='36.11.4';
+const QUOTE_PARSER_VERSION='36.11.5';
 const QUOTE_FILE_EXTENSIONS=new Set(['pdf','xlsx','xls','csv']);
 const QUOTE_FILE_MIME_TYPES=new Set([
   'application/pdf','text/csv','application/csv','application/vnd.ms-excel',
@@ -2413,6 +2413,65 @@ function parseStimulsoftQuoteProduct(raw,pendingSubtotal=null){
   return {code,description,quantity,unit,price,subtotal,brand:'',presentation,factor:1,selected:true};
 }
 
+function rowsFromStimulsoftColumnItems(items){
+  const tokens=(Array.isArray(items)?items:[]).map(item=>({
+    text:String(item?.str||'').trim(),
+    x:Number(item?.transform?.[4]||0),
+    y:Number(item?.transform?.[5]||0)
+  })).filter(token=>token.text);
+
+  // Alguns relatórios Stimulsoft quebram a descrição em outra linha, mas
+  // mantêm código, unidade, quantidade e preços alinhados na linha principal.
+  // Reconstruímos a linha pela posição das colunas para não perder esses itens.
+  const anchors=tokens
+    .filter(token=>token.x>=95&&token.x<=160&&/^\d{3,8}$/.test(token.text))
+    .sort((a,b)=>b.y-a.y);
+
+  if(!anchors.length)return [];
+
+  const rows=[];
+  for(let i=0;i<anchors.length;i++){
+    const anchor=anchors[i];
+    const previous=anchors[i-1];
+    const next=anchors[i+1];
+    const upper=previous?(previous.y+anchor.y)/2:anchor.y+18;
+    const lower=next?(anchor.y+next.y)/2:anchor.y-18;
+    const inBand=tokens.filter(token=>token.y<=upper&&token.y>=lower);
+    const column=(min,max)=>inBand
+      .filter(token=>token.x>=min&&token.x<max)
+      .sort((a,b)=>b.y-a.y||a.x-b.x)
+      .map(token=>token.text)
+      .join(' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    const description=column(150,345);
+    const brand=column(340,430);
+    const unit=column(430,505).toUpperCase();
+    const presentation=column(505,605);
+    const quantity=parseBrazilianNumber(column(605,675));
+    const price=parseBrazilianNumber(column(675,755));
+    const subtotal=parseBrazilianNumber(column(755,840));
+
+    if(!description||!unit||!Number.isFinite(quantity)||!Number.isFinite(price)||price<=0)continue;
+
+    rows.push({
+      code:anchor.text,
+      description,
+      quantity,
+      unit,
+      price,
+      subtotal:Number.isFinite(subtotal)?subtotal:null,
+      brand,
+      presentation,
+      factor:1,
+      selected:true
+    });
+  }
+
+  return dedupeQuotePdfRows(rows);
+}
+
 function rowsFromStimulsoftQuoteLines(lines){
   const out=[];
   let pendingSubtotal=null;
@@ -2601,6 +2660,7 @@ async function parsePdfFile(file){
 
     // 1) tenta pelas linhas reconstruídas por coordenada
     candidates.push(...rowsFromPdfLines(preciseLines));
+    candidates.push(...rowsFromStimulsoftColumnItems(content.items));
     if(stimulsoftLayoutRows.length)candidates.push(...stimulsoftLayoutRows);
     else candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
 

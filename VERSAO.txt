@@ -1,1 +1,1 @@
-45.0.7 - Deduplicação de produtos com mesmo fornecedor e preço.
+45.0.8 - Leitura robusta de descrições quebradas em PDFs de cotação.
