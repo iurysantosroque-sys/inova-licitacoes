@@ -1,1 +1,1 @@
-45.0.3 - Busca rápida e filtro completo dos produtos da cotação.
+45.0.4 - Catálogo completo de produtos já cotados por fornecedor.
