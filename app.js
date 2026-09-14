@@ -7978,7 +7978,7 @@ function renderPricingExactModel(){
         </label>
         <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
         <button id="pricingPdfExportButton" type="button" title="Baixar a lista desta licitação em PDF">⇩ Baixar PDF</button>
-        <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>+ Adicionar cotação</button>
+        <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>＋ Abrir cotação</button>
       </div>
     </header>
 
@@ -8060,17 +8060,19 @@ function renderPricingExactModel(){
           <div><span class="pricing-manual-badge">COTAÇÃO MANUAL</span><h2 id="pricingManualQuoteTitle">Informar cotação do item</h2><p>Use esta opção quando o valor foi recebido por telefone, mensagem ou outro canal. A marca e os valores da tabela serão atualizados ao salvar.</p></div>
           <button type="button" data-close-pricing-manual-dialog aria-label="Fechar">×</button>
         </div>
-        <div class="pricing-manual-steps" aria-label="Etapas da cotação manual"><span><b>1</b> Escolha o fornecedor</span><span><b>2</b> Informe o valor</span><span><b>3</b> Confirme a marca</span></div>
+        <div class="pricing-manual-steps" aria-label="Etapas da cotação manual"><span><b>1</b> Escolha o fornecedor</span><span><b>2</b> Clique no produto correto</span><span><b>3</b> Salve a cotação preenchida</span></div>
         <section class="pricing-manual-item" aria-label="Item selecionado">
           <span>Item do edital</span><strong id="pricingManualQuoteItem">Selecione um item na tabela</strong><small id="pricingManualQuoteDetails"></small>
         </section>
         <input id="pricingManualQuoteItemId" name="item_id" type="hidden">
+        <input id="pricingManualQuoteSourceDescription" name="source_description" type="hidden">
+        <section id="pricingManualQuoteChoices" class="pricing-manual-choices" aria-live="polite"><p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p></section>
         <div class="pricing-item-form-grid pricing-manual-form-grid">
           <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ex.: 12,50" required></label>
-          <label>Marca <small>(opcional)</small><input name="marca" maxlength="120" placeholder="Ex.: Tigre"></label>
-          <label>Apresentação <small>(opcional)</small><input name="apresentacao" maxlength="160" placeholder="Ex.: Caixa com 12 unidades"></label>
-          <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required></label>
+          <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Preenchido pela cotação" required readonly></label>
+          <label>Marca <small>(da cotação)</small><input name="marca" maxlength="120" readonly></label>
+          <label>Apresentação <small>(da cotação)</small><input name="apresentacao" maxlength="160" readonly></label>
+          <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required readonly></label>
           <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.01" value="0"></label>
         </div>
         <div class="pricing-manual-preview" aria-live="polite"><span>Valor estimado para este item</span><strong id="pricingManualQuoteTotal">Informe o preço por unidade</strong></div>
@@ -8115,7 +8117,18 @@ function renderPricingExactModel(){
     updateManualQuotePreview();
     if(typeof manualDialog?.showModal==='function')manualDialog.showModal();
     else manualDialog?.setAttribute('open','');
+    renderManualQuoteChoices();
     setTimeout(()=>manualForm?.elements?.fornecedor_id?.focus(),0);
+  };
+  const renderManualQuoteChoices=()=>{
+    const target=shell.querySelector('#pricingManualQuoteChoices');
+    if(!target)return;
+    const itemId=String(manualForm?.elements?.item_id?.value||'');
+    const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
+    if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
+    const choices=(state.cotacoes||[]).filter(row=>String(row.fornecedor_id)===supplierId&&String(row.quote_tender_id||row.origem_licitacao_id)===String(tenderId)&&Number(row.preco)>0);
+    if(!choices.length){target.innerHTML='<p>Nenhum produto cotado por este fornecedor nesta licitação.</p>';return;}
+    target.innerHTML=`<div class="pricing-manual-choices-head"><strong>Produtos enviados por este fornecedor</strong><small>${choices.length} produto${choices.length===1?'':'s'} encontrado${choices.length===1?'':'s'}</small></div><div class="pricing-manual-choices-list">${choices.map(row=>`<button type="button" class="pricing-manual-choice ${String(row.item_id)===itemId?'selected':''}" data-select-pricing-source="${esc(row.id)}"><span>${esc(row.supplier_description||row.apresentacao||'Produto sem descrição')}</span><small>${money(row.preco)} • ${esc(row.marca||'Marca não informada')} • fator ${esc(row.fator_equivalencia||1)}</small></button>`).join('')}</div>`;
   };
 
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
@@ -8126,6 +8139,19 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
   shell.querySelectorAll('[data-pricing-manual-quote]').forEach(button=>button.addEventListener('click',()=>openManualQuote(button.dataset.pricingManualQuote)));
+  manualForm?.elements?.fornecedor_id?.addEventListener('change',renderManualQuoteChoices);
+  shell.querySelector('#pricingManualQuoteChoices')?.addEventListener('click',event=>{
+    const button=event.target.closest('[data-select-pricing-source]'); if(!button)return;
+    const source=state.cotacoes.find(row=>String(row.id)===String(button.dataset.selectPricingSource)); if(!source)return;
+    manualForm.elements.fornecedor_id.value=source.fornecedor_id||'';
+    manualForm.elements.source_description.value=source.supplier_description||source.apresentacao||'';
+    manualForm.elements.preco.value=Number(source.preco||0);
+    manualForm.elements.marca.value=source.marca||'';
+    manualForm.elements.apresentacao.value=source.apresentacao||'';
+    manualForm.elements.fator_equivalencia.value=Number(source.fator_equivalencia||1);
+    manualForm.elements.frete_rateado.value=Number(source.frete_rateado||0);
+    updateManualQuotePreview(); renderManualQuoteChoices();
+  });
   manualForm?.addEventListener('input',updateManualQuotePreview);
   shell.querySelectorAll('[data-close-pricing-manual-dialog]').forEach(button=>button.addEventListener('click',()=>manualDialog?.close?.()||manualDialog?.removeAttribute('open')));
   manualDialog?.addEventListener('click',event=>{if(event.target===manualDialog)manualDialog.close?.();});
@@ -8157,7 +8183,7 @@ function renderPricingExactModel(){
       const quote=await findOrCreateQuote(tenderId,supplierId);
       if(!quote)return;
       const {error}=await supabase.from('quote_items').insert({
-        quote_id:quote.id,tender_item_id:item.id,supplier_description:item.descricao,
+        quote_id:quote.id,tender_item_id:item.id,supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,
         brand:String(values.marca||'').trim()||null,
         package_description:String(values.apresentacao||'').trim()||null,
         package_base_quantity:factor,unit_price:price,freight_per_package:freight

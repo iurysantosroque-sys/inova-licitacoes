@@ -1,1 +1,1 @@
-45.0.0 - Histórico permanente de produtos cotados por fornecedor.
+45.0.1 - Seleção manual de produtos por fornecedor na precificação.
