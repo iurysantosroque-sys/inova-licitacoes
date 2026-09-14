@@ -153,6 +153,9 @@ licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[],
 };
 
 state.quotedProducts=[];
+state.quoteRequests=[];
+state.quoteRequestSuppliers=[];
+state.quoteRequestItems=[];
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
 
@@ -4818,15 +4821,18 @@ async function fetchAllSupabaseRows(table,filterColumn,ids,orderColumns=[]){
 async function refreshAll(){
   if(state.demo){ renderAll(); return; }
   const cid=currentCompanyId(); if(!cid)return;
-  const [settings,tenders,suppliers,quotes,members,quotedProducts]=await Promise.all([
+  const [settings,tenders,suppliers,quotes,members,quotedProducts,quoteRequests,quoteRequestSuppliers,quoteRequestItems]=await Promise.all([
     supabase.from('pricing_settings').select('*').eq('company_id',cid).maybeSingle(),
     supabase.from('tenders').select('*').eq('company_id',cid).order('dispute_at',{ascending:true,nullsFirst:false}),
     supabase.from('suppliers').select('*').eq('company_id',cid).order('name'),
     supabase.from('quotes').select('*').eq('company_id',cid).order('created_at',{ascending:false}),
     supabase.from('company_members').select('*').eq('company_id',cid).order('created_at'),
-    supabase.from('quoted_products').select('*').eq('company_id',cid).order('expires_at',{ascending:true})
+    supabase.from('quoted_products').select('*').eq('company_id',cid).order('expires_at',{ascending:true}),
+    supabase.from('quote_requests').select('*').eq('company_id',cid).order('created_at',{ascending:false}),
+    supabase.from('quote_request_suppliers').select('*').eq('company_id',cid).order('created_at',{ascending:false}),
+    supabase.from('quote_request_items').select('*').eq('company_id',cid).order('created_at',{ascending:true})
   ]);
-  const err=[settings,tenders,suppliers,quotes,members,quotedProducts].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
+  const err=[settings,tenders,suppliers,quotes,members,quotedProducts,quoteRequests,quoteRequestSuppliers,quoteRequestItems].find(x=>x.error)?.error; if(err)return toast(err.message,'error');
   state.config={
     imposto:Number(settings.data?.tax_percent??6),margem_alvo:Number(settings.data?.target_margin_percent??25),
     lucro_minimo:Number(settings.data?.minimum_profit_amount??500),margem_minima:Number(settings.data?.minimum_margin_percent??10),
@@ -4865,6 +4871,9 @@ async function refreshAll(){
     quoted_quantity:product.quoted_quantity===null?null:Number(product.quoted_quantity),
     package_base_quantity:Number(product.package_base_quantity||1)
   }));
+  state.quoteRequests=quoteRequests.data||[];
+  state.quoteRequestSuppliers=quoteRequestSuppliers.data||[];
+  state.quoteRequestItems=quoteRequestItems.data||[];
   const tenderDocumentsResp=await supabase.from('tender_documents').select('*').eq('company_id',cid).order('updated_at',{ascending:false});
   if(tenderDocumentsResp.error){
     state.tenderDocuments=[];
@@ -5067,7 +5076,118 @@ function renderQuoteSheet(){
   const canUndo=state.quoteUndoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const canRedo=state.quoteRedoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const rowMarkup=items.map(i=>`<tr><td><div class="quote-sheet-item"><button type="button" class="quote-sheet-remove" data-quote-delete-item="${esc(i.id)}" title="Excluir item da cotação" aria-label="Excluir item ${esc(i.numero)}">×</button><span>${esc(i.descricao||'-')}</span></div></td><td>${esc(i.unidade||'-')}</td><td>${esc(i.quantidade??'-')}</td></tr>`).join('');
-  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}`;
+  panel.innerHTML=`<div class="panel-title"><div><h2>Tabela da cotação</h2><p class="hint">${esc(tender.orgao||'Órgão comprador')} • ${esc(tender.cidade||'')} ${tender.proposalEndAt?'• Proposta até '+dateBR(tender.proposalEndAt,false):''}</p></div></div><div class="quote-sheet-controls"><span>${items.length} de ${allItems.length} itens disponíveis</span><div class="quote-sheet-actions"><button type="button" class="action-btn" data-refresh-quote-items title="Recarregar itens originais">↻ Atualizar itens</button><button type="button" class="action-btn" data-quote-undo ${canUndo?'':'disabled'} title="Desfazer exclusão">↶</button><button type="button" class="action-btn" data-quote-redo ${canRedo?'':'disabled'} title="Refazer exclusão">↷</button></div></div>${items.length?`<div class="quote-sheet-scroll"><table class="quote-sheet-table"><thead><tr><th>Nome do item</th><th>Unidade</th><th>Quantidade</th></tr></thead><tbody>${rowMarkup}</tbody></table></div>`:'<p class="hint">Este edital não possui itens disponíveis para cotação.</p>'}${renderQuoteRequestHub(tender,items)}`;
+}
+
+function quoteRequestStatusInfo(row,request){
+  const status=String(row?.status||'draft');
+  const dueAt=row?.due_at||request?.due_at;
+  const overdue=['sent','partial'].includes(status)&&dueAt&&new Date(dueAt).getTime()<Date.now();
+  if(overdue)return {key:'late',label:'Atrasada',className:'bad'};
+  return ({draft:{label:'Rascunho',className:'neutral'},sent:{label:'Aguardando resposta',className:'warn'},partial:{label:'Cotação parcial',className:'warn'},received:{label:'Cotação recebida',className:'good'},cancelled:{label:'Cancelada',className:'neutral'}}[status])||{label:'Rascunho',className:'neutral'};
+}
+
+function quoteRequestCoverage(row,request){
+  const requested=state.quoteRequestItems.filter(item=>String(item.request_id)===String(request.id));
+  const since=new Date(row.sent_at||request.created_at||0).getTime();
+  const answered=requested.filter(requestItem=>state.cotacoes.some(quote=>
+    String(quote.fornecedor_id)===String(row.supplier_id)&&
+    String(quote.item_id)===String(requestItem.tender_item_id)&&
+    Number(quote.preco||0)>0&&
+    (!since||new Date(quote.quote_created_at||0).getTime()>=since)
+  ));
+  return {requested,answered};
+}
+
+function quoteRequestDefaultDueValue(tender){
+  const now=new Date();
+  let due=new Date(now.getTime()+24*60*60*1000);
+  const proposalEnd=tender?.proposalEndAt?new Date(tender.proposalEndAt):null;
+  if(proposalEnd&&!Number.isNaN(proposalEnd.getTime())&&proposalEnd<due){
+    due=new Date(Math.max(now.getTime()+60*60*1000,proposalEnd.getTime()-2*60*60*1000));
+  }
+  const pad=value=>String(value).padStart(2,'0');
+  return `${due.getFullYear()}-${pad(due.getMonth()+1)}-${pad(due.getDate())}T${pad(due.getHours())}:${pad(due.getMinutes())}`;
+}
+
+function quoteRequestMessage(row,request,reminder=false){
+  const tender=state.licitacoes.find(item=>String(item.id)===String(request.tender_id));
+  const supplier=state.fornecedores.find(item=>String(item.id)===String(row.supplier_id));
+  const coverage=quoteRequestCoverage(row,request);
+  const deadline=row.due_at||request.due_at;
+  const intro=reminder?'Olá! Estamos reforçando nossa solicitação de cotação.':'Olá! Precisamos de uma cotação.';
+  return `${intro}\n\nFornecedor: ${supplier?.nome||'Fornecedor'}\nEdital: ${tender?.numero||'-'} — ${tender?.orgao||'Órgão comprador'}\nItens solicitados: ${coverage.requested.length}\nRetorno até: ${dateBR(deadline,true)}\n\nPor favor, envie preços unitários, marca e prazo de entrega. Obrigado!`;
+}
+
+function quoteRequestViability(tender,items){
+  const quoted=items.filter(item=>Boolean(bestQuote(item.id)));
+  const missing=items.filter(item=>!bestQuote(item.id));
+  if(!items.length)return {label:'Dados insuficientes',className:'neutral',detail:'Este edital ainda não possui itens cadastrados.',quoted,missing};
+  if(missing.length)return {label:'Dados insuficientes',className:'warn',detail:`${missing.length} item(ns) ainda sem preço.`,quoted,missing};
+  const calculations=items.map(pricing);
+  if(calculations.some(row=>!row||row.status==='Sem estimado'))return {label:'Participar com cautela',className:'warn',detail:'Há item sem valor estimado para confirmar a margem.',quoted,missing};
+  if(calculations.some(row=>row.status==='Ruim'))return {label:'Não recomendada',className:'bad',detail:'Ao menos um item não alcança o mínimo de retorno.',quoted,missing};
+  if(calculations.some(row=>row.status==='Oportunidade'))return {label:'Participar com cautela',className:'warn',detail:'Os preços permitem participar, com margem abaixo da desejada em algum item.',quoted,missing};
+  return {label:'Oportunidade viável',className:'good',detail:'Todos os itens cotados atendem à margem desejada.',quoted,missing};
+}
+
+function renderQuoteRequestHub(tender,items){
+  const requests=(state.quoteRequests||[]).filter(request=>String(request.tender_id)===String(tender.id)&&request.status==='open');
+  const requestSuppliers=(state.quoteRequestSuppliers||[]).filter(row=>requests.some(request=>String(request.id)===String(row.request_id)));
+  const effectiveRows=requestSuppliers.map(row=>({row,request:requests.find(request=>String(request.id)===String(row.request_id))}));
+  const late=effectiveRows.filter(entry=>quoteRequestStatusInfo(entry.row,entry.request).key==='late').length;
+  const awaiting=effectiveRows.filter(entry=>['draft','sent','partial'].includes(entry.row.status)).length;
+  const received=effectiveRows.filter(entry=>entry.row.status==='received').length;
+  const viability=quoteRequestViability(tender,items);
+  const checkedSuppliers=state.quoteRequestSupplierIds?.length?new Set(state.quoteRequestSupplierIds.map(String)):new Set(state.fornecedores.map(supplier=>String(supplier.id)));
+  const checkedItems=state.quoteRequestItemIds?.length?new Set(state.quoteRequestItemIds.map(String)):new Set(items.map(item=>String(item.id)));
+  const requestCards=effectiveRows.length?effectiveRows.map(({row,request})=>{
+    const supplier=state.fornecedores.find(item=>String(item.id)===String(row.supplier_id));
+    const coverage=quoteRequestCoverage(row,request);
+    const status=quoteRequestStatusInfo(row,request);
+    const message=quoteRequestMessage(row,request);
+    const whatsapp=supplierWhatsappUrl(supplierPhone(supplier));
+    const email=String(supplier?.email||'').trim();
+    const requestTender=state.licitacoes.find(item=>String(item.id)===String(request.tender_id));
+    const emailHref=email?`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Cotação — Edital ${requestTender?.numero||''}`)}&body=${encodeURIComponent(message)}`:'';
+    return `<article class="quote-request-card"><div><strong>${esc(supplier?.nome||'Fornecedor')}</strong><span class="badge ${status.className}">${status.label}</span><small>${coverage.answered.length}/${coverage.requested.length} itens com preço • prazo ${dateBR(row.due_at||request.due_at,true)}</small>${row.reminder_count?`<small>${row.reminder_count} cobrança${row.reminder_count===1?'':'s'} registrada${row.reminder_count===1?'':'s'}</small>`:''}</div><div class="quote-request-actions"><button type="button" class="action-btn" data-copy-quote-request="${esc(row.id)}">Copiar mensagem</button>${whatsapp?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(whatsapp)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:''}${emailHref?`<a class="action-btn" data-send-quote-request="${esc(row.id)}" href="${esc(emailHref)}">E-mail</a>`:''}${!whatsapp&&!emailHref?'<span class="hint">Sem canal cadastrado</span>':''}<button type="button" class="action-btn" data-remind-quote-request="${esc(row.id)}" ${row.status==='received'||row.status==='cancelled'?'disabled':''}>Cobrar</button></div></article>`;
+  }).join(''):'<p class="hint quote-request-empty">Nenhuma solicitação aberta para este edital.</p>';
+  return `<section class="quote-request-hub" aria-labelledby="quoteRequestHubTitle"><div class="quote-request-head"><div><h2 id="quoteRequestHubTitle">Solicitações de cotação</h2><p class="hint">Crie a solicitação, envie a mensagem pelo canal que preferir e acompanhe o retorno aqui.</p></div><span class="badge ${viability.className}">${viability.label}</span></div><div class="quote-request-summary"><span><b>${items.length}</b> itens</span><span><b>${viability.quoted.length}</b> com preço</span><span><b>${awaiting}</b> aguardando</span><span><b>${late}</b> atrasadas</span><span><b>${received}</b> recebidas</span></div><p class="quote-request-viability ${viability.className}">${esc(viability.detail)}</p><details class="quote-request-form" ${effectiveRows.length?'':'open'}><summary>+ Nova solicitação</summary><form id="quoteRequestForm"><label>Prazo de resposta<input name="due_at" type="datetime-local" value="${quoteRequestDefaultDueValue(tender)}" required></label><label>Observação interna<input name="notes" maxlength="500" placeholder="Ex.: prioridade para itens de limpeza"></label><fieldset><legend>Fornecedores</legend><div class="quote-request-options">${state.fornecedores.map(supplier=>`<label><input type="checkbox" name="supplier_ids" value="${esc(supplier.id)}" ${checkedSuppliers.has(String(supplier.id))?'checked':''}>${esc(supplier.nome)}</label>`).join('')||'<span class="hint">Cadastre fornecedores antes de criar a solicitação.</span>'}</div></fieldset><fieldset><legend>Itens solicitados</legend><div class="quote-request-options">${items.map(item=>`<label><input type="checkbox" name="item_ids" value="${esc(item.id)}" ${checkedItems.has(String(item.id))?'checked':''}>Item ${esc(item.numero)} — ${esc(item.descricao)}</label>`).join('')}</div></fieldset><button type="submit" class="quote-request-create">Gerar solicitações</button></form></details><div class="quote-request-list">${requestCards}</div></section>`;
+}
+
+async function saveQuoteRequest(form){
+  const tender=state.licitacoes.find(item=>String(item.id)===String(state.quoteViewTenderId));
+  const values=new FormData(form);const supplierIds=values.getAll('supplier_ids').map(String);const itemIds=values.getAll('item_ids').map(String);const dueAt=new Date(String(values.get('due_at')||''));
+  if(!tender||!supplierIds.length||!itemIds.length)return toast('Selecione ao menos um fornecedor e um item.','error');
+  if(Number.isNaN(dueAt.getTime())||dueAt.getTime()<=Date.now())return toast('Informe um prazo futuro para a resposta.','error');
+  const record={id:crypto.randomUUID(),company_id:currentCompanyId()||'demo',tender_id:tender.id,status:'open',due_at:dueAt.toISOString(),notes:String(values.get('notes')||'').trim()||null,created_by:state.user?.id||'demo',created_at:new Date().toISOString()};
+  if(state.demo){
+    state.quoteRequests.unshift(record);
+    state.quoteRequestSuppliers.unshift(...supplierIds.map(supplier_id=>({id:crypto.randomUUID(),company_id:record.company_id,request_id:record.id,supplier_id,status:'draft',due_at:null,reminder_count:0,created_at:record.created_at})));
+    state.quoteRequestItems.push(...itemIds.map(tender_item_id=>({id:crypto.randomUUID(),company_id:record.company_id,request_id:record.id,tender_item_id,created_at:record.created_at})));
+    renderAll();return toast(`${supplierIds.length} solicitação(ões) criada(s).`,'success');
+  }
+  const {data:created,error}=await supabase.from('quote_requests').insert({...record,id:undefined}).select().single();
+  if(error)return toast(error.message,'error');
+  const [supplierResult,itemResult]=await Promise.all([
+    supabase.from('quote_request_suppliers').insert(supplierIds.map(supplier_id=>({company_id:currentCompanyId(),request_id:created.id,supplier_id,status:'draft'}))),
+    supabase.from('quote_request_items').insert(itemIds.map(tender_item_id=>({company_id:currentCompanyId(),request_id:created.id,tender_item_id})))
+  ]);
+  if(supplierResult.error||itemResult.error)return toast((supplierResult.error||itemResult.error).message,'error');
+  toast(`${supplierIds.length} solicitação(ões) criada(s).`,'success');await refreshAll();
+}
+
+async function updateQuoteRequestSupplier(id,changes,successMessage){
+  const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));if(!row)return;
+  if(state.demo){Object.assign(row,changes);renderAll();if(successMessage)toast(successMessage,'success');return;}
+  const {error}=await supabase.from('quote_request_suppliers').update(changes).eq('id',id).eq('company_id',currentCompanyId());
+  if(error)return toast(error.message,'error');if(successMessage)toast(successMessage,'success');await refreshAll();
+}
+
+async function copyQuoteRequestMessage(id,reminder=false){
+  const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));const request=(state.quoteRequests||[]).find(item=>String(item.id)===String(row?.request_id));if(!row||!request)return;
+  const message=quoteRequestMessage(row,request,reminder);
+  try{await navigator.clipboard.writeText(message);toast(reminder?'Mensagem de cobrança copiada.':'Mensagem de cotação copiada.','success');}catch{toast('Não foi possível copiar automaticamente.','error');}
 }
 
 function quoteExportSafePart(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';}
@@ -12529,6 +12649,35 @@ document.addEventListener('click',async e=>{
   const select=$('#pncpSyncTender');
   if(select)select.value=btn.dataset.syncPncp;
   await syncPncpItems();
+});
+
+document.addEventListener('submit',async e=>{
+  if(!e.target.matches('#quoteRequestForm'))return;
+  e.preventDefault();
+  const button=e.target.querySelector('[type="submit"]');
+  if(button)button.disabled=true;
+  try{await saveQuoteRequest(e.target)}finally{if(button)button.disabled=false;}
+});
+
+document.addEventListener('click',async e=>{
+  const copy=e.target.closest('[data-copy-quote-request]');
+  if(copy){e.preventDefault();await copyQuoteRequestMessage(copy.dataset.copyQuoteRequest);return;}
+  const sent=e.target.closest('[data-send-quote-request]');
+  if(sent){
+    const id=sent.dataset.sendQuoteRequest;
+    const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));
+    if(row&&row.status==='draft')await updateQuoteRequestSupplier(id,{status:'sent',sent_at:new Date().toISOString()},'Envio registrado.');
+    return;
+  }
+  const reminder=e.target.closest('[data-remind-quote-request]');
+  if(reminder){
+    e.preventDefault();
+    const id=reminder.dataset.remindQuoteRequest;
+    const row=(state.quoteRequestSuppliers||[]).find(item=>String(item.id)===String(id));
+    if(!row)return;
+    await copyQuoteRequestMessage(id,true);
+    await updateQuoteRequestSupplier(id,{status:row.status==='draft'?'sent':row.status,sent_at:row.sent_at||new Date().toISOString(),last_reminder_at:new Date().toISOString(),reminder_count:Number(row.reminder_count||0)+1},'Cobrança registrada.');
+  }
 });
 
 setupManualQuoteMode();

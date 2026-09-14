@@ -1,1 +1,1 @@
-43.0.0 - Catálogo persistente de produtos cotados, validade de 20 dias e exportação de itens vencidos.
+44.0.0 - Solicitações de cotação por fornecedor, prazo, cobrança e viabilidade por edital.
