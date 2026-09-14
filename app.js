@@ -8093,6 +8093,7 @@ function renderPricingExactModel(){
 
   const manualDialog=shell.querySelector('#pricingManualQuoteDialog');
   const manualForm=shell.querySelector('#pricingManualQuoteForm');
+  let manualQuoteSearch='';
   const updateManualQuotePreview=()=>{
     const item=items.find(row=>String(row.id)===String(manualForm?.elements?.item_id?.value||''));
     const unitPrice=Number(manualForm?.elements?.preco?.value||0);
@@ -8127,11 +8128,15 @@ function renderPricingExactModel(){
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
     const choices=(state.cotacoes||[]).filter(row=>{
-      const rowTender=row.quote_tender_id||row.origem_licitacao_id||state.itens.find(item=>String(item.id)===String(row.item_id))?.licitacao_id;
+      const quote=state.quotes.find(q=>String(q.id)===String(row.quote_id));
+      const rowTender=row.quote_tender_id||row.origem_licitacao_id||quote?.tender_id||state.itens.find(item=>String(item.id)===String(row.item_id))?.licitacao_id;
       return String(row.fornecedor_id)===supplierId&&String(rowTender)===String(tenderId)&&Number(row.preco)>0;
     });
+    const search=manualQuoteSearch.trim().toLocaleLowerCase('pt-BR');
+    const visible=search?choices.filter(row=>[row.supplier_description,row.apresentacao,row.marca,row.brand,row.model,row.code,row.preco].join(' ').toLocaleLowerCase('pt-BR').includes(search)):choices;
     if(!choices.length){target.innerHTML='<p>Nenhum produto cotado por este fornecedor nesta licitação.</p>';return;}
-    target.innerHTML=`<div class="pricing-manual-choices-head"><strong>Produtos enviados por este fornecedor</strong><small>${choices.length} produto${choices.length===1?'':'s'} encontrado${choices.length===1?'':'s'}</small></div><div class="pricing-manual-choices-list">${choices.map(row=>`<button type="button" class="pricing-manual-choice ${String(row.item_id)===itemId?'selected':''}" data-select-pricing-source="${esc(row.id)}"><span>${esc(row.supplier_description||row.apresentacao||'Produto sem descrição')}</span><small>${money(row.preco)} • ${esc(row.marca||'Marca não informada')} • fator ${esc(row.fator_equivalencia||1)}</small></button>`).join('')}</div>`;
+    target.innerHTML=`<div class="pricing-manual-choices-head"><strong>Produtos enviados por este fornecedor</strong><small>${visible.length} de ${choices.length} encontrados</small></div><label class="pricing-manual-search">🔎 <input type="search" data-pricing-manual-search placeholder="Buscar produto, marca, código ou preço" value="${esc(manualQuoteSearch)}"></label><div class="pricing-manual-choices-list">${visible.length?visible.map(row=>`<button type="button" class="pricing-manual-choice ${String(row.item_id)===itemId?'selected':''}" data-select-pricing-source="${esc(row.id)}"><span>${esc(row.supplier_description||row.apresentacao||'Produto sem descrição')}</span><small>${money(row.preco)} • ${esc(row.marca||'Marca não informada')} • fator ${esc(row.fator_equivalencia||1)}</small></button>`).join(''):'<p class="pricing-manual-no-results">Nenhum produto corresponde à busca.</p>'}</div>`;
+    target.querySelector('[data-pricing-manual-search]')?.addEventListener('input',event=>{manualQuoteSearch=event.target.value;renderManualQuoteChoices();target.querySelector('[data-pricing-manual-search]')?.focus();});
   };
 
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
