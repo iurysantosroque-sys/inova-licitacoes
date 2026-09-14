@@ -1,1 +1,1 @@
-45.0.8 - Leitura robusta de descrições quebradas em PDFs de cotação.
+45.0.9 - Busca de produtos com cursor estável e visual escuro.

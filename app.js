@@ -8196,6 +8196,10 @@ function renderPricingExactModel(){
   const renderManualQuoteChoices=()=>{
     const target=shell.querySelector('#pricingManualQuoteChoices');
     if(!target)return;
+    const previousSearch=target.querySelector('[data-pricing-manual-search]');
+    const restoreSearch=document.activeElement===previousSearch;
+    const selectionStart=restoreSearch?previousSearch.selectionStart:null;
+    const selectionEnd=restoreSearch?previousSearch.selectionEnd:null;
     const itemId=String(manualForm?.elements?.item_id?.value||'');
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
@@ -8206,7 +8210,12 @@ function renderPricingExactModel(){
     const visible=search?choices.filter(row=>{const origin=state.licitacoes.find(t=>String(t.id)===String(row.quote_tender_id||row.origem_licitacao_id));return [row.supplier_description,row.apresentacao,row.marca,row.brand,row.model,row.code,row.preco,origin?.numero,origin?.orgao].join(' ').toLocaleLowerCase('pt-BR').includes(search);}):choices;
     if(!choices.length){target.innerHTML='<p>Nenhum produto cotado por este fornecedor nesta licitação.</p>';return;}
     target.innerHTML=`<div class="pricing-manual-choices-head"><strong>Produtos já cotados por este fornecedor</strong><small>${visible.length} de ${choices.length} encontrados</small></div><label class="pricing-manual-search">🔎 <input type="search" data-pricing-manual-search placeholder="Buscar produto, marca, edital ou preço" value="${esc(manualQuoteSearch)}"></label><div class="pricing-manual-choices-list">${visible.length?visible.map(row=>{const origin=state.licitacoes.find(t=>String(t.id)===String(row.quote_tender_id||row.origem_licitacao_id));return `<button type="button" class="pricing-manual-choice ${String(row.item_id)===itemId?'selected':''}" data-select-pricing-source="${esc(row.id)}"><span>${esc(row.supplier_description||row.apresentacao||'Produto sem descrição')}</span><small>${money(row.preco)} • ${esc(row.marca||'Marca não informada')} • fator ${esc(row.fator_equivalencia||1)}${origin?` • ${esc(origin.numero||origin.orgao)}`:''}</small></button>`;}).join(''):'<p class="pricing-manual-no-results">Nenhum produto corresponde à busca.</p>'}</div>`;
-    target.querySelector('[data-pricing-manual-search]')?.addEventListener('input',event=>{manualQuoteSearch=event.target.value;renderManualQuoteChoices();target.querySelector('[data-pricing-manual-search]')?.focus();});
+    const nextSearch=target.querySelector('[data-pricing-manual-search]');
+    if(nextSearch&&restoreSearch){
+      nextSearch.focus();
+      nextSearch.setSelectionRange(selectionStart??nextSearch.value.length,selectionEnd??nextSearch.value.length);
+    }
+    nextSearch?.addEventListener('input',event=>{manualQuoteSearch=event.target.value;renderManualQuoteChoices();});
   };
 
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
