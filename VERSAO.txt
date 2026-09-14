@@ -1,1 +1,1 @@
-45.0.5 - Ajuste da contagem de produtos e preços ativos.
+45.0.6 - Cadastro de todas as linhas importadas da cotação.

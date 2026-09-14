@@ -2758,9 +2758,8 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   // exigir `safeToSave` aqui fazia todas as linhas "para revisão" sumirem da
   // tabela. Sugestões exclusivamente da IA continuam fora do salvamento
   // automático (`autoTextMatched` falso).
-  const eligible=rows.filter(r=>
-    r.itemId&&r.autoTextMatched===true&&Number(r.price)>0&&Number(r.factor)>0
-  );
+  const allRows=rows.filter(r=>Number(r.price)>0&&Number(r.factor)>0);
+  const eligible=allRows.filter(r=>r.itemId&&r.autoTextMatched===true);
   const counts=new Map();
   eligible.forEach(r=>counts.set(String(r.itemId),(counts.get(String(r.itemId))||0)+1));
   // Preenche a Precificação também com correspondências confiáveis marcadas
@@ -2774,24 +2773,23 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
   if(runToken!==state.quoteImportRunToken)return 0;
 
   if(state.demo){
-    for(const r of safeRows){
-      const existing=state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
-      const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',ai_match_confidence:r.aiMatchConfidence,needs_review:!r.safeToSave};
+    for(const r of allRows){
+      const existing=r.itemId&&state.cotacoes.find(x=>String(x.item_id)===String(r.itemId)&&String(x.fornecedor_id)===String(supplierId));
+      const local={id:existing?.id||crypto.randomUUID(),item_id:r.itemId||null,fornecedor_id:supplierId,preco:Number(r.price),fator_equivalencia:Number(r.factor),frete_rateado:0,apresentacao:r.presentation||'',marca:r.brand||'',supplier_description:r.description||'',quote_tender_id:tenderId,ai_match_confidence:r.aiMatchConfidence,needs_review:!r.safeToSave||!r.itemId};
       if(existing)Object.assign(existing,local);else state.cotacoes.push(local);
-      r.savedToPricing=true;r.savedAutomatically=true;r.selected=false;
+      r.savedToPricing=true;r.savedAutomatically=Boolean(r.safeToSave&&r.itemId);r.selected=false;
     }
     renderAll();
     return safeRows.length;
   }
 
-  if(!safeRows.length)return 0;
-  const itemIds=safeRows.map(r=>String(r.itemId));
-  const {data:oldRows,error:oldError}=await supabase.from('quote_items').select('id,tender_item_id').eq('quote_id',quoteId).in('tender_item_id',itemIds);
+  if(!allRows.length)return 0;
+  const {data:oldRows,error:oldError}=await supabase.from('quote_items').select('id').eq('quote_id',quoteId);
   if(oldError)throw oldError;
   if(runToken!==state.quoteImportRunToken)return 0;
 
-  const payload=safeRows.map(r=>({
-    quote_id:quoteId,tender_item_id:r.itemId,supplier_description:r.description,
+  const payload=allRows.map(r=>({
+    quote_id:quoteId,tender_item_id:r.itemId||null,supplier_description:r.description,
     brand:r.brand||null,package_description:r.presentation||null,package_base_quantity:Number(r.factor),
     unit_price:Number(r.price),freight_per_package:0,ai_match_confidence:Number(r.aiMatchConfidence),needs_review:!r.safeToSave
   }));
@@ -2811,8 +2809,8 @@ async function persistAutomaticQuoteRows(quoteId,tenderId,supplierId,runToken){
     if(insertedIds.length)await supabase.from('quote_items').delete().in('id',insertedIds);
     throw error;
   }
-  safeRows.forEach(r=>{r.savedToPricing=true;r.savedAutomatically=Boolean(r.safeToSave);r.selected=false;});
-  return safeRows.length;
+  allRows.forEach(r=>{r.savedToPricing=true;r.savedAutomatically=Boolean(r.safeToSave&&r.itemId);r.selected=false;});
+  return allRows.length;
 }
 
 async function findOrCreateAiQuote(tenderId,supplierId,file){
