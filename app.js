@@ -157,6 +157,7 @@ state.catalogProducts=[];
 state.productQuoteSnapshots=[];
 state.productsCatalogFilter='active';
 state.productsCatalogSearch='';
+state.productsCatalogSupplier='';
 state.selectedExpiredSnapshotIds=[];
 
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
@@ -348,8 +349,19 @@ function productPriceVariation(snapshot,history){
 }
 function renderProductsCatalog(){
   const target=$('#productsCatalogList'); if(!target)return;
-  const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active';
-  const snapshots=state.productQuoteSnapshots||[];
+  const supplierSelect=$('#productsCatalogSupplier');
+  if(supplierSelect){const current=String(state.productsCatalogSupplier||'');supplierSelect.innerHTML='<option value="">Todos os fornecedores</option>'+state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('');supplierSelect.value=current;}
+  const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active', supplierFilter=String(state.productsCatalogSupplier||'');
+  const imported=readSupplierProducts?readSupplierProducts():{};
+  const localSnapshots=[],localProducts=[];
+  Object.entries(imported||{}).forEach(([supplierId,rows])=>(rows||[]).forEach((row,index)=>{
+    const productId=`local-${supplierId}-${index}`;
+    const name=String(row.description||row.presentation||'Produto importado').trim();
+    localProducts.push({id:productId,name,normalized_unit:row.unit||''});
+    const quotedAt=row.imported_at||new Date().toISOString();
+    localSnapshots.push({id:`${productId}-snapshot`,product_id:productId,supplier_id:supplierId,original_name:name,original_description:name,original_unit:row.unit||'',normalized_unit:row.unit||'',original_quantity:row.quantity??null,unit_price:Number(row.unit_price||row.price||0),quoted_at:quotedAt,expires_at:new Date(new Date(quotedAt).getTime()+20*864e5).toISOString(),brand:row.brand||'',match_status:'confirmed'});
+  }));
+  const snapshots=[...(state.productQuoteSnapshots||[]),...localSnapshots].filter(row=>!supplierFilter||String(row.supplier_id)===supplierFilter);
   const uniqueSnapshotMap=new Map();
   snapshots.forEach(row=>{
     const key=`${row.product_id}|${row.supplier_id}|${Number(row.unit_price||0).toFixed(6)}`;
@@ -357,7 +369,7 @@ function renderProductsCatalog(){
     if(!prior||new Date(row.quoted_at||0)>new Date(prior.quoted_at||0))uniqueSnapshotMap.set(key,row);
   });
   const uniqueSnapshots=[...uniqueSnapshotMap.values()];
-  const groups=(state.catalogProducts||[]).map(product=>({product,rows:uniqueSnapshots.filter(row=>String(row.product_id)===String(product.id))}));
+  const groups=[...(state.catalogProducts||[]),...localProducts].map(product=>({product,rows:uniqueSnapshots.filter(row=>String(row.product_id)===String(product.id))})).filter(group=>!supplierFilter||group.rows.length);
   const selected=new Set(state.selectedExpiredSnapshotIds||[]);
   const filtered=groups.filter(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)); const soon=active.some(row=>new Date(row.expires_at).getTime()-now<=5*864e5); const soon10=active.some(row=>new Date(row.expires_at).getTime()-now<=10*864e5);
@@ -11813,6 +11825,7 @@ document.querySelectorAll('[data-supplier-catalog-view]').forEach(button=>button
 $('#downloadExpiredQuotedProducts')?.addEventListener('click',()=>downloadQuotedProductsCsv((state.quotedProducts||[]).filter(quotedProductIsExpired)));
 $('#productsCatalogSearch')?.addEventListener('input',event=>{state.productsCatalogSearch=event.target.value;renderProductsCatalog();});
 $('#productsCatalogFilter')?.addEventListener('change',event=>{state.productsCatalogFilter=event.target.value;renderProductsCatalog();});
+$('#productsCatalogSupplier')?.addEventListener('change',event=>{state.productsCatalogSupplier=event.target.value;renderProductsCatalog();});
 $('#exportExpiredProducts')?.addEventListener('click',exportSelectedExpiredProducts);
 document.addEventListener('change',event=>{const input=event.target.closest('[data-expired-snapshot]');if(!input)return;const selected=new Set(state.selectedExpiredSnapshotIds||[]);if(input.checked)selected.add(input.dataset.expiredSnapshot);else selected.delete(input.dataset.expiredSnapshot);state.selectedExpiredSnapshotIds=[...selected];});
 document.addEventListener('click',event=>{

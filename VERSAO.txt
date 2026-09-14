@@ -1,1 +1,1 @@
-45.0.17 - Importação de cotações recebidas diretamente por fornecedor.
+45.0.18 - Filtro de produtos cotados por fornecedor.
