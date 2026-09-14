@@ -554,6 +554,10 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-table .pricing-sheet-groups th:nth-child(7){background:#c76519;color:#fff}
 #precificacao .pricing-sheet-table th small{display:block;margin-top:2px;color:inherit;font-size:.58rem;font-weight:700}
 #precificacao .pricing-sheet-table tbody tr:hover td,#precificacao .pricing-sheet-table tbody tr:hover th{background:#0d222c}
+#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile td,#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile th{background:rgba(126,25,30,.52)!important;color:#ffe8e6!important;border-bottom-color:#87363b}
+#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile:hover td,#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile:hover th{background:rgba(151,32,38,.68)!important}
+#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile .pricing-sheet-code{background:#4a2026!important;color:#ffaaa4!important}
+#precificacao .pricing-sheet-table tbody tr.pricing-row-not-worthwhile .pricing-sheet-description{background:#431d22!important}
 #precificacao .pricing-sheet-code{position:sticky;left:0;z-index:2;width:78px;min-width:78px!important;background:#102733!important;color:var(--ps-gold)!important}
 #precificacao .pricing-sheet-description{position:sticky;left:78px;z-index:2;width:320px;min-width:320px!important;max-width:320px;text-align:left!important;background:#0b202a!important;line-height:1.35;white-space:normal}
 #precificacao thead tr:nth-child(2) th:first-child{left:0;z-index:7;width:78px;min-width:78px!important}

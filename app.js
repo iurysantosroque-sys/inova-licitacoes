@@ -8031,7 +8031,11 @@ function renderPricingExactModel(){
     const winningRaw=state.pricingItemResults?.[String(item.id)];
     const winningUnit=winningRaw==null||!Number.isFinite(Number(winningRaw))?null:Number(winningRaw);
     const profit=winningUnit!=null&&quantity!=null&&costTotal!=null?(winningUnit*quantity)-costTotal:null;
-    return {item,quantity,governmentUnit,governmentTotal,quote,supplierUnit,supplierTotal,costUnit,costTotal,supplier,winningUnit,profit};
+    const priceFor25=costUnit!=null?costUnit*1.25:null;
+    const quoteAboveGovernment=governmentUnit!=null&&supplierUnit!=null&&supplierUnit>governmentUnit;
+    const priceFor25AboveGovernment=governmentUnit!=null&&priceFor25!=null&&priceFor25>governmentUnit;
+    const notWorthwhile=quoteAboveGovernment||priceFor25AboveGovernment;
+    return {item,quantity,governmentUnit,governmentTotal,quote,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
   });
 
   shell.innerHTML=`
@@ -8083,7 +8087,7 @@ function renderPricingExactModel(){
             </thead>
             <tbody>
             ${pricingRows.length?pricingRows.map(row=>`
-                <tr data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
+                <tr class="${row.notWorthwhile?'pricing-row-not-worthwhile':''}" title="${row.notWorthwhile?'Não vale a pena: a cotação ou o preço para 25% ultrapassa o preço do governo.':''}" data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
                   <th class="pricing-sheet-code" scope="row"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
                   <td>${esc(row.item.unidade||'Pendente')}</td>
@@ -8096,7 +8100,7 @@ function renderPricingExactModel(){
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingSheetMoney(row.costUnit)}</td>
                   <td>${pricingSheetMoney(row.costTotal)}</td>
-                  <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.25)}</td>
+                  <td>${pricingSheetMoney(row.priceFor25)}</td>
                   <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.15)}</td>
                   <td>${pricingSheetMoney(row.costUnit==null?null:row.costUnit*1.10)}</td>
                   <td class="pricing-sheet-winning"><input type="number" min="0" step="0.01" inputmode="decimal" value="${row.winningUnit??''}" data-winning-input="${esc(row.item.id)}" aria-label="Valor ganho unitário do item ${esc(row.item.numero)}"><small data-winning-status></small></td>

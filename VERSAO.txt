@@ -1,1 +1,1 @@
-45.0.9 - Busca de produtos com cursor estável e visual escuro.
+45.0.10 - Alerta visual para cotações acima do preço do governo.
