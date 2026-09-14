@@ -458,7 +458,7 @@ function bestQuote(itemId){
       freteUnit:Number(server.freight_unit||0),
       freteTotal:Number(server.freight_total||0),
       apresentacao:server.package_description||sourceQuote?.apresentacao||'',
-      marca:'',
+      marca:sourceQuote?.marca||sourceQuote?.brand||'',
       fator_equivalencia:factor,
       origem:'motor'
     };
@@ -5371,7 +5371,7 @@ async function exportPricingPdf(tenderId){
     const labels=['Nº','DESCRIÇÃO','UN','QTD','GOV. UNIT','GOV. TOTAL','FORNECEDOR','FORN. UNIT','FORN. TOTAL','CUSTO','25%','15%','10%','GANHO','LUCRO',''];
     const wrap=(value,max)=>{const words=String(value||'-').split(/\s+/),lines=[];let current='';for(const word of words){const next=current?`${current} ${word}`:word;if(font.widthOfTextAtSize(next,rowFont)<=max)current=next;else{if(current)lines.push(current);current=word;}}if(current)lines.push(current);return lines.length?lines:['-'];};
     const moneyText=value=>value==null||!Number.isFinite(Number(value))?'-':Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const rows=items.map(item=>{const q=bestQuote(item.id),qty=Number(item.quantidade)||0,gu=Number(item.valor_estimado)>0?Number(item.valor_estimado):null,su=q&&Number(q.custoEq)>0?Number(q.custoEq):null,cost=su==null?null:su*(1+Number(state.config?.imposto??6)/100),win=state.pricingItemResults?.[String(item.id)]!=null?Number(state.pricingItemResults[String(item.id)]):null;return {item,vals:[item.numero,item.descricao,item.unidade||'-',qty||'-',moneyText(gu),moneyText(gu==null?null:gu*qty),q?state.fornecedores.find(s=>String(s.id)===String(q.fornecedor_id))?.nome||'Fornecedor':'-',moneyText(su),moneyText(su==null?null:su*qty),moneyText(cost),moneyText(cost==null?null:cost*1.25),moneyText(cost==null?null:cost*1.15),moneyText(cost==null?null:cost*1.10),moneyText(win),moneyText(win==null||cost==null?null:(win-cost)*qty)]};});
+    const rows=items.map(item=>{const q=bestQuote(item.id),qty=Number(item.quantidade)||0,gu=Number(item.valor_estimado)>0?Number(item.valor_estimado):null,su=q&&Number(q.custoEq)>0?Number(q.custoEq):null,cost=su==null?null:su*(1+Number(state.config?.imposto??6)/100),win=state.pricingItemResults?.[String(item.id)]!=null?Number(state.pricingItemResults[String(item.id)]):null,supplier=q?state.fornecedores.find(s=>String(s.id)===String(q.fornecedor_id))?.nome||'Fornecedor':'-',supplierLabel=[supplier,q?.marca?`Marca: ${q.marca}`:''].filter(Boolean).join(' • ');return {item,vals:[item.numero,item.descricao,item.unidade||'-',qty||'-',moneyText(gu),moneyText(gu==null?null:gu*qty),supplierLabel,moneyText(su),moneyText(su==null?null:su*qty),moneyText(cost),moneyText(cost==null?null:cost*1.25),moneyText(cost==null?null:cost*1.15),moneyText(cost==null?null:cost*1.10),moneyText(win),moneyText(win==null||cost==null?null:(win-cost)*qty)]};});
     const drawIntro=()=>{const title='TABELA DE PRECIFICAÇÃO';page.drawText(title,{x:(792-font.widthOfTextAtSize(title,16))/2,y,size:16,font:bold,color:ink});const meta=`${tender.cidade||''} • Edital ${tender.numero||'-'}`;page.drawText(meta,{x:(792-font.widthOfTextAtSize(meta,9.5))/2,y:y-24,size:9.5,font:bold,color:ink});const agency=String(tender.orgao||'Órgão comprador');page.drawText(agency,{x:(792-font.widthOfTextAtSize(agency,9.5))/2,y:y-39,size:9.5,font,color:ink});y-=68;};
     const drawHeader=()=>{const top=y;page.drawRectangle({x:x0,y:top-22,width:x4-x0,height:22,borderColor:line,borderWidth:.7,color:rgb(.96,.96,.96)});[[10,rgb(.72,.88,.76)],[11,rgb(.70,.82,.95)],[12,rgb(.96,.75,.50)]].forEach(([i,color])=>page.drawRectangle({x:cols[i],y:top-22,width:cols[i+1]-cols[i],height:22,color}));labels.forEach((text,i)=>{const width=font.widthOfTextAtSize(text,5.4);page.drawText(text,{x:cols[i]+Math.max(3,(cols[i+1]-cols[i]-width)/2),y:top-14,size:5.4,font:bold,color:ink});});cols.slice(1,-1).forEach(x=>page.drawLine({start:{x,y:top-22},end:{x,y:top},thickness:.5,color:line}));y=top-22;};
     let y=495;drawIntro();drawHeader();
@@ -7389,13 +7389,13 @@ function renderPricingExactModelPrevious(){
     updateSimulationResult();
   });
   shell.querySelector('#pxExport')?.addEventListener('click',()=>{
-    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Custo real unitário','Estimado unitário','Preço de parada','Preço-meta','Lucro no estimado','Margem no estimado','Status'];
+    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Marca','Custo real unitário','Estimado unitário','Preço de parada','Preço-meta','Lucro no estimado','Margem no estimado','Status'];
     const csvRows=items.map(item=>{
       const p=pricing(item);
       const flex=p?calcPricingByFlexibleTarget(item,p):null;
       const quote=bestQuote(item.id);
       const supplier=quote?state.fornecedores.find(x=>String(x.id)===String(quote.fornecedor_id)):null;
-      return [item.numero,item.descricao,item.quantidade,item.unidade,supplier?.nome||p?.supplierName||'',flex?.valid?flex.costUnit:'',item.valor_estimado||'',flex?.valid?flex.minimumUnit:'',flex?.valid?flex.priceTargetUnit:'',flex?.valid?flex.profitEstimated??'':'',flex?.valid?flex.marginEstimated??'':'',flex?.valid?flex.status:(flex?'Dados inválidos':'Sem cotação')];
+      return [item.numero,item.descricao,item.quantidade,item.unidade,supplier?.nome||p?.supplierName||'',quote?.marca||quote?.brand||'',flex?.valid?flex.costUnit:'',item.valor_estimado||'',flex?.valid?flex.minimumUnit:'',flex?.valid?flex.priceTargetUnit:'',flex?.valid?flex.profitEstimated??'':'',flex?.valid?flex.marginEstimated??'':'',flex?.valid?flex.status:(flex?'Dados inválidos':'Sem cotação')];
     });
     const csv=[header,...csvRows].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\n');
     const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
@@ -7899,11 +7899,11 @@ function renderPricingExactModelLegacy(){
     document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
   });
   shell.querySelector('#pxExport')?.addEventListener('click',()=>{
-    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Custo real unitário','Estimado unitário','Lucro estimado','Margem estimada','Preço mínimo','Status'];
+    const header=['Item','Descrição','Quantidade','Unidade','Fornecedor','Marca','Custo real unitário','Estimado unitário','Lucro estimado','Margem estimada','Preço mínimo','Status'];
     const csvRows=items.map(i=>{
       const p=pricing(i);const flex=p?calcPricingByFlexibleTarget(i,p):null;const q=bestQuote(i.id);
       const f=q?state.fornecedores.find(x=>String(x.id)===String(q.fornecedor_id)):null;
-      return [i.numero,i.descricao,i.quantidade,i.unidade,f?.nome||'',flex?.costUnit??'',i.valor_estimado||'',flex?.profitEstimated??'',flex?.marginEstimated??'',flex?.minimumUnit??'',flex?.status||'Sem cotação'];
+      return [i.numero,i.descricao,i.quantidade,i.unidade,f?.nome||'',q?.marca||q?.brand||'',flex?.costUnit??'',i.valor_estimado||'',flex?.profitEstimated??'',flex?.marginEstimated??'',flex?.minimumUnit??'',flex?.status||'Sem cotação'];
     });
     const csv=[header,...csvRows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
     const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
