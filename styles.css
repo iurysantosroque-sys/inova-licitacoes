@@ -525,6 +525,9 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-toolbar{display:flex;align-items:flex-end;gap:10px;min-width:min(100%,600px)}
 #precificacao .pricing-sheet-toolbar label{display:grid;gap:6px;flex:1;color:var(--ps-muted);font-size:.78rem;font-weight:700}
 #precificacao .pricing-sheet-toolbar select{width:100%;min-height:44px;border:1px solid var(--ps-line);border-radius:8px;background:var(--ps-navy);color:var(--ps-text);padding:0 11px}
+#precificacao .pricing-tender-categories{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:430px}
+#precificacao .pricing-tender-categories button{min-height:36px;padding:0 10px;border-color:var(--ps-line);background:transparent;color:var(--ps-muted);font-size:.76rem}
+#precificacao .pricing-tender-categories button.active{background:var(--ps-gold);border-color:var(--ps-gold);color:#10171b}
 #precificacao .pricing-sheet-toolbar button,#precificacao .pricing-sheet-tax button{min-height:44px;border:1px solid var(--ps-gold);border-radius:8px;background:var(--ps-gold);color:#10171b;padding:0 15px;font-weight:850;white-space:nowrap}
 #precificacao .pricing-sheet-toolbar button:disabled{opacity:.55;cursor:not-allowed}
 #precificacao #pricingCostSettingsButton{background:transparent;color:var(--ps-gold)}
@@ -629,6 +632,7 @@ tr:hover td{background:#0a141a}
 @media(max-width:900px){
   #precificacao .pricing-sheet-head{align-items:stretch;flex-direction:column}
   #precificacao .pricing-sheet-toolbar{width:100%;min-width:0}
+  #precificacao .pricing-tender-categories{width:100%;max-width:none}
   #precificacao .pricing-sheet-meta{align-items:stretch;flex-direction:column}
   #precificacao .pricing-sheet-meta dl{grid-template-columns:1fr 1fr 1fr}
   #precificacao .pricing-sheet-tax{align-self:flex-start}

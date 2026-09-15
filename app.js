@@ -166,7 +166,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, pricingExcludedItems:{}, pricingUndoStack:[], pricingRedoStack:[], dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingTenderCategory:'all', pricingOnlyMissing:false, pricingExcludedItems:{}, pricingUndoStack:[], pricingRedoStack:[], dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 state.quotedProducts=[];
@@ -8336,10 +8336,24 @@ function renderPricingExactModel(){
   shell.className='pricing-sheet-shell';
   loadLocalPricingItemResults();
 
+  const todayStart=new Date(); todayStart.setHours(0,0,0,0);
+  const nextSevenDays=new Date(todayStart); nextSevenDays.setDate(nextSevenDays.getDate()+7); nextSevenDays.setHours(23,59,59,999);
+  const pricingTenderDate=row=>{
+    const raw=row?.proposalEndAt||row?.raw?.proposal_end_at||row?.raw?.dispute_at||combineDateTime(row?.data,row?.horario);
+    const date=raw?new Date(raw):null;
+    return date&&!Number.isNaN(date.getTime())?date:null;
+  };
+  const pricingTenderMatches=row=>{
+    const date=pricingTenderDate(row);
+    if(state.pricingTenderCategory==='upcoming')return Boolean(date&&date>=todayStart&&date<=nextSevenDays);
+    if(state.pricingTenderCategory==='closed')return Boolean(date&&date<todayStart);
+    return true;
+  };
+  const pricingTenderOptions=state.licitacoes.filter(pricingTenderMatches);
   const requestedTenderId=state.pricingViewTenderId||'';
-  const tenderId=state.licitacoes.some(row=>String(row.id)===String(requestedTenderId))
+  const tenderId=pricingTenderOptions.some(row=>String(row.id)===String(requestedTenderId))
     ?requestedTenderId
-    :'';
+    :(pricingTenderOptions[0]?.id||'');
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
   const excludedPricingItems=new Set((state.pricingExcludedItems?.[String(tenderId)]||[]).map(String));
   const items=state.itens
@@ -8384,11 +8398,16 @@ function renderPricingExactModel(){
         <h1 id="pricingPageTitle">Precificação</h1>
       </div>
       <div class="pricing-sheet-toolbar">
+        <div class="pricing-tender-categories" role="group" aria-label="Categorias de licitações">
+          <button type="button" class="${state.pricingTenderCategory==='upcoming'?'active':''}" data-pricing-tender-category="upcoming">Próximas (7 dias)</button>
+          <button type="button" class="${state.pricingTenderCategory==='closed'?'active':''}" data-pricing-tender-category="closed">Encerradas</button>
+          <button type="button" class="${state.pricingTenderCategory==='all'?'active':''}" data-pricing-tender-category="all">Todas</button>
+        </div>
         <label for="pricingSheetTender">Licitação
           <select id="pricingSheetTender">
             <option value="">Selecione uma licitação</option>
-            ${state.licitacoes.length
-              ?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')
+            ${pricingTenderOptions.length
+              ?pricingTenderOptions.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')
               :'<option value="" disabled>Nenhuma licitação cadastrada</option>'}
           </select>
         </label>
@@ -8576,6 +8595,10 @@ function renderPricingExactModel(){
       syncPncpItems(String(selected.id)).finally(()=>{delete state.pncpPriceSyncingTenders[String(selected.id)];});
     }
   });
+  shell.querySelectorAll('[data-pricing-tender-category]').forEach(button=>button.addEventListener('click',()=>{
+    state.pricingTenderCategory=button.dataset.pricingTenderCategory||'all';
+    renderPricingExactModel();
+  }));
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));

@@ -1,1 +1,1 @@
-45.0.44 - Identificação de orçamento sigiloso na precificação.
+45.0.45 - Categorias de licitações na precificação.
