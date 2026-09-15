@@ -5357,11 +5357,16 @@ function renderQuoteSheet(){
 
 function quoteExportSafePart(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';}
 
+function hiddenPricingItemIds(){
+  const ids=new Set();
+  for(const groups of [state.quoteExcludedItems,state.pricingExcludedItems]){
+    for(const list of Object.values(groups||{}))for(const id of list||[])ids.add(String(id));
+  }
+  return ids;
+}
+
 function quoteExportItems(tender){
-  const excluded=new Set([
-    ...(state.quoteExcludedItems?.[String(tender.id)]||[]),
-    ...(state.pricingExcludedItems?.[String(tender.id)]||[])
-  ].map(String));
+  const excluded=hiddenPricingItemIds();
   return state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));
 }
 
@@ -5433,7 +5438,7 @@ function exportQuoteExcel(){
 async function exportQuotePdf(tenderIdOverride=''){
   const tenderId=tenderIdOverride||state.quoteViewTenderId;
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));if(!tender)return;
-  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const excluded=hiddenPricingItemIds();
   const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
   const {PDFDocument,rgb,StandardFonts}=window.PDFLib;const base=await fetch('assets/papel-timbrado.pdf').then(r=>r.arrayBuffer());const pdf=await PDFDocument.load(base);const templatePdf=await PDFDocument.load(base);let page=pdf.getPages()[0];const font=await pdf.embedFont(StandardFonts.Helvetica);const bold=await pdf.embedFont(StandardFonts.HelveticaBold);const ink=rgb(.12,.12,.12),line=rgb(.72,.72,.72);const x0=60,x1=90,x2=390,x3=455,x4=535,rowFont=8.5,rowGap=11;
@@ -5488,8 +5493,10 @@ function renderQuotesWorkspace(){
 async function exportPricingPdf(tenderId){
   const tender=state.licitacoes.find(l=>String(l.id)===String(tenderId));
   if(!tender)return;
-  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
-  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));
+  const excluded=hiddenPricingItemIds();
+  const renderedIds=new Set([...document.querySelectorAll('#pricingExactShell [data-pricing-item]')].map(row=>String(row.dataset.pricingItem||'')));
+  const hasRenderedList=renderedIds.size>0&&String(state.pricingViewTenderId||'')===String(tender.id);
+  const items=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))&&(!hasRenderedList||renderedIds.has(String(i.id)))).sort((a,b)=>Number(a.numero)-Number(b.numero));
   if(!items.length)return toast('Não há itens disponíveis para exportar.','error');
   if(!window.PDFLib)return toast('O gerador de PDF ainda está carregando. Tente novamente.','error');
   try{
