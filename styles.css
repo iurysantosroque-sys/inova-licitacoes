@@ -522,11 +522,13 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
 #precificacao .pricing-sheet-head h1{margin:0;color:var(--gold);font-size:1.65rem}
 #precificacao .pricing-sheet-head p{margin:5px 0 0;color:var(--ps-muted);font-size:.9rem}
-#precificacao .pricing-sheet-toolbar{display:flex;align-items:flex-end;gap:10px;min-width:min(100%,600px)}
-#precificacao .pricing-sheet-toolbar label{display:grid;gap:6px;flex:1;color:var(--ps-muted);font-size:.78rem;font-weight:700}
-#precificacao .pricing-sheet-toolbar select{width:100%;min-height:44px;border:1px solid var(--ps-line);border-radius:8px;background:var(--ps-navy);color:var(--ps-text);padding:0 11px}
-#precificacao .pricing-tender-categories{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:430px}
-#precificacao .pricing-tender-categories button{min-height:36px;padding:0 10px;border-color:var(--ps-line);background:transparent;color:var(--ps-muted);font-size:.76rem}
+#precificacao .pricing-sheet-toolbar{display:flex;align-items:flex-end;gap:10px;min-width:min(100%,600px);flex-wrap:wrap;font-family:inherit}
+#precificacao .pricing-sheet-toolbar label{display:grid;gap:6px;flex:1 1 300px;min-width:260px;color:var(--ps-muted);font-size:.76rem;font-weight:750;letter-spacing:.01em}
+#precificacao .pricing-sheet-toolbar select{width:100%;min-height:46px;border:1px solid var(--ps-line);border-radius:9px;background:var(--ps-navy);color:var(--ps-text);padding:0 12px;font:inherit;font-size:.82rem;letter-spacing:.01em;outline:none}
+#precificacao .pricing-sheet-toolbar select:focus{border-color:var(--ps-gold);box-shadow:0 0 0 3px rgba(239,177,43,.14)}
+#precificacao .pricing-sheet-toolbar select option{background:#091922;color:var(--ps-text);font:inherit;padding:8px}
+#precificacao .pricing-tender-categories{display:flex;align-items:center;gap:6px;flex:0 1 auto;flex-wrap:wrap;padding:4px;border:1px solid var(--ps-line);border-radius:9px;background:#07141c}
+#precificacao .pricing-tender-categories button{min-height:36px;padding:0 12px;border-color:transparent;background:transparent;color:var(--ps-muted);font:inherit;font-size:.74rem;font-weight:800;letter-spacing:.01em}
 #precificacao .pricing-tender-categories button.active{background:var(--ps-gold);border-color:var(--ps-gold);color:#10171b}
 #precificacao .pricing-sheet-toolbar button,#precificacao .pricing-sheet-tax button{min-height:44px;border:1px solid var(--ps-gold);border-radius:8px;background:var(--ps-gold);color:#10171b;padding:0 15px;font-weight:850;white-space:nowrap}
 #precificacao .pricing-sheet-toolbar button:disabled{opacity:.55;cursor:not-allowed}
@@ -547,9 +549,9 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-sheet-table-title span{color:var(--ps-muted);font-size:.78rem}
 #precificacao .pricing-sheet-scroll{max-width:100%;max-height:min(72vh,760px);overflow:auto;scrollbar-color:#50636d #07141c;outline:none}
 #precificacao .pricing-sheet-scroll:focus-visible{box-shadow:inset 0 0 0 2px var(--ps-gold)}
-#precificacao .pricing-sheet-table{width:max-content;min-width:1880px;border-collapse:separate;border-spacing:0;font-size:.76rem}
+#precificacao .pricing-sheet-table{width:max-content;min-width:1880px;border-collapse:separate;border-spacing:0;font-size:.76rem;line-height:1.3;font-variant-numeric:tabular-nums}
 #precificacao .pricing-sheet-table th,#precificacao .pricing-sheet-table td{min-width:100px;padding:10px 9px;border-right:1px solid var(--ps-line);border-bottom:1px solid var(--ps-line);background:#091922;color:var(--ps-text);text-align:center;vertical-align:middle}
-#precificacao .pricing-sheet-table thead th{position:sticky;top:0;z-index:4;background:#102733;color:#f3c559;font-weight:850}
+#precificacao .pricing-sheet-table thead th{position:sticky;top:0;z-index:4;background:#102733;color:#f3c559;font-weight:850;font-size:.7rem;letter-spacing:.015em;line-height:1.2}
 #precificacao .pricing-sheet-table thead tr:nth-child(2) th{top:41px;background:#0c202a;font-size:.68rem}
 #precificacao .pricing-sheet-table thead th{background-clip:padding-box}
 #precificacao .pricing-sheet-table .pricing-sheet-groups th{height:41px;padding:7px 9px;background:#153441;color:#fff;font-size:.72rem;letter-spacing:.045em}

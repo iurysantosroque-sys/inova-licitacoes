@@ -1,1 +1,1 @@
-45.0.46 - Ajuste visual do rótulo Atuais.
+45.0.47 - Padronização visual das listas de precificação.
