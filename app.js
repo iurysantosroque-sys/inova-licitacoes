@@ -4031,9 +4031,8 @@ function renderQuoteImportReviewCompact(){
   const el=$('#quoteImportPreview');
   if(!el)return;
   const tenderId=$('#quoteImportTender')?.value||state.quoteViewTenderId||'';
-  const excludedPricingItems=new Set((state.pricingExcludedItems?.[String(tenderId)]||[]).map(String));
   const items=state.itens
-    .filter(item=>String(item.licitacao_id)===String(tenderId)&&!excludedPricingItems.has(String(item.id)))
+    .filter(item=>String(item.licitacao_id)===String(tenderId))
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
   const pending=quotePendingReviewRows();
   persistQuoteReviewDraft();
@@ -8155,8 +8154,9 @@ function renderPricingExactModel(){
     ?requestedTenderId
     :'';
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
+  const excludedPricingItems=new Set((state.pricingExcludedItems?.[String(tenderId)]||[]).map(String));
   const items=state.itens
-    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .filter(item=>String(item.licitacao_id)===String(tenderId)&&!excludedPricingItems.has(String(item.id)))
     .sort((a,b)=>Number(a.numero)-Number(b.numero)||String(a.numero).localeCompare(String(b.numero),'pt-BR'));
   const tax=Math.max(0,Number(state.config?.imposto??6));
   const nextItemNumber=items.reduce((max,item)=>{

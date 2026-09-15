@@ -1,1 +1,1 @@
-45.0.31 - Remoção visual imediata de itens na precificação.
+45.0.32 - Mantém todos os itens ocultos após exclusões sucessivas na precificação.
