@@ -1,1 +1,1 @@
-45.0.37 - Downloads usam somente itens visíveis, ignorando itens ocultados.
+45.0.38 - Preserva itens ocultos ao atualizar a página.

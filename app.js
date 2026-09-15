@@ -160,6 +160,18 @@ state.productsCatalogSearch='';
 state.productsCatalogSupplier='';
 state.selectedExpiredSnapshotIds=[];
 
+const PRICING_EXCLUSIONS_STORAGE_KEY='inovaPricingExcludedItemsV1';
+function loadPricingExcludedItems(){
+  try{
+    const value=JSON.parse(localStorage.getItem(PRICING_EXCLUSIONS_STORAGE_KEY)||'{}');
+    return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+  }catch{return {};}
+}
+function persistPricingExcludedItems(){
+  try{localStorage.setItem(PRICING_EXCLUSIONS_STORAGE_KEY,JSON.stringify(state.pricingExcludedItems||{}));}catch{}
+}
+state.pricingExcludedItems=loadPricingExcludedItems();
+
 const PENDING_COMPANY_INVITE_KEY='inovaPendingCompanyInvite';
 
 const TENDER_SITUATIONS=[
@@ -12779,6 +12791,7 @@ document.addEventListener('click',async e=>{
   const excluded=state.pricingExcludedItems[tenderId]||[];
   if(refresh){
     delete state.pricingExcludedItems[tenderId];
+    persistPricingExcludedItems();
     state.pricingUndoStack=[];
     state.pricingRedoStack=[];
     const tender=state.licitacoes.find(row=>String(row.id)===tenderId);
@@ -12794,6 +12807,7 @@ document.addEventListener('click',async e=>{
   if(undo&&state.pricingUndoStack?.length){
     const action=state.pricingUndoStack.pop();
     state.pricingExcludedItems[tenderId]=(state.pricingExcludedItems[tenderId]||[]).filter(id=>String(id)!==String(action.itemId));
+    persistPricingExcludedItems();
     state.pricingRedoStack=state.pricingRedoStack||[];
     state.pricingRedoStack.push(action);
     renderPricingExactModel();
@@ -12802,6 +12816,7 @@ document.addEventListener('click',async e=>{
   if(redo&&state.pricingRedoStack?.length){
     const action=state.pricingRedoStack.pop();
     state.pricingExcludedItems[tenderId]=Array.from(new Set([...(state.pricingExcludedItems[tenderId]||[]),String(action.itemId)]));
+    persistPricingExcludedItems();
     state.pricingUndoStack=state.pricingUndoStack||[];
     state.pricingUndoStack.push(action);
     renderPricingExactModel();
@@ -12822,6 +12837,7 @@ document.addEventListener('click',async e=>{
     if(tenderId&&tenderId!==itemTenderId){
       state.pricingExcludedItems[tenderId]=Array.from(new Set([...(state.pricingExcludedItems[tenderId]||[]),itemId]));
     }
+    persistPricingExcludedItems();
     state.pricingUndoStack=state.pricingUndoStack||[];
     state.pricingRedoStack=[];
     state.pricingUndoStack.push({tenderId:itemTenderId,itemId});
