@@ -1308,16 +1308,47 @@ function renderPncpPreview(data){
   $('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
 }
 
+function pncpNumber(value){
+  if(value==null||value==='')return null;
+  if(typeof value==='number')return Number.isFinite(value)?value:null;
+  return parseBrazilianNumber(value);
+}
+
+function pncpEstimatedValues(source={}, quantity=null){
+  const row=source||{};
+  const qty=pncpNumber(quantity??row.quantidade??row.quantidadeItem??row.qtd??row.quantity);
+  const unitKeys=[
+    'valorUnitarioEstimado','valorUnitario','precoUnitario','estimatedUnitPrice',
+    'estimated_unit_price','valor_unitario_estimado','preco_unitario','unitPrice',
+    'unit_price','valorEstimado','precoEstimado','valor_estimado'
+  ];
+  const totalKeys=[
+    'valorTotal','valorTotalEstimado','totalEstimatedValue','estimatedTotalValue',
+    'estimated_total_value','valor_total','valor_total_estimado','totalPrice','total_price'
+  ];
+  const unit=unitKeys.map(key=>pncpNumber(row[key])).find(value=>value!=null&&value>=0)??null;
+  const total=totalKeys.map(key=>pncpNumber(row[key])).find(value=>value!=null&&value>=0)??null;
+  const derivedUnit=unit!=null?unit:(total!=null&&qty>0?total/qty:null);
+  return {unit:derivedUnit,total:total??(derivedUnit!=null&&qty>0?derivedUnit*qty:null)};
+}
+
+function governmentItemUnitPrice(item){
+  const values=pncpEstimatedValues(item,item?.quantidade);
+  return values.unit!=null&&values.unit>0?values.unit:null;
+}
+
 function normalizePncpItem(item,index=0){
   const source=item||{};
+  const quantidade=pncpNumber(source.quantidade??source.quantidadeItem??source.qtd??source.quantity)??1;
+  const values=pncpEstimatedValues(source,quantidade);
   return {
     ...source,
     numeroItem:Number(source.numeroItem??source.numero??source.item??source.itemNumero??index+1),
     descricao:String(source.descricao??source.descricaoItem??source.nome??source.nomeItem??source.description??'Item PNCP'),
-    quantidade:Number(source.quantidade??source.quantidadeItem??source.qtd??source.quantity??1),
+    quantidade,
     unidadeMedida:String(source.unidadeMedida??source.unidade??source.unidadeFornecimento??source.unit??'UN'),
-    valorUnitarioEstimado:source.valorUnitarioEstimado??source.valorUnitario??source.precoUnitario??source.estimatedUnitPrice??null,
-    valorTotal:source.valorTotal??source.valorTotalEstimado??source.totalEstimatedValue??null
+    valorUnitarioEstimado:values.unit,
+    valorTotal:values.total
   };
 }
 
@@ -1569,13 +1600,14 @@ async function syncPncpItems(){
     const existingByNumber=new Map(existing.map(i=>[Number(i.numero),i]));
 
     let inserted=0,updated=0;
-    for(const item of rows){
-      const num=Number(item.numeroItem||1);
+    for(const [index,item] of rows.entries()){
+      const normalized=normalizePncpItem(item,index);
+      const num=Number(normalized.numeroItem||1);
       const payload={
-        description:String(item.descricao||'Item PNCP'),
-        quantity:Number(item.quantidade||1),
-        unit:String(item.unidadeMedida||'UN'),
-        estimated_unit_price:item.valorUnitarioEstimado==null?null:Number(item.valorUnitarioEstimado)
+        description:String(normalized.descricao||'Item PNCP'),
+        quantity:Number(normalized.quantidade||1),
+        unit:String(normalized.unidadeMedida||'UN'),
+        estimated_unit_price:normalized.valorUnitarioEstimado==null?null:Number(normalized.valorUnitarioEstimado)
       };
       const old=existingByNumber.get(num);
       if(old){
@@ -5248,7 +5280,12 @@ async function refreshAll(){
   const itemResp=await fetchAllSupabaseRows('tender_items','tender_id',tenderIds,['item_number','id']);
   const qiResp=await fetchAllSupabaseRows('quote_items','quote_id',quoteIds,['created_at','id']);
   if(itemResp.error)return toast(itemResp.error.message,'error'); if(qiResp.error)return toast(qiResp.error.message,'error');
-  state.itens=(itemResp.data||[]).map(i=>({id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,quantidade:Number(i.quantity),unidade:i.unit||'',valor_estimado:Number(i.estimated_unit_price||0),raw:i}));
+  state.itens=(itemResp.data||[]).map(i=>({
+    id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,
+    quantidade:Number(i.quantity),unidade:i.unit||'',
+    valor_estimado:governmentItemUnitPrice({ ...i, quantidade:i.quantity, valor_estimado:i.estimated_unit_price }),
+    raw:i
+  }));
   await loadPricingItemResults(state.itens.map(item=>item.id));
   state.cotacoes=(qiResp.data||[]).map(qi=>{
     const q=state.quotes.find(x=>String(x.id)===String(qi.quote_id));
@@ -8292,7 +8329,7 @@ function renderPricingExactModel(){
 
   const pricingRows=items.map(item=>{
     const quantity=Number(item.quantidade)>0?Number(item.quantidade):null;
-    const governmentUnit=Number(item.valor_estimado)>0?Number(item.valor_estimado):null;
+    const governmentUnit=governmentItemUnitPrice(item);
     const governmentTotal=governmentUnit!=null&&quantity!=null?governmentUnit*quantity:null;
     const quote=bestQuote(item.id);
     const supplierUnit=Number(quote?.custoEq)>0?Number(quote.custoEq):null;

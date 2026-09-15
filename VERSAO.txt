@@ -1,1 +1,1 @@
-45.0.41 - Opção Manter conectado no login.
+45.0.42 - Normalização dos preços estimados do PNCP na precificação.

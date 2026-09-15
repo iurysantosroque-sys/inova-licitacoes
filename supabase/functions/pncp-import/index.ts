@@ -59,6 +59,14 @@ function brMoney(value:unknown){
   const parsed=Number(clean)
   return Number.isFinite(parsed)?parsed:null
 }
+function estimatedValues(row:any,quantity:unknown){
+  const qty=brMoney(quantity)
+  const unitKeys=['valorUnitarioEstimado','valorUnitario','precoUnitario','estimatedUnitPrice','estimated_unit_price','valor_unitario_estimado','preco_unitario','unitPrice','unit_price','valorEstimado','precoEstimado']
+  const totalKeys=['valorTotal','valorTotalEstimado','totalEstimatedValue','estimatedTotalValue','estimated_total_value','valor_total','valor_total_estimado','totalPrice','total_price']
+  const unit=unitKeys.map(key=>brMoney(row?.[key])).find(value=>value!==null&&value>=0)??null
+  const total=totalKeys.map(key=>brMoney(row?.[key])).find(value=>value!==null&&value>=0)??null
+  return {unit:unit??(total!==null&&qty&&qty>0?total/qty:null),total:total??(unit!==null&&qty&&qty>0?unit*qty:null)}
+}
 function licitanetQuantity(value:unknown){
   let clean=String(value??'').trim()
   if(/^\d{1,3}(?:\.\d{3})+\.\d{2}$/.test(clean))clean=clean.slice(0,-3).replace(/\./g,'')+clean.slice(-3)
@@ -235,14 +243,15 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
         const rows=rowsFromPayload(payload)
         if(rows.length){sourceHadRows=true;itemSourceWorked=true}
         for(const [rowIndex,row] of rows.entries()){
+          const estimated=estimatedValues(row,row?.quantidade??row?.quantidadeItem??row?.qtd??row?.quantity??1)
           const normalized={
             ...row,
             numeroItem:Number(row?.numeroItem??row?.numero??row?.item??row?.itemNumero??((page-1)*500+rowIndex+1)),
             descricao:String(row?.descricao??row?.descricaoItem??row?.nome??row?.nomeItem??row?.description??'Item PNCP'),
             quantidade:row?.quantidade??row?.quantidadeItem??row?.qtd??row?.quantity??1,
             unidadeMedida:String(row?.unidadeMedida??row?.unidade??row?.unidadeFornecimento??row?.unit??'UN'),
-            valorUnitarioEstimado:row?.valorUnitarioEstimado??row?.valorUnitario??row?.precoUnitario??row?.estimatedUnitPrice??null,
-            valorTotal:row?.valorTotal??row?.valorTotalEstimado??row?.totalEstimatedValue??null
+            valorUnitarioEstimado:estimated.unit,
+            valorTotal:estimated.total
           }
           const key=String(normalized.numeroItem)
           if(seen.has(key))continue
