@@ -1,1 +1,1 @@
-45.0.22 - Preenchimento automático da precificação com itens importados.
+45.0.23 - Preenchimento automático da precificação com itens importados.
