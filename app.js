@@ -8399,7 +8399,7 @@ function renderPricingExactModel(){
       </div>
       <div class="pricing-sheet-toolbar">
         <div class="pricing-tender-categories" role="group" aria-label="Categorias de licitações">
-          <button type="button" class="${state.pricingTenderCategory==='upcoming'?'active':''}" data-pricing-tender-category="upcoming">Próximas (7 dias)</button>
+          <button type="button" class="${state.pricingTenderCategory==='upcoming'?'active':''}" data-pricing-tender-category="upcoming">Atuais</button>
           <button type="button" class="${state.pricingTenderCategory==='closed'?'active':''}" data-pricing-tender-category="closed">Encerradas</button>
           <button type="button" class="${state.pricingTenderCategory==='all'?'active':''}" data-pricing-tender-category="all">Todas</button>
         </div>
