@@ -1,1 +1,1 @@
-45.0.20 - Preenchimento automático da precificação com itens importados.
+45.0.21 - Preenchimento automático da precificação com itens importados.

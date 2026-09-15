@@ -1,7 +1,7 @@
-const CACHE='inova-licitacoes-v45.0.20';
+const CACHE='inova-licitacoes-v45.0.21';
 const CORE=[
-  './','./index.html','./styles.css?v=45.0.20','./app.js?v=45.0.20','./manifest.json?v=45.0.20',
-  './assets/logo.png','./assets/papel-timbrado.png','./assets/papel-timbrado-paisagem.pdf','./assets/papel-timbrado-paisagem.png','./assets/controle-documentos.png','./icons/icon-192-v2.png?v=45.0.20','./icons/icon-512-v2.png?v=45.0.20'
+  './','./index.html','./styles.css?v=45.0.21','./app.js?v=45.0.21','./manifest.json?v=45.0.21',
+  './assets/logo.png','./assets/papel-timbrado.png','./assets/papel-timbrado-paisagem.pdf','./assets/papel-timbrado-paisagem.png','./assets/controle-documentos.png','./icons/icon-192-v2.png?v=45.0.21','./icons/icon-512-v2.png?v=45.0.21'
 ];
 
 self.addEventListener('install',event=>{
