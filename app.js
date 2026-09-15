@@ -8140,6 +8140,13 @@ function pricingSheetMoney(value){
 }
 
 function renderPricingExactModel(){
+  const pricingPageScroll={left:window.scrollX,top:window.scrollY};
+  const restorePricingPageScroll=()=>{
+    requestAnimationFrame(()=>{
+      window.scrollTo({left:pricingPageScroll.left,top:pricingPageScroll.top,behavior:'auto'});
+      requestAnimationFrame(()=>window.scrollTo({left:pricingPageScroll.left,top:pricingPageScroll.top,behavior:'auto'}));
+    });
+  };
   const section=$('#precificacao');
   const shell=$('#pricingExactShell');
   if(!section||!shell)return;
@@ -8623,6 +8630,7 @@ function renderPricingExactModel(){
     input.addEventListener('change',()=>persistWinning(input));
     input.addEventListener('blur',()=>persistWinning(input));
   });
+  restorePricingPageScroll();
 }
 
 function renderPricingByTender(){

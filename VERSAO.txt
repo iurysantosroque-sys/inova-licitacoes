@@ -1,1 +1,1 @@
-45.0.33 - Mantém a posição da página ao salvar cotação manual.
+45.0.34 - Mantém a posição da tela em todas as ações da precificação.
