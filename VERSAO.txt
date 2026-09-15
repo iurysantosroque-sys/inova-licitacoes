@@ -1,1 +1,1 @@
-45.0.36 - Mantém o scroll interno ao excluir pelo botão × da linha.
+45.0.37 - Downloads usam somente itens visíveis, ignorando itens ocultados.

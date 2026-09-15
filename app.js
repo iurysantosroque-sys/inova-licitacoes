@@ -5332,7 +5332,10 @@ function renderQuoteSheet(){
   const panel=$('#quoteSheetPanel');if(!panel)return;const tender=state.licitacoes.find(l=>String(l.id)===String(state.quoteViewTenderId));
   if(!tender){panel.innerHTML='<p class="hint">Selecione um edital para criar uma nova cotação.</p>';return;}
   const allItems=state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)).sort((a,b)=>Number(a.numero)-Number(b.numero));
-  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const excluded=new Set([
+    ...(state.quoteExcludedItems?.[String(tender.id)]||[]),
+    ...(state.pricingExcludedItems?.[String(tender.id)]||[])
+  ].map(String));
   const items=allItems.filter(i=>!excluded.has(String(i.id)));
   const canUndo=state.quoteUndoStack?.some(action=>String(action.tenderId)===String(tender.id));
   const canRedo=state.quoteRedoStack?.some(action=>String(action.tenderId)===String(tender.id));
@@ -5343,7 +5346,10 @@ function renderQuoteSheet(){
 function quoteExportSafePart(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'edital';}
 
 function quoteExportItems(tender){
-  const excluded=new Set((state.quoteExcludedItems?.[String(tender.id)]||[]).map(String));
+  const excluded=new Set([
+    ...(state.quoteExcludedItems?.[String(tender.id)]||[]),
+    ...(state.pricingExcludedItems?.[String(tender.id)]||[])
+  ].map(String));
   return state.itens.filter(i=>String(i.licitacao_id)===String(tender.id)&&!excluded.has(String(i.id))).sort((a,b)=>Number(a.numero)-Number(b.numero));
 }
 
