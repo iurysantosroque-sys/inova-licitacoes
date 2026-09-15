@@ -352,7 +352,9 @@ function renderProductsCatalog(){
   const supplierSelect=$('#productsCatalogSupplier');
   if(supplierSelect){const current=String(state.productsCatalogSupplier||'');supplierSelect.innerHTML='<option value="">Todos os fornecedores</option>'+state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('');supplierSelect.value=current;}
   const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active', supplierFilter=String(state.productsCatalogSupplier||'');
-  const imported=readSupplierProducts?readSupplierProducts():{};
+  // No modo online o banco é a fonte única. Evita reler e desserializar um
+  // localStorage grande em toda renderização do catálogo.
+  const imported=state.demo&&typeof readSupplierProducts==='function'?readSupplierProducts():{};
   const localSnapshots=[],localProducts=[];
   Object.entries(imported||{}).forEach(([supplierId,rows])=>(Array.isArray(rows)?rows:[]).forEach((row,index)=>{
     const productId=`local-${supplierId}-${index}`;
@@ -369,7 +371,16 @@ function renderProductsCatalog(){
     if(!prior||new Date(row.quoted_at||0)>new Date(prior.quoted_at||0))uniqueSnapshotMap.set(key,row);
   });
   const uniqueSnapshots=[...uniqueSnapshotMap.values()];
-  const groups=[...(state.catalogProducts||[]),...localProducts].map(product=>({product,rows:uniqueSnapshots.filter(row=>String(row.product_id)===String(product.id))})).filter(group=>!supplierFilter||group.rows.length);
+  const snapshotsByProduct=new Map();
+  uniqueSnapshots.forEach(row=>{
+    const productId=String(row.product_id);
+    const productRows=snapshotsByProduct.get(productId)||[];
+    productRows.push(row);
+    snapshotsByProduct.set(productId,productRows);
+  });
+  const groups=[...(state.catalogProducts||[]),...localProducts]
+    .map(product=>({product,rows:snapshotsByProduct.get(String(product.id))||[]}))
+    .filter(group=>!supplierFilter||group.rows.length);
   const selected=new Set(state.selectedExpiredSnapshotIds||[]);
   const filtered=groups.filter(({product,rows})=>{
     const active=rows.filter(row=>snapshotIsActive(row,now)); const soon=active.some(row=>new Date(row.expires_at).getTime()-now<=5*864e5); const soon10=active.some(row=>new Date(row.expires_at).getTime()-now<=10*864e5);
@@ -512,6 +523,11 @@ function bestQuote(itemId){
 
   const savedBest=qs.sort((a,b)=>a.custoEq-b.custoEq)[0];
   if(savedBest)return savedBest;
+
+  // No modo online, produtos cotados são carregados do Supabase e vinculados
+  // pelo fluxo manual. Varrer o cache local para cada item do edital fazia a
+  // precificação crescer em O(itens x produtos) e congelava a página.
+  if(!state.demo)return null;
 
   // Produtos importados na aba Produtos cotados ainda não estão vinculados a
   // um item específico do edital. Quando a descrição e a unidade coincidem
@@ -2757,6 +2773,11 @@ async function parsePdfFile(file){
 
     candidates.push(...rowsFromPdfFlatText(flatText));
     if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
+
+    // Entrega o controle ao navegador entre páginas. PDFs extensos deixam de
+    // bloquear cliques, pintura do progresso e o aviso de página sem resposta.
+    page.cleanup?.();
+    await new Promise(resolve=>setTimeout(resolve,0));
   }
 
   return dedupeQuotePdfRows(candidates);
@@ -3022,10 +3043,10 @@ async function archiveQuoteFile(tenderId,supplierId,file){
   return q;
 }
 
-async function startAutomaticQuoteImport(force=false,fileOverride=null){
+async function startAutomaticQuoteImport(force=false){
   const tenderId=$('#quoteImportTender')?.value||'';
   const supplierId=$('#quoteImportSupplier')?.value||'';
-  const file=fileOverride||$('#quoteImportFile')?.files?.[0];
+  const file=$('#quoteImportFile')?.files?.[0];
   if(!tenderId||!supplierId)return;
   if(state.quoteImportBusy)return;
   const context=state.quoteImportContext;
@@ -5012,6 +5033,52 @@ async function fetchAllSupabaseRows(table,filterColumn,ids,orderColumns=[]){
     if((data||[]).length<pageSize)break;
   }
   return {data:rows,error:null};
+}
+
+async function fetchAllCompanyRows(table,companyId,orderColumn,ascending=true){
+  const pageSize=1000;
+  const rows=[];
+  for(let page=0;page<100;page++){
+    const from=page*pageSize;
+    let query=supabase.from(table).select('*').eq('company_id',companyId);
+    if(orderColumn)query=query.order(orderColumn,{ascending});
+    const {data,error}=await query.range(from,from+pageSize-1);
+    if(error)return {data:[],error};
+    rows.push(...(data||[]));
+    if((data||[]).length<pageSize)break;
+  }
+  return {data:rows,error:null};
+}
+
+async function refreshQuotedProductSources(newQuotes=[]){
+  if(state.demo)return;
+  const cid=currentCompanyId();
+  if(!cid)return;
+  const [quotedProducts,catalogProducts,productSnapshots]=await Promise.all([
+    fetchAllCompanyRows('quoted_products',cid,'expires_at',true),
+    fetchAllCompanyRows('catalog_products',cid,'name',true),
+    fetchAllCompanyRows('quote_price_snapshots',cid,'quoted_at',false)
+  ]);
+  const error=[quotedProducts,catalogProducts,productSnapshots].find(result=>result.error)?.error;
+  if(error)throw error;
+  state.quotedProducts=(quotedProducts.data||[]).map(product=>({
+    ...product,
+    unit_price:Number(product.unit_price||0),
+    quoted_quantity:product.quoted_quantity===null?null:Number(product.quoted_quantity),
+    package_base_quantity:Number(product.package_base_quantity||1)
+  }));
+  state.catalogProducts=catalogProducts.data||[];
+  state.productQuoteSnapshots=(productSnapshots.data||[]).map(snapshot=>({
+    ...snapshot,
+    unit_price:Number(snapshot.unit_price||0),
+    original_quantity:snapshot.original_quantity===null?null:Number(snapshot.original_quantity)
+  }));
+  if(newQuotes.length){
+    const newIds=new Set(newQuotes.map(quote=>String(quote.id)));
+    state.quotes=[...newQuotes,...(state.quotes||[]).filter(quote=>!newIds.has(String(quote.id)))];
+  }
+  if(supplierCatalogView==='cotados')renderQuotedProductsCatalog();
+  renderProductsCatalog();
 }
 
 async function refreshAll(){
@@ -8202,7 +8269,7 @@ function renderPricingExactModel(){
           <label>Licitação<select id="quoteImportTenderSelect" required>${state.licitacoes.length?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao||row.cidade||'Órgão não informado')}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}</select></label>
           <input type="hidden" id="quoteImportTender" value="${esc(tenderId)}">
           <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label class="pricing-item-description-field">Arquivos das cotações<input id="quoteImportFile" name="arquivo" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required><small>Você pode selecionar vários PDFs do mesmo fornecedor; eles serão processados em sequência.</small></label>
+          <label class="pricing-item-description-field">Arquivo da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required><small>Selecione um PDF, Excel ou CSV recebido do fornecedor.</small></label>
         </div>
         <section class="pricing-prior-quotes" aria-labelledby="pricingPriorQuotesTitle">
           <h3 id="pricingPriorQuotesTitle" class="sr-only">Cotações anteriores compatíveis</h3>
@@ -8290,7 +8357,7 @@ function renderPricingExactModel(){
     const itemId=String(manualForm?.elements?.item_id?.value||'');
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
-    const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
+    const imported=state.demo&&typeof readSupplierProducts==='function'?readSupplierProducts():{};
     const importedChoices=(Array.isArray(imported?.[supplierId])?imported[supplierId]:[]).map((row,index)=>({id:`catalog-${supplierId}-${index}`,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||'',quote_tender_id:'',origem:'catalogo'}));
     const snapshotChoices=(state.productQuoteSnapshots||[]).filter(row=>String(row.supplier_id)===supplierId&&Number(row.unit_price)>0).map(row=>{const product=(state.catalogProducts||[]).find(item=>String(item.id)===String(row.product_id));return {id:`snapshot-${row.id}`,fornecedor_id:supplierId,preco:Number(row.unit_price||0),fator_equivalencia:Number(row.package_base_quantity||1),frete_rateado:0,apresentacao:row.original_unit||'',marca:row.brand||'',supplier_description:row.original_description||row.original_name||product?.name||'',quote_tender_id:'',origem:'snapshot'};});
     const rawChoices=[...(state.cotacoes||[]),...importedChoices,...snapshotChoices].filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
@@ -8321,7 +8388,7 @@ function renderPricingExactModel(){
     const button=event.target.closest('[data-select-pricing-source]'); if(!button)return;
     let source=state.cotacoes.find(row=>String(row.id)===String(button.dataset.selectPricingSource));
     if(!source&&String(button.dataset.selectPricingSource).startsWith('catalog-')){
-      const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
+      const imported=state.demo&&typeof readSupplierProducts==='function'?readSupplierProducts():{};
       for(const [supplierId,rows] of Object.entries(imported||{})){const safeRows=Array.isArray(rows)?rows:[];const index=safeRows.findIndex((row,position)=>`catalog-${supplierId}-${position}`===button.dataset.selectPricingSource);if(index>=0){const row=safeRows[index];source={id:button.dataset.selectPricingSource,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||''};break;}}
     }
     if(!source&&String(button.dataset.selectPricingSource).startsWith('snapshot-')){
@@ -8427,8 +8494,7 @@ function renderPricingExactModel(){
     if(dialog.open||dialog.hasAttribute('open'))renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),dialog.querySelector('#quoteImportTender')?.value||'',dialog.querySelector('#quoteImportSupplier')?.value||'');
   });
   shell.querySelector('#quoteImportSubmit')?.addEventListener('click',async()=>{
-    const files=[...(shell.querySelector('#quoteImportFile')?.files||[])];
-    const file=files[0];
+    const file=shell.querySelector('#quoteImportFile')?.files?.[0];
     const tenderValue=shell.querySelector('#quoteImportTender')?.value||'';
     const supplierValue=shell.querySelector('#quoteImportSupplier')?.value||'';
     if(!tenderValue||!supplierValue)return toast('Selecione a licitação e o fornecedor.','error');
@@ -8445,10 +8511,7 @@ function renderPricingExactModel(){
       finally{if(button)button.disabled=false;}
       return;
     }
-    for(const [index,currentFile] of files.entries()){
-      if(files.length>1)setQuoteImportStatus(`Processando cotação ${index+1} de ${files.length}: ${currentFile.name}`,'loading');
-      await startAutomaticQuoteImport(false,currentFile);
-    }
+    await startAutomaticQuoteImport();
   });
   shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
   dialog?.addEventListener('click',event=>{
@@ -11853,10 +11916,25 @@ document.addEventListener('click',e=>{const button=e.target.closest('[data-edit-
 const SUPPLIER_PRODUCTS_STORAGE_KEY='inova-supplier-products-v1';
 function readSupplierProducts(){try{return JSON.parse(localStorage.getItem(SUPPLIER_PRODUCTS_STORAGE_KEY)||'{}')||{};}catch{return {};}}
 function writeSupplierProducts(data){try{localStorage.setItem(SUPPLIER_PRODUCTS_STORAGE_KEY,JSON.stringify(data));}catch(error){console.warn('Não foi possível salvar produtos localmente.',error);}}
+function supplierProductsForDisplay(supplierId){
+  if(state.demo)return readSupplierProducts()[String(supplierId)]||[];
+  return (state.productQuoteSnapshots||[])
+    .filter(row=>String(row.supplier_id)===String(supplierId))
+    .sort((a,b)=>new Date(b.quoted_at||0)-new Date(a.quoted_at||0))
+    .map(row=>{
+      const product=(state.catalogProducts||[]).find(item=>String(item.id)===String(row.product_id));
+      return {
+        description:row.original_description||row.original_name||product?.name||'Produto importado',
+        unit:row.original_unit||row.normalized_unit||product?.normalized_unit||row.package_description||'',
+        quantity:row.original_quantity,
+        unit_price:Number(row.unit_price||0)
+      };
+    });
+}
 function openSupplierProducts(supplier){
   document.querySelector('#supplierProductsOverlay')?.remove();
   const overlay=document.createElement('div');overlay.id='supplierProductsOverlay';overlay.className='supplier-products-overlay';
-  const products=readSupplierProducts()[String(supplier?.id)]||[];
+  const products=supplierProductsForDisplay(supplier?.id);
   const table=products.length?`<div class="supplier-products-table-wrap"><table class="supplier-products-table"><thead><tr><th>Produto</th><th>Unidade</th><th>Quantidade</th><th>Preço unitário</th></tr></thead><tbody>${products.map(item=>`<tr><td>${esc(item.description||'-')}</td><td>${esc(item.unit||'-')}</td><td>${esc(item.quantity??'-')}</td><td>${esc(Number(item.unit_price)>0?money(Number(item.unit_price)):'-')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="supplier-products-empty"><span class="supplier-products-empty-icon">▦</span><strong>Nenhum produto cadastrado</strong><small>Importe um PDF de cotação para preencher esta tabela.</small></div>';
   overlay.innerHTML=`<section class="supplier-products-page" role="dialog" aria-modal="true" aria-labelledby="supplierProductsTitle"><div class="supplier-products-head"><div><span class="eyebrow">Produtos do fornecedor</span><h2 id="supplierProductsTitle">${esc(supplier?.nome||'Fornecedor')}</h2><p>${products.length} produto(s) cadastrado(s).</p></div><button type="button" class="supplier-products-close" aria-label="Fechar produtos">×</button></div><div class="supplier-products-toolbar"><button type="button" class="supplier-products-import" data-import-products="${esc(supplier?.id||'')}">Importar PDF de cotação</button></div>${table}<button type="button" class="supplier-products-back">← Voltar para fornecedores</button></section>`;
   document.body.appendChild(overlay);
@@ -11866,7 +11944,23 @@ document.addEventListener('click',event=>{const button=event.target.closest('[da
 $('#fornecedorForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const uf=supplierUfFromPhone(f.telefone);if(state.demo){state.fornecedores.push({id:crypto.randomUUID(),nome:f.nome,nome_fantasia:f.nome_fantasia||'',uf,cnpj:f.cnpj||'',vendedor:f.vendedor||'',telefone:f.telefone||'',email:f.email||'',frete_padrao:0,pedido_minimo:0,prazo_dias:null});e.target.reset();renderAll();return toast('Fornecedor adicionado à demonstração.');}const {error}=await supabase.from('suppliers').insert({company_id:currentCompanyId(),name:f.nome,trade_name:f.nome_fantasia||null,cnpj:f.cnpj||null,state_uf:uf||null,contact_name:f.vendedor||null,phone:f.telefone||null,email:f.email||null});if(error)return toast(error.message,'error');e.target.reset();toast('Fornecedor cadastrado.');await refreshAll();});
 $('#novoFornecedor')?.addEventListener('click',()=>{const form=$('#fornecedorForm');if(!form)return;const open=form.hidden;form.hidden=!open;const button=$('#novoFornecedor');if(button)button.textContent=open?'× Fechar cadastro':'＋ Novo fornecedor';if(open)$('#fornecedorCnpj')?.focus();});
 function closeSupplierProductModal(){const modal=$('#supplierProductModal');if(modal)modal.hidden=true;}
-function openSupplierProductModal(supplierId=''){const modal=$('#supplierProductModal');if(!modal)return;const select=$('#supplierProductSupplier');if(select)select.innerHTML='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${esc(f.id)}">${esc(f.nome)}</option>`).join('');if(select)select.value=supplierId||'';$('#supplierProductFile').value='';$('#supplierProductStatus').hidden=true;document.querySelectorAll('[data-supplier-product-tab]').forEach((tab,index)=>tab.classList.toggle('active',index===0));document.querySelectorAll('[data-supplier-product-panel]').forEach((panel,index)=>panel.hidden=index!==0);modal.hidden=false;select?.focus();}
+function openSupplierProductModal(supplierId=''){
+  const modal=$('#supplierProductModal');
+  if(!modal)return;
+  const select=$('#supplierProductSupplier');
+  if(select)select.innerHTML='<option value="">Selecione o fornecedor</option>'+state.fornecedores.map(f=>`<option value="${esc(f.id)}">${esc(f.nome)}</option>`).join('');
+  if(select)select.value=supplierId||'';
+  const fileInput=$('#supplierProductFile');
+  if(fileInput)fileInput.value='';
+  const status=$('#supplierProductStatus');
+  if(status){status.hidden=true;status.className='notice compact';status.textContent='';}
+  const button=$('#saveSupplierProductButton');
+  if(button){button.disabled=false;button.textContent='Importar cotação';}
+  document.querySelectorAll('[data-supplier-product-tab]').forEach((tab,index)=>tab.classList.toggle('active',index===0));
+  document.querySelectorAll('[data-supplier-product-panel]').forEach((panel,index)=>panel.hidden=index!==0);
+  modal.hidden=false;
+  select?.focus();
+}
 $('#novoProduto')?.addEventListener('click',openSupplierProductModal);$('#closeSupplierProductButton')?.addEventListener('click',closeSupplierProductModal);$('#cancelSupplierProductButton')?.addEventListener('click',closeSupplierProductModal);$('#supplierProductModal')?.addEventListener('click',event=>{if(event.target.id==='supplierProductModal')closeSupplierProductModal();});
 document.querySelectorAll('[data-supplier-catalog-view]').forEach(button=>button.addEventListener('click',()=>{
   supplierCatalogView=button.dataset.supplierCatalogView==='cotados'?'cotados':'fornecedores';
@@ -11885,15 +11979,120 @@ document.addEventListener('click',event=>{
   if(product)downloadQuotedProductsCsv([product]);
 });
 document.querySelectorAll('[data-supplier-product-tab]').forEach(tab=>tab.addEventListener('click',()=>{const selected=tab.dataset.supplierProductTab;document.querySelectorAll('[data-supplier-product-tab]').forEach(item=>item.classList.toggle('active',item===tab));document.querySelectorAll('[data-supplier-product-panel]').forEach(panel=>panel.hidden=panel.dataset.supplierProductPanel!==selected);}));
-$('#saveSupplierProductButton')?.addEventListener('click',async()=>{const supplier=$('#supplierProductSupplier')?.value;const file=$('#supplierProductFile')?.files?.[0];const status=$('#supplierProductStatus');if(!supplier)return toast('Selecione um fornecedor.','error');if(!file)return toast('Selecione um arquivo PDF de cotação.','error');if(!/\.pdf$/i.test(file.name))return toast('Por enquanto, importe um PDF de cotação.','error');const button=$('#saveSupplierProductButton');if(button){button.disabled=true;button.textContent='Lendo PDF…';}try{const rows=compactExtractedQuoteRows(await parsePdfFile(file));if(!rows.length)throw new Error('Não encontrei produtos com preço no PDF.');const importedAt=new Date().toISOString();const stored=readSupplierProducts();const existing=stored[String(supplier)]||[];stored[String(supplier)]=existing.concat(rows.map(row=>({...row,source_file:file.name,imported_at:importedAt})));writeSupplierProducts(stored);
-    if(!state.demo&&supabase&&currentCompanyId()&&state.user){
-      const {data:quote,error:quoteError}=await supabase.from('quotes').insert({company_id:currentCompanyId(),supplier_id:supplier,tender_id:null,source_filename:file.name,source_type:'supplier-products',status:'completed',created_by:state.user.id}).select('id').single();
-      if(quoteError)throw quoteError;
-      const payload=rows.filter(row=>Number(row.unit_price||row.price)>0).map(row=>({quote_id:quote.id,tender_item_id:null,supplier_description:String(row.description||row.presentation||'Produto importado').trim(),brand:row.brand||null,package_description:row.presentation||null,package_base_quantity:Number(row.package_base_quantity||row.factor||1)||1,unit_price:Number(row.unit_price||row.price),available_quantity:row.quantity==null?null:Number(row.quantity),freight_per_package:0}));
-      for(let start=0;start<payload.length;start+=300){const {error}=await supabase.from('quote_items').insert(payload.slice(start,start+300));if(error)throw error;}
-      await refreshAll();
+$('#saveSupplierProductButton')?.addEventListener('click',async()=>{
+  const supplierId=$('#supplierProductSupplier')?.value||'';
+  const files=[...($('#supplierProductFile')?.files||[])];
+  const status=$('#supplierProductStatus');
+  const button=$('#saveSupplierProductButton');
+  if(!supplierId)return toast('Selecione um fornecedor.','error');
+  if(!files.length)return toast('Selecione ao menos um PDF de cotação.','error');
+
+  const setStatus=(message,isError=false)=>{
+    if(!status)return;
+    status.hidden=false;
+    status.className=`notice compact${isError?' is-error':''}`;
+    status.textContent=message;
+  };
+  const yieldToBrowser=()=>new Promise(resolve=>setTimeout(resolve,0));
+  const importedForDemo=[];
+  const importedQuotes=[];
+  const failures=[];
+  let importedProducts=0;
+
+  if(button){button.disabled=true;button.textContent='Importando…';}
+  try{
+    for(const [index,file] of files.entries()){
+      const label=`${index+1} de ${files.length}`;
+      let quoteId='';
+      setStatus(`Lendo PDF ${label}: ${file.name}`);
+      await yieldToBrowser();
+      try{
+        const validType=!file.type||['application/pdf','application/octet-stream'].includes(String(file.type).toLowerCase());
+        if(!/\.pdf$/i.test(file.name)||!validType)throw new Error('o arquivo não é um PDF válido');
+        if(file.size<1)throw new Error('o arquivo está vazio');
+        if(file.size>MAX_QUOTE_FILE_SIZE)throw new Error('o arquivo excede o limite de 25 MB');
+
+        const rows=compactExtractedQuoteRows(await parsePdfFile(file));
+        if(!rows.length)throw new Error('nenhum produto com preço foi encontrado');
+        const importedAt=new Date().toISOString();
+
+        if(state.demo||!supabase||!currentCompanyId()||!state.user){
+          importedForDemo.push(...rows.map(row=>({...row,source_file:file.name,imported_at:importedAt})));
+        }else{
+          setStatus(`Salvando PDF ${label}: ${file.name}`);
+          await yieldToBrowser();
+          const {data:quote,error:quoteError}=await supabase.from('quotes').insert({
+            company_id:currentCompanyId(),
+            supplier_id:supplierId,
+            tender_id:null,
+            source_filename:file.name,
+            source_type:'supplier-products',
+            status:'processing',
+            created_by:state.user.id
+          }).select('*').single();
+          if(quoteError)throw quoteError;
+          quoteId=quote.id;
+          const payload=rows.map(row=>({
+            quote_id:quote.id,
+            tender_item_id:null,
+            supplier_description:String(row.description||row.presentation||'Produto importado').trim(),
+            brand:row.brand||null,
+            package_description:[row.presentation,row.unit].filter(Boolean).join(' • ')||null,
+            package_base_quantity:Number(row.package_base_quantity||row.factor||1)||1,
+            unit_price:Number(row.unit_price||row.price),
+            available_quantity:row.quantity==null?null:Number(row.quantity),
+            freight_per_package:0
+          }));
+          for(let start=0;start<payload.length;start+=125){
+            const end=Math.min(start+125,payload.length);
+            setStatus(`Salvando PDF ${label}: itens ${start+1} a ${end} de ${payload.length}`);
+            const {error}=await supabase.from('quote_items').insert(payload.slice(start,end));
+            if(error)throw error;
+            await yieldToBrowser();
+          }
+          const {error:updateError}=await supabase.from('quotes').update({status:'completed'}).eq('id',quote.id);
+          if(updateError)throw updateError;
+          importedQuotes.push({...quote,status:'completed'});
+        }
+        importedProducts+=rows.length;
+      }catch(error){
+        console.warn(`Importação de ${file.name}:`,error?.message||error);
+        failures.push(`${file.name}: ${error?.message||'falha ao importar'}`);
+        if(quoteId&&!state.demo&&supabase){
+          await supabase.from('quotes').update({status:'error'}).eq('id',quoteId).then(()=>{},()=>{});
+        }
+      }
     }
-    closeSupplierProductModal();const item=state.fornecedores.find(row=>String(row.id)===String(supplier));if(item)openSupplierProducts(item);toast(`${rows.length} produto(s) importado(s) e salvo(s) no banco.`);}catch(error){if(status){status.hidden=false;status.classList.add('is-error');status.textContent=error.message||'Não foi possível ler o PDF.';}toast(error.message||'Não foi possível salvar os produtos.','error');}finally{if(button){button.disabled=false;button.textContent='Salvar produtos';}}});
+
+    if(state.demo&&importedForDemo.length){
+      const stored=readSupplierProducts();
+      const existing=Array.isArray(stored[String(supplierId)])?stored[String(supplierId)]:[];
+      stored[String(supplierId)]=existing.concat(importedForDemo);
+      writeSupplierProducts(stored);
+      renderProductsCatalog();
+    }else if(importedQuotes.length){
+      setStatus('Atualizando somente a lista de produtos cotados…');
+      await yieldToBrowser();
+      await refreshQuotedProductSources(importedQuotes);
+    }
+
+    if(!importedProducts){
+      const message=failures[0]||'Não foi possível importar os PDFs selecionados.';
+      setStatus(message,true);
+      return toast(message,'error');
+    }
+
+    closeSupplierProductModal();
+    const successMessage=`${files.length-failures.length} de ${files.length} PDF(s) importado(s), com ${importedProducts} produto(s).`;
+    toast(failures.length?`${successMessage} ${failures.length} arquivo(s) precisa(m) ser revisado(s).`:successMessage,failures.length?'error':undefined);
+  }catch(error){
+    const message=error?.message||'Os produtos foram salvos, mas a lista não pôde ser atualizada.';
+    setStatus(message,true);
+    toast(message,'error');
+  }finally{
+    if(button){button.disabled=false;button.textContent='Importar cotação';}
+  }
+});
 let supplierCnpjLookupTimer;
 async function lookupSupplierCnpj(digits){
   const sources=[
