@@ -1,1 +1,1 @@
-45.0.26 - Preenchimento automático da precificação com itens importados.
+45.0.27 - Preenchimento automático da precificação com itens importados.
