@@ -1,1 +1,1 @@
-45.0.39 - Downloads usam somente itens visíveis e não ocultados.
+45.0.40 - Suporte ao modelo de cotação Multipel.

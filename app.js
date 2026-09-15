@@ -2521,6 +2521,63 @@ function parseStimulsoftQuoteProduct(raw,pendingSubtotal=null){
   return {code,description,quantity,unit,price,subtotal,brand:'',presentation,factor:quotePackageFactor(presentation,unit,description),selected:true};
 }
 
+// Modelo Multipel: o PDF é gerado em orientação rotacionada. Cada produto
+// aparece como uma faixa vertical de tokens, por isso as colunas ficam no
+// eixo Y e cada linha é identificada pelo X do item.
+function rowsFromMultipelQuoteItems(items){
+  const tokens=(Array.isArray(items)?items:[]).map(item=>({
+    text:String(item?.str||'').replace(/\s+/g,' ').trim(),
+    x:Number(item?.transform?.[4]||0),
+    y:Number(item?.transform?.[5]||0)
+  })).filter(token=>token.text);
+  const hasMultipelHeaders=tokens.some(token=>quoteNormalize(token.text).includes('VL UNIT ST'))
+    &&tokens.some(token=>quoteNormalize(token.text)==='EMB.')
+    &&tokens.some(token=>quoteNormalize(token.text)==='VLR.UNIT.');
+  if(!hasMultipelHeaders)return [];
+
+  const groups=new Map();
+  for(const token of tokens){
+    if(token.x<195||token.y<35||token.y>755)continue;
+    const key=Math.round(token.x/20)*20;
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(token);
+  }
+  const rows=[];
+  for(const group of groups.values()){
+    const itemToken=group.find(token=>token.y<100&&/^\d{1,4}$/.test(token.text));
+    const codeToken=group.find(token=>token.y>=120&&token.y<180&&/^\d{2,12}$/.test(token.text));
+    const unitToken=group.find(token=>token.y>=535&&token.y<585&&new RegExp(`^${quotePdfUnitRegex()}$`,'i').test(token.text));
+    const quantityToken=group.find(token=>token.y>=580&&token.y<625&&/^[\d.,]+$/.test(token.text));
+    const priceToken=group.find(token=>token.y>=625&&token.y<662&&/^[\d.,]+$/.test(token.text));
+    const subtotalToken=group.find(token=>token.y>=662&&token.y<715&&/^[\d.,]+$/.test(token.text));
+    if(!itemToken||!codeToken||!unitToken||!quantityToken||!priceToken)continue;
+    const description=group.filter(token=>token.y>=165&&token.y<295)
+      .sort((a,b)=>a.y-b.y||a.x-b.x).map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    if(!description)continue;
+    const brand=group.filter(token=>token.y>=380&&token.y<465)
+      .sort((a,b)=>a.y-b.y||a.x-b.x).map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    const presentation=group.filter(token=>token.y>=465&&token.y<535)
+      .sort((a,b)=>a.y-b.y||a.x-b.x).map(token=>token.text).join(' ').replace(/\s+/g,' ').trim();
+    const quantity=parseBrazilianNumber(quantityToken.text);
+    const price=parseBrazilianNumber(priceToken.text);
+    if(!Number.isFinite(quantity)||!Number.isFinite(price)||price<=0)continue;
+    rows.push({
+      code:codeToken.text,
+      itemNumber:Number(itemToken.text),
+      description,
+      quantity,
+      unit:unitToken.text.toUpperCase(),
+      price,
+      subtotal:subtotalToken?parseBrazilianNumber(subtotalToken.text):null,
+      brand,
+      presentation,
+      factor:quotePackageFactor(presentation,unitToken.text,description),
+      selected:true
+    });
+  }
+  return dedupeQuotePdfRows(rows);
+}
+
 function rowsFromStimulsoftColumnItems(items){
   const tokens=(Array.isArray(items)?items:[]).map(item=>({
     text:String(item?.str||'').trim(),
@@ -2764,27 +2821,32 @@ async function parsePdfFile(file){
 
     const preciseLines=groupPdfTextItems(content.items);
     const eolLines=pdfLinesByEol(content.items);
+    const multipelLayoutRows=rowsFromMultipelQuoteItems(content.items);
     const stimulsoftLayoutRows=rowsFromStimulsoftQuoteItems(content.items);
 
-    // 1) tenta pelas linhas reconstruídas por coordenada
-    candidates.push(...rowsFromPdfLines(preciseLines));
-    candidates.push(...rowsFromStimulsoftColumnItems(content.items));
-    if(stimulsoftLayoutRows.length)candidates.push(...stimulsoftLayoutRows);
-    else candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
+    if(multipelLayoutRows.length){
+      candidates.push(...multipelLayoutRows);
+    }else{
+      // 1) tenta pelas linhas reconstruídas por coordenada
+      candidates.push(...rowsFromPdfLines(preciseLines));
+      candidates.push(...rowsFromStimulsoftColumnItems(content.items));
+      if(stimulsoftLayoutRows.length)candidates.push(...stimulsoftLayoutRows);
+      else candidates.push(...rowsFromStimulsoftQuoteLines(preciseLines));
 
-    // 2) tenta pelas quebras EOL nativas do PDF.js
-    candidates.push(...rowsFromPdfLines(eolLines));
-    if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteLines(eolLines));
+      // 2) tenta pelas quebras EOL nativas do PDF.js
+      candidates.push(...rowsFromPdfLines(eolLines));
+      if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteLines(eolLines));
 
-    // 3) tenta pelo texto inteiro da página; recupera produtos que
-    // ficaram partidos ou agrupados incorretamente.
-    const flatText=content.items
-      .map(it=>String(it.str||'').trim())
-      .filter(Boolean)
-      .join(' ');
+      // 3) tenta pelo texto inteiro da página; recupera produtos que
+      // ficaram partidos ou agrupados incorretamente.
+      const flatText=content.items
+        .map(it=>String(it.str||'').trim())
+        .filter(Boolean)
+        .join(' ');
 
-    candidates.push(...rowsFromPdfFlatText(flatText));
-    if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
+      candidates.push(...rowsFromPdfFlatText(flatText));
+      if(!stimulsoftLayoutRows.length)candidates.push(...rowsFromStimulsoftQuoteFlatText(flatText));
+    }
 
     // Entrega o controle ao navegador entre páginas. PDFs extensos deixam de
     // bloquear cliques, pintura do progresso e o aviso de página sem resposta.
