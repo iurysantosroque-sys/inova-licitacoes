@@ -1320,14 +1320,22 @@ function pncpEstimatedValues(source={}, quantity=null){
   const unitKeys=[
     'valorUnitarioEstimado','valorUnitario','precoUnitario','estimatedUnitPrice',
     'estimated_unit_price','valor_unitario_estimado','preco_unitario','unitPrice',
-    'unit_price','valorEstimado','precoEstimado','valor_estimado'
+    'unit_price','valorEstimado','precoEstimado','valor_estimado','valorUnitarioHomologado',
+    'valorUnitarioResultado','valorReferencia','precoReferencia','valor_unitario_homologado'
   ];
   const totalKeys=[
     'valorTotal','valorTotalEstimado','totalEstimatedValue','estimatedTotalValue',
     'estimated_total_value','valor_total','valor_total_estimado','totalPrice','total_price'
   ];
-  const unit=unitKeys.map(key=>pncpNumber(row[key])).find(value=>value!=null&&value>=0)??null;
-  const total=totalKeys.map(key=>pncpNumber(row[key])).find(value=>value!=null&&value>=0)??null;
+  const nested=[];
+  const visit=(value,depth=0)=>{
+    if(!value||typeof value!=='object'||depth>3)return;
+    nested.push(value);
+    Object.values(value).forEach(child=>visit(child,depth+1));
+  };
+  visit(row);
+  const unit=nested.flatMap(value=>unitKeys.map(key=>pncpNumber(value?.[key]))).find(value=>value!=null&&value>0)??null;
+  const total=nested.flatMap(value=>totalKeys.map(key=>pncpNumber(value?.[key]))).find(value=>value!=null&&value>0)??null;
   const derivedUnit=unit!=null?unit:(total!=null&&qty>0?total/qty:null);
   return {unit:derivedUnit,total:total??(derivedUnit!=null&&qty>0?derivedUnit*qty:null)};
 }
@@ -1546,8 +1554,8 @@ function setPncpSyncStatus(message,type='loading'){
   el.textContent=message||'';
 }
 
-async function syncPncpItems(){
-  const tenderId=$('#pncpSyncTender')?.value;
+async function syncPncpItems(forcedTenderId=''){
+  const tenderId=forcedTenderId||$('#pncpSyncTender')?.value;
   const l=state.licitacoes.find(x=>x.id===tenderId);
   if(!l)return toast('Selecione uma licitação.','error');
   if(state.demo || !configured || !supabase || !state.user){
@@ -8536,6 +8544,14 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
     state.pricingViewTenderId=event.target.value||'';
     renderPricingExactModel();
+    const selected=state.licitacoes.find(row=>String(row.id)===String(state.pricingViewTenderId));
+    const selectedItems=state.itens.filter(item=>String(item.licitacao_id)===String(state.pricingViewTenderId));
+    const missingGovernmentPrice=selectedItems.some(item=>governmentItemUnitPrice(item)==null);
+    if(selected?.source_url&&missingGovernmentPrice&&!state.pncpPriceSyncingTenders?.[String(selected.id)]){
+      state.pncpPriceSyncingTenders=state.pncpPriceSyncingTenders||{};
+      state.pncpPriceSyncingTenders[String(selected.id)]=true;
+      syncPncpItems(String(selected.id)).finally(()=>{delete state.pncpPriceSyncingTenders[String(selected.id)];});
+    }
   });
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));

@@ -1,1 +1,1 @@
-45.0.42 - Normalização dos preços estimados do PNCP na precificação.
+45.0.43 - Busca ampliada e sincronização automática dos preços do PNCP.

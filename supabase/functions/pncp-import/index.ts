@@ -61,10 +61,13 @@ function brMoney(value:unknown){
 }
 function estimatedValues(row:any,quantity:unknown){
   const qty=brMoney(quantity)
-  const unitKeys=['valorUnitarioEstimado','valorUnitario','precoUnitario','estimatedUnitPrice','estimated_unit_price','valor_unitario_estimado','preco_unitario','unitPrice','unit_price','valorEstimado','precoEstimado']
+  const unitKeys=['valorUnitarioEstimado','valorUnitario','precoUnitario','estimatedUnitPrice','estimated_unit_price','valor_unitario_estimado','preco_unitario','unitPrice','unit_price','valorEstimado','precoEstimado','valorUnitarioHomologado','valorUnitarioResultado','valorReferencia','precoReferencia','valor_unitario_homologado']
   const totalKeys=['valorTotal','valorTotalEstimado','totalEstimatedValue','estimatedTotalValue','estimated_total_value','valor_total','valor_total_estimado','totalPrice','total_price']
-  const unit=unitKeys.map(key=>brMoney(row?.[key])).find(value=>value!==null&&value>=0)??null
-  const total=totalKeys.map(key=>brMoney(row?.[key])).find(value=>value!==null&&value>=0)??null
+  const nested:any[]=[]
+  const visit=(value:any,depth=0)=>{if(!value||typeof value!=='object'||depth>3)return;nested.push(value);Object.values(value).forEach(child=>visit(child,depth+1))}
+  visit(row)
+  const unit=nested.flatMap(value=>unitKeys.map(key=>brMoney(value?.[key]))).find(value=>value!==null&&value>0)??null
+  const total=nested.flatMap(value=>totalKeys.map(key=>brMoney(value?.[key]))).find(value=>value!==null&&value>0)??null
   return {unit:unit??(total!==null&&qty&&qty>0?total/qty:null),total:total??(unit!==null&&qty&&qty>0?unit*qty:null)}
 }
 function licitanetQuantity(value:unknown){
