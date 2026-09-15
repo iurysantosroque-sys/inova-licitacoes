@@ -1,1 +1,1 @@
-45.0.50 - Sessão persistente durante atualizações do aplicativo.
+45.0.51 - Linha de total geral no PDF de precificação.
