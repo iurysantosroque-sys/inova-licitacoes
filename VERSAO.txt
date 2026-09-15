@@ -1,1 +1,1 @@
-45.0.40 - Suporte ao modelo de cotação Multipel.
+45.0.41 - Opção Manter conectado no login.

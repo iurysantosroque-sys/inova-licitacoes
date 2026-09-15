@@ -5,7 +5,24 @@ const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'B
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cfg = window.INOVA_CONFIG || {};
 const configured = Boolean(cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY && createClient);
-const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY) : null;
+const REMEMBER_SESSION_KEY='inovaRememberSession';
+let rememberSession=localStorage.getItem(REMEMBER_SESSION_KEY)!=='0';
+const authStorage={
+  getItem(key){return (rememberSession?localStorage:sessionStorage).getItem(key);},
+  setItem(key,value){(rememberSession?localStorage:sessionStorage).setItem(key,value);},
+  removeItem(key){localStorage.removeItem(key);sessionStorage.removeItem(key);}
+};
+function setRememberSession(value){
+  rememberSession=Boolean(value);
+  localStorage.setItem(REMEMBER_SESSION_KEY,rememberSession?'1':'0');
+  for(const storage of [localStorage,sessionStorage]){
+    for(let index=storage.length-1;index>=0;index--){
+      const key=storage.key(index);
+      if(key?.startsWith('sb-'))storage.removeItem(key);
+    }
+  }
+}
+const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}) : null;
 
 
 const APPEARANCE_STORAGE_KEY = 'inovaAppearanceV1';
@@ -11989,7 +12006,9 @@ $('#demoModeBtn')?.addEventListener('click',demoSeed);
 $('#authDemoModeBtn')?.addEventListener('click',demoSeed);
 $('#showLoginBtn').addEventListener('click',()=>{$('#showLoginBtn').classList.add('active');$('#showSignupBtn').classList.remove('active');$('#loginForm').hidden=false;$('#signupForm').hidden=true;});
 $('#showSignupBtn').addEventListener('click',()=>{$('#showSignupBtn').classList.add('active');$('#showLoginBtn').classList.remove('active');$('#signupForm').hidden=false;$('#loginForm').hidden=true;});
-$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const f=Object.fromEntries(new FormData(form));const button=form.querySelector('button[type="submit"]');const oldText=button?.textContent||'Entrar';if(button){button.disabled=true;button.textContent='Entrando…';}try{const result=await Promise.race([supabase.auth.signInWithPassword({email:f.email,password:f.password}),new Promise(resolve=>setTimeout(()=>resolve({data:{user:null},error:new Error('A conexão demorou. Verifique sua internet e tente novamente.')}),15000))]);const {data,error}=result;if(error)throw error;if(!data?.user)throw new Error('Não foi possível concluir o login.');state.user=data.user;await ensureProfile();await loadMembershipAndData();}catch(error){toast(error?.message||'Não foi possível entrar.','error');}finally{if(button){button.disabled=false;button.textContent=oldText;}}});
+const rememberInput=$('#loginForm input[name="remember"]');
+if(rememberInput)rememberInput.checked=rememberSession;
+$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;setRememberSession(Boolean(form.elements.remember?.checked));const f=Object.fromEntries(new FormData(form));const button=form.querySelector('button[type="submit"]');const oldText=button?.textContent||'Entrar';if(button){button.disabled=true;button.textContent='Entrando…';}try{const result=await Promise.race([supabase.auth.signInWithPassword({email:f.email,password:f.password}),new Promise(resolve=>setTimeout(()=>resolve({data:{user:null},error:new Error('A conexão demorou. Verifique sua internet e tente novamente.')}),15000))]);const {data,error}=result;if(error)throw error;if(!data?.user)throw new Error('Não foi possível concluir o login.');state.user=data.user;await ensureProfile();await loadMembershipAndData();}catch(error){toast(error?.message||'Não foi possível entrar.','error');}finally{if(button){button.disabled=false;button.textContent=oldText;}}});
 let signupInFlight=false;
 $('#signupForm').addEventListener('submit',async e=>{
   e.preventDefault();
