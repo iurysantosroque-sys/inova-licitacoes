@@ -1,1 +1,1 @@
-45.0.34 - Mantém a posição da tela em todas as ações da precificação.
+45.0.35 - Mantém a posição ao excluir linhas da precificação.

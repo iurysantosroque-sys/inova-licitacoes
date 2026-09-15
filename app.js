@@ -12793,6 +12793,11 @@ document.addEventListener('click',async e=>{
     return toast('Exclusão refeita.');
   }
   if(remove){
+    const deletePageScroll={left:window.scrollX,top:window.scrollY};
+    const restoreDeletePageScroll=()=>requestAnimationFrame(()=>{
+      window.scrollTo({left:deletePageScroll.left,top:deletePageScroll.top,behavior:'auto'});
+      requestAnimationFrame(()=>window.scrollTo({left:deletePageScroll.left,top:deletePageScroll.top,behavior:'auto'}));
+    });
     const itemId=String(remove.dataset.deletePricingItem||'');
     const item=state.itens.find(row=>String(row.id)===itemId);
     if(!item)return toast('Item não encontrado.','error');
@@ -12808,6 +12813,7 @@ document.addEventListener('click',async e=>{
     renderPricingExactModel();
     const renderedRow=[...document.querySelectorAll('[data-pricing-item]')].find(row=>String(row.dataset.pricingItem)===itemId);
     renderedRow?.remove();
+    restoreDeletePageScroll();
     return toast('Item ocultado da precificação.');
   }
 },true);
