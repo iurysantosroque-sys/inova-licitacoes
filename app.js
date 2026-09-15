@@ -510,7 +510,25 @@ function bestQuote(itemId){
       };
     });
 
-  return qs.sort((a,b)=>a.custoEq-b.custoEq)[0]||null;
+  const savedBest=qs.sort((a,b)=>a.custoEq-b.custoEq)[0];
+  if(savedBest)return savedBest;
+  const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
+  const candidates=[];
+  Object.entries(imported||{}).forEach(([supplierId,rows])=>(rows||[]).forEach(row=>{
+    const description=String(row.description||row.presentation||'').trim();
+    const price=Number(row.unit_price||row.price||0);
+    if(!description||price<=0)return;
+    const score=quoteMatchScore(description,item?.descricao||'');
+    const itemUnit=quoteCanonicalUnit(item?.unidade||'');
+    const rowUnit=quoteCanonicalUnit(row.unit||'');
+    if(score.score<0.82||(!itemUnit||!rowUnit?false:itemUnit!==rowUnit))return;
+    const factor=Math.max(Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,description))||1,0.0001);
+    const supplier=state.fornecedores.find(f=>String(f.id)===String(supplierId));
+    const freteTotal=Number(supplier?.frete_padrao||0);
+    const freteUnit=freteTotal/Math.max(Number(item?.quantidade||0),0.0001);
+    candidates.push({fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:description,custoProduto:price/factor,freteTotal,freteUnit,custoEq:price/factor+freteUnit,origem:'catalogo',matchScore:score.score});
+  }));
+  return candidates.sort((a,b)=>a.custoEq-b.custoEq||b.matchScore-a.matchScore)[0]||null;
 }
 
 function pricing(item){
@@ -8144,7 +8162,7 @@ function renderPricingExactModel(){
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingSheetMoney(row.governmentUnit)}</td>
                   <td>${pricingSheetMoney(row.governmentTotal)}</td>
-                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -8256,7 +8274,9 @@ function renderPricingExactModel(){
     const itemId=String(manualForm?.elements?.item_id?.value||'');
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
-    const rawChoices=(state.cotacoes||[]).filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
+    const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
+    const importedChoices=(imported?.[supplierId]||[]).map((row,index)=>({id:`catalog-${supplierId}-${index}`,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||'',quote_tender_id:'',origem:'catalogo'}));
+    const rawChoices=[...(state.cotacoes||[]),...importedChoices].filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
     const seenChoices=new Set();
     const choices=rawChoices.filter(row=>{const key=`${quoteCanonicalDescription(row.supplier_description||row.apresentacao||'')}|${Number(row.preco).toFixed(6)}`;if(seenChoices.has(key))return false;seenChoices.add(key);return true;});
     const search=manualQuoteSearch.trim().toLocaleLowerCase('pt-BR');
@@ -8282,7 +8302,12 @@ function renderPricingExactModel(){
   manualForm?.elements?.fornecedor_id?.addEventListener('change',renderManualQuoteChoices);
   shell.querySelector('#pricingManualQuoteChoices')?.addEventListener('click',event=>{
     const button=event.target.closest('[data-select-pricing-source]'); if(!button)return;
-    const source=state.cotacoes.find(row=>String(row.id)===String(button.dataset.selectPricingSource)); if(!source)return;
+    let source=state.cotacoes.find(row=>String(row.id)===String(button.dataset.selectPricingSource));
+    if(!source&&String(button.dataset.selectPricingSource).startsWith('catalog-')){
+      const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
+      for(const [supplierId,rows] of Object.entries(imported||{})){const index=(rows||[]).findIndex((row,position)=>`catalog-${supplierId}-${position}`===button.dataset.selectPricingSource);if(index>=0){const row=rows[index];source={id:button.dataset.selectPricingSource,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||''};break;}}
+    }
+    if(!source)return;
     manualForm.elements.fornecedor_id.value=source.fornecedor_id||'';
     manualForm.elements.source_description.value=source.supplier_description||source.apresentacao||'';
     manualForm.elements.preco.value=Number(source.preco||0);

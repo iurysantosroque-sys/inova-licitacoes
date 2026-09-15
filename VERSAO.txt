@@ -1,1 +1,1 @@
-45.0.18 - Filtro de produtos cotados por fornecedor.
+45.0.19 - Preenchimento automático da precificação com itens importados.
