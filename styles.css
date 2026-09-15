@@ -593,7 +593,9 @@ tr:hover td{background:#0a141a}
 #precificacao .pricing-item-dialog-head button{border:0;background:transparent;color:#fff;font-size:1.55rem;line-height:1;cursor:pointer}
 #precificacao .pricing-item-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 #precificacao .pricing-item-form-grid label{display:grid;gap:6px;color:var(--ps-muted);font-size:.78rem;font-weight:700}
-#precificacao .pricing-item-form-grid input{width:100%;min-height:42px;border:1px solid var(--ps-line);border-radius:7px;background:#06131b;color:#fff;padding:0 10px}
+#precificacao .pricing-item-form-grid input,#precificacao .pricing-item-form-grid select{width:100%;min-height:42px;border:1px solid var(--ps-line);border-radius:7px;background:#06131b;color:#fff;padding:0 10px;font:inherit;font-size:.82rem}
+#precificacao .pricing-item-form-grid input:focus,#precificacao .pricing-item-form-grid select:focus{border-color:var(--ps-gold);outline:2px solid rgba(239,177,43,.16)}
+#precificacao .pricing-item-form-grid select{cursor:pointer}
 #precificacao .pricing-item-description-field{grid-column:1/-1}
 #precificacao .pricing-item-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
 #precificacao .pricing-item-form-actions button{min-height:42px;border:1px solid var(--ps-gold);border-radius:7px;background:var(--ps-gold);color:#11191d;padding:0 16px;font-weight:850}

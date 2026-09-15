@@ -1,1 +1,1 @@
-45.0.48 - Campos editáveis na cotação manual.
+45.0.49 - Fornecedor e campos da cotação manual editáveis.

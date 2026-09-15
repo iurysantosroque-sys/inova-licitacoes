@@ -1,4 +1,4 @@
-INOVA V45.0.48
+INOVA V45.0.49
 
 - Numeração completa do edital PNCP aplicada em todas as abas e seletores do sistema.
 

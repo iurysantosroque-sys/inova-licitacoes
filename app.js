@@ -8503,7 +8503,7 @@ function renderPricingExactModel(){
         <input id="pricingManualQuoteSourceDescription" name="source_description" type="hidden">
         <section id="pricingManualQuoteChoices" class="pricing-manual-choices" aria-live="polite"><p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p></section>
         <div class="pricing-item-form-grid pricing-manual-form-grid">
-          <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
+          <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required title="Você pode trocar o fornecedor a qualquer momento"><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
           <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.000001" inputmode="decimal" placeholder="Informe ou ajuste o preço" required></label>
           <label>Marca<input name="marca" maxlength="120" placeholder="Informe ou ajuste a marca"></label>
           <label>Apresentação<input name="apresentacao" maxlength="160" placeholder="Ex.: caixa com 12 unidades"></label>
