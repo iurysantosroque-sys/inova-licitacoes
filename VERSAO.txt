@@ -1,1 +1,1 @@
-45.0.43 - Busca ampliada e sincronização automática dos preços do PNCP.
+45.0.44 - Identificação de orçamento sigiloso na precificação.

@@ -1340,6 +1340,18 @@ function pncpEstimatedValues(source={}, quantity=null){
   return {unit:derivedUnit,total:total??(derivedUnit!=null&&qty>0?derivedUnit*qty:null)};
 }
 
+function pncpBudgetConfidential(source={}){
+  const row=source||{};
+  const values=[];
+  const visit=(value,depth=0)=>{
+    if(!value||typeof value!=='object'||depth>3)return;
+    values.push(value);
+    Object.values(value).forEach(child=>visit(child,depth+1));
+  };
+  visit(row);
+  return values.some(value=>value?.orcamentoSigiloso===true||String(value?.orcamentoSigiloso||'').toLowerCase()==='true'||[2,3].includes(Number(value?.orcamentoSigilosoCodigo))||/sigilos/i.test(String(value?.orcamentoSigilosoDescricao||'')));
+}
+
 function governmentItemUnitPrice(item){
   const values=pncpEstimatedValues(item,item?.quantidade);
   return values.unit!=null&&values.unit>0?values.unit:null;
@@ -1356,7 +1368,8 @@ function normalizePncpItem(item,index=0){
     quantidade,
     unidadeMedida:String(source.unidadeMedida??source.unidade??source.unidadeFornecimento??source.unit??'UN'),
     valorUnitarioEstimado:values.unit,
-    valorTotal:values.total
+    valorTotal:values.total,
+    orcamentoSigiloso:pncpBudgetConfidential(source)
   };
 }
 
@@ -1487,13 +1500,15 @@ async function importPncpPreview(){
     const {data:tender,error:tenderError}=await supabase.from('tenders').insert(row).select().single();
     if(tenderError)throw tenderError;
 
+    const tenderBudgetConfidential=pncpBudgetConfidential(t);
     const items=(data.items||[]).map((raw,index)=>{const i=normalizePncpItem(raw,index);return {
       tender_id:tender.id,
       item_number:Number(i.numeroItem||index+1),
       description:String(i.descricao||'Item PNCP'),
       quantity:Number(i.quantidade||1),
       unit:String(i.unidadeMedida||'UN'),
-      estimated_unit_price:i.valorUnitarioEstimado==null?null:Number(i.valorUnitarioEstimado)
+      estimated_unit_price:i.valorUnitarioEstimado==null?null:Number(i.valorUnitarioEstimado),
+      notes:(i.orcamentoSigiloso||tenderBudgetConfidential)?'PNCP_ORCAMENTO_SIGILOSO':null
     };});
 
     for(let start=0;start<items.length;start+=400){
@@ -1580,6 +1595,7 @@ async function syncPncpItems(forcedTenderId=''){
     if(data?.error)throw new Error(data.error);
     const rows=Array.isArray(data?.items)?data.items:[];
     const tenderData=data?.tender||null;
+    const tenderBudgetConfidential=pncpBudgetConfidential(tenderData||{});
 
     if(tenderData){
       const tenderPayload={
@@ -1615,7 +1631,8 @@ async function syncPncpItems(forcedTenderId=''){
         description:String(normalized.descricao||'Item PNCP'),
         quantity:Number(normalized.quantidade||1),
         unit:String(normalized.unidadeMedida||'UN'),
-        estimated_unit_price:normalized.valorUnitarioEstimado==null?null:Number(normalized.valorUnitarioEstimado)
+        estimated_unit_price:normalized.valorUnitarioEstimado==null?null:Number(normalized.valorUnitarioEstimado),
+        ...((normalized.orcamentoSigiloso||tenderBudgetConfidential)?{notes:'PNCP_ORCAMENTO_SIGILOSO'}:{})
       };
       const old=existingByNumber.get(num);
       if(old){
@@ -5292,6 +5309,7 @@ async function refreshAll(){
     id:i.id,licitacao_id:i.tender_id,numero:i.item_number,descricao:i.description,
     quantidade:Number(i.quantity),unidade:i.unit||'',
     valor_estimado:governmentItemUnitPrice({ ...i, quantidade:i.quantity, valor_estimado:i.estimated_unit_price }),
+    sigiloso:String(i.notes||'').includes('PNCP_ORCAMENTO_SIGILOSO')||pncpBudgetConfidential(i),
     raw:i
   }));
   await loadPricingItemResults(state.itens.map(item=>item.id));
@@ -8287,6 +8305,10 @@ function pricingSheetMoney(value){
   if(value==null||!Number.isFinite(Number(value)))return '<span class="pricing-sheet-pending">Pendente</span>';
   return (Math.trunc(Number(value)*1000)/1000).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:3});
 }
+function pricingGovernmentMoney(value,confidential=false){
+  if(value==null||!Number.isFinite(Number(value)))return `<span class="pricing-sheet-pending">${confidential?'Sigiloso':'Pendente'}</span>`;
+  return (Math.trunc(Number(value)*1000)/1000).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:3});
+}
 
 function renderPricingExactModel(){
   const pricingPageScroll={left:window.scrollX,top:window.scrollY};
@@ -8339,6 +8361,7 @@ function renderPricingExactModel(){
     const quantity=Number(item.quantidade)>0?Number(item.quantidade):null;
     const governmentUnit=governmentItemUnitPrice(item);
     const governmentTotal=governmentUnit!=null&&quantity!=null?governmentUnit*quantity:null;
+    const governmentConfidential=Boolean(item.sigiloso);
     const quote=bestQuote(item.id);
     const supplierUnit=Number(quote?.custoEq)>0?Number(quote.custoEq):null;
     const supplierTotal=supplierUnit!=null&&quantity!=null?supplierUnit*quantity:null;
@@ -8352,7 +8375,7 @@ function renderPricingExactModel(){
     const quoteAboveGovernment=governmentUnit!=null&&supplierUnit!=null&&supplierUnit>governmentUnit;
     const priceFor25AboveGovernment=governmentUnit!=null&&priceFor25!=null&&priceFor25>governmentUnit;
     const notWorthwhile=quoteAboveGovernment||priceFor25AboveGovernment;
-    return {item,quantity,governmentUnit,governmentTotal,quote,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
+    return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
   });
 
   shell.innerHTML=`
@@ -8409,8 +8432,8 @@ function renderPricingExactModel(){
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
                   <td>${esc(row.item.unidade||'Pendente')}</td>
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
-                  <td>${pricingSheetMoney(row.governmentUnit)}</td>
-                  <td>${pricingSheetMoney(row.governmentTotal)}</td>
+                  <td>${pricingGovernmentMoney(row.governmentUnit,row.governmentConfidential)}</td>
+                  <td>${pricingGovernmentMoney(row.governmentTotal,row.governmentConfidential)}</td>
                   <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
