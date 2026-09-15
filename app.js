@@ -8424,6 +8424,13 @@ function renderPricingExactModel(){
     if(!Number.isFinite(freight)||freight<0)return toast('O frete não pode ser negativo.','error');
     const submit=shell.querySelector('#pricingManualQuoteSave');
     if(submit){submit.disabled=true;submit.textContent='Salvando…';}
+    const manualPageScroll={left:window.scrollX,top:window.scrollY};
+    const restoreManualPageScroll=()=>{
+      requestAnimationFrame(()=>{
+        window.scrollTo({left:manualPageScroll.left,top:manualPageScroll.top,behavior:'auto'});
+        requestAnimationFrame(()=>window.scrollTo({left:manualPageScroll.left,top:manualPageScroll.top,behavior:'auto'}));
+      });
+    };
     try{
       if(state.demo){
         const existing=state.cotacoes.find(row=>String(row.item_id)===String(item.id)&&String(row.fornecedor_id)===supplierId);
@@ -8431,6 +8438,7 @@ function renderPricingExactModel(){
         if(existing)Object.assign(existing,quote);else state.cotacoes.push(quote);
         manualDialog?.close?.();
         renderAll();
+        restoreManualPageScroll();
         toast(existing?'Cotação manual atualizada.':'Cotação manual adicionada.');
         return;
       }
@@ -8450,6 +8458,7 @@ function renderPricingExactModel(){
       manualDialog?.close?.();
       toast('Cotação manual salva. Valores e marca atualizados na tabela.');
       renderPricingExactModel();
+      restoreManualPageScroll();
       // Limpa versões anteriores sem bloquear a atualização visual.
       supabase.from('quote_items').delete().eq('quote_id',quote.id).eq('tender_item_id',item.id).neq('id',insertedQuoteItem.id).then(()=>{}).catch(()=>{});
     }catch(error){
@@ -8534,12 +8543,15 @@ function renderPricingExactModel(){
     if(!Number.isFinite(freight)||freight<0)return toast('O frete não pode ser negativo.','error');
     const submit=event.currentTarget.querySelector('[type="submit"]');
     submit.disabled=true;submit.textContent='Salvando…';
+    const manualPageScroll={left:window.scrollX,top:window.scrollY};
+    const restoreManualPageScroll=()=>requestAnimationFrame(()=>window.scrollTo({left:manualPageScroll.left,top:manualPageScroll.top,behavior:'auto'}));
     if(state.demo){
       const existing=state.cotacoes.find(q=>String(q.item_id)===String(item.id)&&String(q.fornecedor_id)===supplierId);
       const quote={id:existing?.id||crypto.randomUUID(),item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||''),apresentacao:String(values.apresentacao||'')};
       if(existing)Object.assign(existing,quote);else state.cotacoes.push(quote);
       dialog.close?.();
       renderAll();
+      restoreManualPageScroll();
       return toast(existing?'Cotação atualizada.':'Cotação adicionada à tabela.');
     }
     const q=await findOrCreateQuote(tenderId,supplierId);
@@ -8554,6 +8566,7 @@ function renderPricingExactModel(){
     dialog.close?.();
     toast('Cotação salva na licitação selecionada.');
     await refreshAll();
+    restoreManualPageScroll();
   });
 
   shell.querySelector('#pricingTaxSave')?.addEventListener('click',async event=>{

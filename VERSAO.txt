@@ -1,1 +1,1 @@
-45.0.32 - Mantém todos os itens ocultos após exclusões sucessivas na precificação.
+45.0.33 - Mantém a posição da página ao salvar cotação manual.
