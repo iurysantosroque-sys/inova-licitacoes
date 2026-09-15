@@ -149,7 +149,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingOnlyMissing:false, pricingExcludedItems:{}, pricingUndoStack:[], pricingRedoStack:[], dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 state.quotedProducts=[];
@@ -4031,8 +4031,9 @@ function renderQuoteImportReviewCompact(){
   const el=$('#quoteImportPreview');
   if(!el)return;
   const tenderId=$('#quoteImportTender')?.value||state.quoteViewTenderId||'';
+  const excludedPricingItems=new Set((state.pricingExcludedItems?.[String(tenderId)]||[]).map(String));
   const items=state.itens
-    .filter(item=>String(item.licitacao_id)===String(tenderId))
+    .filter(item=>String(item.licitacao_id)===String(tenderId)&&!excludedPricingItems.has(String(item.id)))
     .sort((a,b)=>Number(a.numero)-Number(b.numero));
   const pending=quotePendingReviewRows();
   persistQuoteReviewDraft();
@@ -12727,6 +12728,62 @@ $('#financePeriod')?.addEventListener('change',e=>{state.financePeriod=e.target.
 document.addEventListener('click',e=>{const close=e.target.closest('[data-close-finance-edital]');if(close){state.financeEditalId='';renderFinance();return;}const edital=e.target.closest('[data-finance-edital]');if(edital){state.financeEditalId=edital.dataset.financeEdital;renderFinance();}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-finance-tender]');if(!button)return;state.financeTenderId=button.dataset.financeTender;renderFinance();});
 document.addEventListener('click',async e=>{const refresh=e.target.closest('[data-refresh-pricing-items]');if(refresh){await refreshAll();toast('Itens atualizados.');return;}const undo=e.target.closest('[data-pricing-undo]');if(undo&&state.pricingUndoStack?.length){const action=state.pricingUndoStack.pop();state.pricingRedoStack=state.pricingRedoStack||[];state.pricingRedoStack.push(action);if(state.demo){state.itens.push(action.item);state.cotacoes.push(...action.quotes);renderPricingExactModel();}else{const {error}=await supabase.from('tender_items').insert(action.item.raw||action.item);if(error){state.pricingUndoStack.push(action);return toast(error.message,'error');}state.itens.push(action.item);state.cotacoes.push(...action.quotes);renderPricingExactModel();}toast('Exclusão desfeita.');return;}const redo=e.target.closest('[data-pricing-redo]');if(redo&&state.pricingRedoStack?.length){const action=state.pricingRedoStack.pop();state.pricingUndoStack=state.pricingUndoStack||[];state.pricingUndoStack.push(action);if(state.demo){state.itens=state.itens.filter(item=>String(item.id)!==String(action.item.id));state.cotacoes=state.cotacoes.filter(q=>String(q.item_id)!==String(action.item.id));renderPricingExactModel();}else{const {error}=await supabase.from('tender_items').delete().eq('id',action.item.id);if(error){state.pricingRedoStack.push(action);return toast(error.message,'error');}state.itens=state.itens.filter(item=>String(item.id)!==String(action.item.id));state.cotacoes=state.cotacoes.filter(q=>String(q.item_id)!==String(action.item.id));renderPricingExactModel();}toast('Exclusão refeita.');return;}const button=e.target.closest('[data-delete-pricing-item]');if(!button)return;if(!confirm('Excluir este item da licitação?'))return;const id=button.dataset.deletePricingItem;const item=state.itens.find(x=>String(x.id)===String(id));if(!item)return toast('Item não encontrado. Atualize a lista.','error');const quotes=state.cotacoes.filter(q=>String(q.item_id)===String(id));state.pricingUndoStack=state.pricingUndoStack||[];state.pricingRedoStack=[];const action={item,quotes};state.pricingUndoStack.push(action);const previousItems=state.itens;const previousQuotes=state.cotacoes;state.itens=state.itens.filter(row=>String(row.id)!==String(id));state.cotacoes=state.cotacoes.filter(quote=>String(quote.item_id)!==String(id));if(state.demo){renderPricingExactModel();toast('Item excluído.');return;}renderPricingExactModel();const {error}=await supabase.from('tender_items').delete().eq('id',id);if(error){state.itens=previousItems;state.cotacoes=previousQuotes;state.pricingUndoStack=state.pricingUndoStack.filter(entry=>entry!==action);renderPricingExactModel();return toast(error.message,'error');}toast('Item excluído.');});
+
+// A exclusão na precificação é deliberadamente local: o item continua no
+// banco e “Atualizar itens” consegue restaurá-lo sem recriar registros.
+document.addEventListener('click',async e=>{
+  const refresh=e.target.closest('[data-refresh-pricing-items]');
+  const remove=e.target.closest('[data-delete-pricing-item]');
+  const undo=e.target.closest('[data-pricing-undo]');
+  const redo=e.target.closest('[data-pricing-redo]');
+  if(!refresh&&!remove&&!undo&&!redo)return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const tenderId=String(state.pricingViewTenderId||'');
+  const excluded=state.pricingExcludedItems[tenderId]||[];
+  if(refresh){
+    delete state.pricingExcludedItems[tenderId];
+    state.pricingUndoStack=[];
+    state.pricingRedoStack=[];
+    const tender=state.licitacoes.find(row=>String(row.id)===tenderId);
+    const pncpSelect=$('#pncpSyncTender');
+    if(tender?.source_url||tender?.pncp_control){
+      if(pncpSelect)pncpSelect.value=tenderId;
+      await syncPncpItems();
+      return;
+    }
+    renderPricingExactModel();
+    return toast('Itens originais restaurados.');
+  }
+  if(undo&&state.pricingUndoStack?.length){
+    const action=state.pricingUndoStack.pop();
+    state.pricingExcludedItems[tenderId]=(state.pricingExcludedItems[tenderId]||[]).filter(id=>String(id)!==String(action.itemId));
+    state.pricingRedoStack=state.pricingRedoStack||[];
+    state.pricingRedoStack.push(action);
+    renderPricingExactModel();
+    return toast('Exclusão desfeita.');
+  }
+  if(redo&&state.pricingRedoStack?.length){
+    const action=state.pricingRedoStack.pop();
+    state.pricingExcludedItems[tenderId]=Array.from(new Set([...(state.pricingExcludedItems[tenderId]||[]),String(action.itemId)]));
+    state.pricingUndoStack=state.pricingUndoStack||[];
+    state.pricingUndoStack.push(action);
+    renderPricingExactModel();
+    return toast('Exclusão refeita.');
+  }
+  if(remove){
+    const itemId=String(remove.dataset.deletePricingItem||'');
+    const item=state.itens.find(row=>String(row.id)===itemId);
+    if(!item)return toast('Item não encontrado.','error');
+    if(!confirm('Ocultar este item da precificação? Ele continuará salvo e poderá ser restaurado em “Atualizar itens”.'))return;
+    state.pricingExcludedItems[tenderId]=Array.from(new Set([...excluded,itemId]));
+    state.pricingUndoStack=state.pricingUndoStack||[];
+    state.pricingRedoStack=[];
+    state.pricingUndoStack.push({tenderId,itemId});
+    renderPricingExactModel();
+    return toast('Item ocultado da precificação.');
+  }
+},true);
 
 document.addEventListener('click',async e=>{
   const refresh=e.target.closest('[data-refresh-quote-items]');

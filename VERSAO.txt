@@ -1,1 +1,1 @@
-45.0.28 - Importação de múltiplas cotações otimizada, sem recarregar todo o sistema.
+45.0.29 - Restauração segura dos itens ocultados na precificação.
