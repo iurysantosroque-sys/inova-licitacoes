@@ -12776,10 +12776,11 @@ document.addEventListener('click',async e=>{
     const item=state.itens.find(row=>String(row.id)===itemId);
     if(!item)return toast('Item não encontrado.','error');
     if(!confirm('Ocultar este item da precificação? Ele continuará salvo e poderá ser restaurado em “Atualizar itens”.'))return;
-    state.pricingExcludedItems[tenderId]=Array.from(new Set([...excluded,itemId]));
+    const itemTenderId=String(item.licitacao_id||tenderId);
+    state.pricingExcludedItems[itemTenderId]=Array.from(new Set([...(state.pricingExcludedItems[itemTenderId]||[]),itemId]));
     state.pricingUndoStack=state.pricingUndoStack||[];
     state.pricingRedoStack=[];
-    state.pricingUndoStack.push({tenderId,itemId});
+    state.pricingUndoStack.push({tenderId:itemTenderId,itemId});
     renderPricingExactModel();
     return toast('Item ocultado da precificação.');
   }

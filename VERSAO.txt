@@ -1,1 +1,1 @@
-45.0.29 - Restauração segura dos itens ocultados na precificação.
+45.0.30 - Correção da ocultação de itens na precificação.
