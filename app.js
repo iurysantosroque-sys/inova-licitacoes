@@ -8141,10 +8141,19 @@ function pricingSheetMoney(value){
 
 function renderPricingExactModel(){
   const pricingPageScroll={left:window.scrollX,top:window.scrollY};
+  const pricingInnerScroll=[...document.querySelectorAll('#pricingExactShell .pricing-sheet-scroll')].map(node=>({left:node.scrollLeft,top:node.scrollTop}));
   const restorePricingPageScroll=()=>{
     requestAnimationFrame(()=>{
       window.scrollTo({left:pricingPageScroll.left,top:pricingPageScroll.top,behavior:'auto'});
+      document.querySelectorAll('#pricingExactShell .pricing-sheet-scroll').forEach((node,index)=>{
+        const saved=pricingInnerScroll[index];
+        if(saved){node.scrollLeft=saved.left;node.scrollTop=saved.top;}
+      });
       requestAnimationFrame(()=>window.scrollTo({left:pricingPageScroll.left,top:pricingPageScroll.top,behavior:'auto'}));
+      requestAnimationFrame(()=>document.querySelectorAll('#pricingExactShell .pricing-sheet-scroll').forEach((node,index)=>{
+        const saved=pricingInnerScroll[index];
+        if(saved){node.scrollLeft=saved.left;node.scrollTop=saved.top;}
+      }));
     });
   };
   const section=$('#precificacao');
