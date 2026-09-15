@@ -3022,10 +3022,10 @@ async function archiveQuoteFile(tenderId,supplierId,file){
   return q;
 }
 
-async function startAutomaticQuoteImport(force=false){
+async function startAutomaticQuoteImport(force=false,fileOverride=null){
   const tenderId=$('#quoteImportTender')?.value||'';
   const supplierId=$('#quoteImportSupplier')?.value||'';
-  const file=$('#quoteImportFile')?.files?.[0];
+  const file=fileOverride||$('#quoteImportFile')?.files?.[0];
   if(!tenderId||!supplierId)return;
   if(state.quoteImportBusy)return;
   const context=state.quoteImportContext;
@@ -8202,7 +8202,7 @@ function renderPricingExactModel(){
           <label>Licitação<select id="quoteImportTenderSelect" required>${state.licitacoes.length?state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao||row.cidade||'Órgão não informado')}</option>`).join(''):'<option value="">Nenhuma licitação cadastrada</option>'}</select></label>
           <input type="hidden" id="quoteImportTender" value="${esc(tenderId)}">
           <label>Fornecedor<select id="quoteImportSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label class="pricing-item-description-field">Arquivo da cotação<input id="quoteImportFile" name="arquivo" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required></label>
+          <label class="pricing-item-description-field">Arquivos das cotações<input id="quoteImportFile" name="arquivo" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required><small>Você pode selecionar vários PDFs do mesmo fornecedor; eles serão processados em sequência.</small></label>
         </div>
         <section class="pricing-prior-quotes" aria-labelledby="pricingPriorQuotesTitle">
           <h3 id="pricingPriorQuotesTitle" class="sr-only">Cotações anteriores compatíveis</h3>
@@ -8427,7 +8427,8 @@ function renderPricingExactModel(){
     if(dialog.open||dialog.hasAttribute('open'))renderPriorQuoteReuseOptions(dialog.querySelector('#pricingPriorQuotes'),dialog.querySelector('#quoteImportTender')?.value||'',dialog.querySelector('#quoteImportSupplier')?.value||'');
   });
   shell.querySelector('#quoteImportSubmit')?.addEventListener('click',async()=>{
-    const file=shell.querySelector('#quoteImportFile')?.files?.[0];
+    const files=[...(shell.querySelector('#quoteImportFile')?.files||[])];
+    const file=files[0];
     const tenderValue=shell.querySelector('#quoteImportTender')?.value||'';
     const supplierValue=shell.querySelector('#quoteImportSupplier')?.value||'';
     if(!tenderValue||!supplierValue)return toast('Selecione a licitação e o fornecedor.','error');
@@ -8444,7 +8445,10 @@ function renderPricingExactModel(){
       finally{if(button)button.disabled=false;}
       return;
     }
-    await startAutomaticQuoteImport();
+    for(const [index,currentFile] of files.entries()){
+      if(files.length>1)setQuoteImportStatus(`Processando cotação ${index+1} de ${files.length}: ${currentFile.name}`,'loading');
+      await startAutomaticQuoteImport(false,currentFile);
+    }
   });
   shell.querySelectorAll('[data-close-pricing-dialog]').forEach(button=>button.addEventListener('click',()=>dialog.close?.()||dialog.removeAttribute('open')));
   dialog?.addEventListener('click',event=>{
