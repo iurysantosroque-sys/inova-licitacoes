@@ -4978,7 +4978,11 @@ async function ensureProfile(){
 
 async function boot(){
   if(!configured){ showOnly('setupScreen'); return; }
-  const {data:{session},error}=await supabase.auth.getSession();
+  const sessionResult=await Promise.race([
+    supabase.auth.getSession(),
+    new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:new Error('Tempo limite ao consultar a sessão.')}),8000))
+  ]);
+  const {data:{session},error}=sessionResult;
   if(error) console.warn(error.message);
   if(!session){ showOnly('authScreen');applyIncomingCompanyInvite();return; }
   state.user=session.user; await ensureProfile(); await loadMembershipAndData();
