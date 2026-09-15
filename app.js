@@ -12778,10 +12778,15 @@ document.addEventListener('click',async e=>{
     if(!confirm('Ocultar este item da precificação? Ele continuará salvo e poderá ser restaurado em “Atualizar itens”.'))return;
     const itemTenderId=String(item.licitacao_id||tenderId);
     state.pricingExcludedItems[itemTenderId]=Array.from(new Set([...(state.pricingExcludedItems[itemTenderId]||[]),itemId]));
+    if(tenderId&&tenderId!==itemTenderId){
+      state.pricingExcludedItems[tenderId]=Array.from(new Set([...(state.pricingExcludedItems[tenderId]||[]),itemId]));
+    }
     state.pricingUndoStack=state.pricingUndoStack||[];
     state.pricingRedoStack=[];
     state.pricingUndoStack.push({tenderId:itemTenderId,itemId});
     renderPricingExactModel();
+    const renderedRow=[...document.querySelectorAll('[data-pricing-item]')].find(row=>String(row.dataset.pricingItem)===itemId);
+    renderedRow?.remove();
     return toast('Item ocultado da precificação.');
   }
 },true);
