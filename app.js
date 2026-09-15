@@ -5323,6 +5323,7 @@ async function refreshAll(){
       fornecedor_id:q?.supplier_id,
       preco:Number(qi.unit_price),
       fator_equivalencia:Number(qi.package_base_quantity||1),
+      quantidade_cotada:qi.available_quantity==null?null:Number(qi.available_quantity),
       frete_rateado:Number(qi.freight_per_package||0),
       apresentacao:qi.package_description||'',
       marca:[qi.brand,qi.model].filter(Boolean).join(' '),
@@ -8503,10 +8504,11 @@ function renderPricingExactModel(){
         <section id="pricingManualQuoteChoices" class="pricing-manual-choices" aria-live="polite"><p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p></section>
         <div class="pricing-item-form-grid pricing-manual-form-grid">
           <label>Fornecedor<select id="pricingManualQuoteSupplier" name="fornecedor_id" required><option value="">Selecione o fornecedor</option>${state.fornecedores.length?state.fornecedores.map(s=>`<option value="${esc(s.id)}">${esc(s.nome_fantasia||s.nome)}</option>`).join(''):'<option value="" disabled>Nenhum fornecedor cadastrado</option>'}</select></label>
-          <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Preenchido pela cotação" required readonly></label>
-          <label>Marca<input name="marca" maxlength="120" readonly></label>
-          <label>Apresentação<input name="apresentacao" maxlength="160" readonly></label>
-          <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.0001" value="1" required readonly></label>
+          <label>Preço por unidade<input id="pricingManualQuotePrice" name="preco" type="number" min="0.01" step="0.000001" inputmode="decimal" placeholder="Informe ou ajuste o preço" required></label>
+          <label>Marca<input name="marca" maxlength="120" placeholder="Informe ou ajuste a marca"></label>
+          <label>Apresentação<input name="apresentacao" maxlength="160" placeholder="Ex.: caixa com 12 unidades"></label>
+          <label>Unidades por embalagem<input name="fator_equivalencia" type="number" min="0.0001" step="0.000001" value="1" required></label>
+          <label>Quantidade cotada<input name="quantidade_cotada" type="number" min="0.0001" step="0.0001" value="1" required></label>
           <label>Frete por embalagem <small>(opcional)</small><input name="frete_rateado" type="number" min="0" step="0.01" value="0"></label>
         </div>
         <div class="pricing-manual-preview" aria-live="polite"><span>Valor estimado para este item</span><strong id="pricingManualQuoteTotal">Informe o preço por unidade</strong></div>
@@ -8545,6 +8547,7 @@ function renderPricingExactModel(){
     if(manualForm?.elements?.fator_equivalencia)manualForm.elements.fator_equivalencia.value='1';
     if(manualForm?.elements?.frete_rateado)manualForm.elements.frete_rateado.value='0';
     if(manualForm?.elements?.item_id)manualForm.elements.item_id.value=item.id;
+    if(manualForm?.elements?.quantidade_cotada)manualForm.elements.quantidade_cotada.value=Number(item.quantidade||1);
     const itemLabel=shell.querySelector('#pricingManualQuoteItem');
     const details=shell.querySelector('#pricingManualQuoteDetails');
     if(itemLabel)itemLabel.textContent=`${item.numero} • ${item.descricao}`;
@@ -8635,11 +8638,13 @@ function renderPricingExactModel(){
     const supplierId=String(values.fornecedor_id||'');
     const price=Number(values.preco);
     const factor=Number(values.fator_equivalencia||1);
+    const quotedQuantity=Number(values.quantidade_cotada||0);
     const freight=Number(values.frete_rateado||0);
     if(!item)return toast('Selecione o item desejado na tabela.','error');
     if(!supplierId)return toast('Escolha o fornecedor desta cotação.','error');
     if(!Number.isFinite(price)||price<=0)return toast('Informe um preço por unidade maior que zero.','error');
     if(!Number.isFinite(factor)||factor<=0)return toast('Informe uma quantidade válida por embalagem.','error');
+    if(!Number.isFinite(quotedQuantity)||quotedQuantity<=0)return toast('Informe uma quantidade cotada válida.','error');
     if(!Number.isFinite(freight)||freight<0)return toast('O frete não pode ser negativo.','error');
     const submit=shell.querySelector('#pricingManualQuoteSave');
     if(submit){submit.disabled=true;submit.textContent='Salvando…';}
@@ -8653,7 +8658,7 @@ function renderPricingExactModel(){
     try{
       if(state.demo){
         const existing=state.cotacoes.find(row=>String(row.item_id)===String(item.id)&&String(row.fornecedor_id)===supplierId);
-        const quote={id:existing?.id||crypto.randomUUID(),item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim()};
+        const quote={id:existing?.id||crypto.randomUUID(),item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,quantidade_cotada:quotedQuantity,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim()};
         if(existing)Object.assign(existing,quote);else state.cotacoes.push(quote);
         manualDialog?.close?.();
         renderAll();
@@ -8667,10 +8672,10 @@ function renderPricingExactModel(){
         quote_id:quote.id,tender_item_id:item.id,supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,
         brand:String(values.marca||'').trim()||null,
         package_description:String(values.apresentacao||'').trim()||null,
-        package_base_quantity:factor,unit_price:price,freight_per_package:freight
+        package_base_quantity:factor,available_quantity:quotedQuantity,unit_price:price,freight_per_package:freight
       }).select().single();
       if(error)throw error;
-      const localQuote={id:insertedQuoteItem.id,quote_id:quote.id,item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim(),supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,origem_licitacao_id:tenderId,quote_tender_id:tenderId,origem_item_descricao:item.descricao,origem_item_unidade:item.unidade};
+      const localQuote={id:insertedQuoteItem.id,quote_id:quote.id,item_id:item.id,fornecedor_id:supplierId,preco:price,fator_equivalencia:factor,quantidade_cotada:quotedQuantity,frete_rateado:freight,marca:String(values.marca||'').trim(),apresentacao:String(values.apresentacao||'').trim(),supplier_description:String(values.source_description||item.descricao).trim()||item.descricao,origem_licitacao_id:tenderId,quote_tender_id:tenderId,origem_item_descricao:item.descricao,origem_item_unidade:item.unidade};
       state.cotacoes=state.cotacoes.filter(row=>!(String(row.item_id)===String(item.id)&&String(row.fornecedor_id)===supplierId&&String(row.quote_id)===String(quote.id)));
       state.cotacoes.push(localQuote);
       state.pricingMap=state.pricingMap.filter(row=>String(row.item_id)!==String(item.id));

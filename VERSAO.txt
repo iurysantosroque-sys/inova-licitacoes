@@ -1,1 +1,1 @@
-45.0.47 - Padronização visual das listas de precificação.
+45.0.48 - Campos editáveis na cotação manual.
