@@ -354,7 +354,7 @@ function renderProductsCatalog(){
   const now=Date.now(), search=String(state.productsCatalogSearch||'').toLocaleLowerCase('pt-BR'), filter=state.productsCatalogFilter||'active', supplierFilter=String(state.productsCatalogSupplier||'');
   const imported=readSupplierProducts?readSupplierProducts():{};
   const localSnapshots=[],localProducts=[];
-  Object.entries(imported||{}).forEach(([supplierId,rows])=>(rows||[]).forEach((row,index)=>{
+  Object.entries(imported||{}).forEach(([supplierId,rows])=>(Array.isArray(rows)?rows:[]).forEach((row,index)=>{
     const productId=`local-${supplierId}-${index}`;
     const name=String(row.description||row.presentation||'Produto importado').trim();
     localProducts.push({id:productId,name,normalized_unit:row.unit||''});
@@ -512,9 +512,13 @@ function bestQuote(itemId){
 
   const savedBest=qs.sort((a,b)=>a.custoEq-b.custoEq)[0];
   if(savedBest)return savedBest;
+
+  // Produtos importados na aba Produtos cotados ainda não estão vinculados a
+  // um item específico do edital. Quando a descrição e a unidade coincidem
+  // com segurança, eles entram como sugestão automática na precificação.
   const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
   const candidates=[];
-  Object.entries(imported||{}).forEach(([supplierId,rows])=>(rows||[]).forEach(row=>{
+  Object.entries(imported||{}).forEach(([supplierId,rows])=>(Array.isArray(rows)?rows:[]).forEach(row=>{
     const description=String(row.description||row.presentation||'').trim();
     const price=Number(row.unit_price||row.price||0);
     if(!description||price<=0)return;
@@ -2307,21 +2311,29 @@ function quotePackageFactor(presentation='',unit='',description=''){
     .replace(/\s+/g,' ')
     .trim();
   if(!text)return 1;
+
+  // Formatos comuns: CX-12UN, CX 12 UN, 12 UNIDADES, PCT 10 PCS.
   const explicit=text.match(/(?:^|[\s/-])([0-9]+(?:[.,][0-9]+)?)\s*(?:UN|UND|UNID|UNIDADE(?:S)?|PC|PCS|PÇ|PECAS?)\b/);
   if(explicit){
     const value=Number(String(explicit[1]).replace(',','.'));
     if(Number.isFinite(value)&&value>0)return value;
   }
+
+  // Quando a apresentação informa apenas a embalagem e a quantidade: CX-12.
   const packageOnly=text.match(/(?:CX|CAIXA|PCT|PACOTE|POTE|FD|FARDO|KIT|JG|JOGO|DZ)[\s-]*([0-9]+(?:[.,][0-9]+)?)/);
   if(packageOnly){
     const value=Number(String(packageOnly[1]).replace(',','.'));
     if(Number.isFinite(value)&&value>0)return value;
   }
+
+  // Algumas cotações deixam a apresentação vazia, mas colocam o fator no
+  // texto do produto (ex.: "CAIXA COM 12 UNIDADES").
   const descriptionMatch=String(description||'').toUpperCase().match(/(?:COM|C\/|CONTENDO)\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:UN|UND|UNID|UNIDADE(?:S)?|PC|PCS|PÇ|PECAS?)\b/);
   if(descriptionMatch){
     const value=Number(String(descriptionMatch[1]).replace(',','.'));
     if(Number.isFinite(value)&&value>0)return value;
   }
+
   return 1;
 }
 
@@ -8275,8 +8287,9 @@ function renderPricingExactModel(){
     const supplierId=String(manualForm?.elements?.fornecedor_id?.value||'');
     if(!supplierId){target.innerHTML='<p>Selecione o fornecedor para ver somente os produtos da cotação dele.</p>';return;}
     const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
-    const importedChoices=(imported?.[supplierId]||[]).map((row,index)=>({id:`catalog-${supplierId}-${index}`,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||'',quote_tender_id:'',origem:'catalogo'}));
-    const rawChoices=[...(state.cotacoes||[]),...importedChoices].filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
+    const importedChoices=(Array.isArray(imported?.[supplierId])?imported[supplierId]:[]).map((row,index)=>({id:`catalog-${supplierId}-${index}`,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||'',quote_tender_id:'',origem:'catalogo'}));
+    const snapshotChoices=(state.productQuoteSnapshots||[]).filter(row=>String(row.supplier_id)===supplierId&&Number(row.unit_price)>0).map(row=>{const product=(state.catalogProducts||[]).find(item=>String(item.id)===String(row.product_id));return {id:`snapshot-${row.id}`,fornecedor_id:supplierId,preco:Number(row.unit_price||0),fator_equivalencia:Number(row.package_base_quantity||1),frete_rateado:0,apresentacao:row.original_unit||'',marca:row.brand||'',supplier_description:row.original_description||row.original_name||product?.name||'',quote_tender_id:'',origem:'snapshot'};});
+    const rawChoices=[...(state.cotacoes||[]),...importedChoices,...snapshotChoices].filter(row=>String(row.fornecedor_id)===supplierId&&Number(row.preco)>0);
     const seenChoices=new Set();
     const choices=rawChoices.filter(row=>{const key=`${quoteCanonicalDescription(row.supplier_description||row.apresentacao||'')}|${Number(row.preco).toFixed(6)}`;if(seenChoices.has(key))return false;seenChoices.add(key);return true;});
     const search=manualQuoteSearch.trim().toLocaleLowerCase('pt-BR');
@@ -8305,7 +8318,11 @@ function renderPricingExactModel(){
     let source=state.cotacoes.find(row=>String(row.id)===String(button.dataset.selectPricingSource));
     if(!source&&String(button.dataset.selectPricingSource).startsWith('catalog-')){
       const imported=typeof readSupplierProducts==='function'?readSupplierProducts():{};
-      for(const [supplierId,rows] of Object.entries(imported||{})){const index=(rows||[]).findIndex((row,position)=>`catalog-${supplierId}-${position}`===button.dataset.selectPricingSource);if(index>=0){const row=rows[index];source={id:button.dataset.selectPricingSource,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||''};break;}}
+      for(const [supplierId,rows] of Object.entries(imported||{})){const safeRows=Array.isArray(rows)?rows:[];const index=safeRows.findIndex((row,position)=>`catalog-${supplierId}-${position}`===button.dataset.selectPricingSource);if(index>=0){const row=safeRows[index];source={id:button.dataset.selectPricingSource,fornecedor_id:supplierId,preco:Number(row.unit_price||row.price||0),fator_equivalencia:Number(row.package_base_quantity||row.factor||quotePackageFactor(row.presentation,row.unit,row.description)||1),frete_rateado:0,apresentacao:row.presentation||'',marca:row.brand||'',supplier_description:row.description||row.presentation||''};break;}}
+    }
+    if(!source&&String(button.dataset.selectPricingSource).startsWith('snapshot-')){
+      const snapshot=(state.productQuoteSnapshots||[]).find(row=>`snapshot-${row.id}`===button.dataset.selectPricingSource);
+      if(snapshot){const product=(state.catalogProducts||[]).find(item=>String(item.id)===String(snapshot.product_id));source={id:button.dataset.selectPricingSource,fornecedor_id:snapshot.supplier_id,preco:Number(snapshot.unit_price||0),fator_equivalencia:Number(snapshot.package_base_quantity||1),frete_rateado:0,apresentacao:snapshot.original_unit||'',marca:snapshot.brand||'',supplier_description:snapshot.original_description||snapshot.original_name||product?.name||''};}
     }
     if(!source)return;
     manualForm.elements.fornecedor_id.value=source.fornecedor_id||'';
