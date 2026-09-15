@@ -8,7 +8,9 @@ const configured = Boolean(cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY && c
 const REMEMBER_SESSION_KEY='inovaRememberSession';
 let rememberSession=localStorage.getItem(REMEMBER_SESSION_KEY)!=='0';
 const authStorage={
-  getItem(key){return (rememberSession?localStorage:sessionStorage).getItem(key);},
+  // Durante uma atualização, preserve a sessão já gravada mesmo que a
+  // preferência tenha sido alternada em uma versão anterior do aplicativo.
+  getItem(key){return (rememberSession?localStorage:sessionStorage).getItem(key)||localStorage.getItem(key)||sessionStorage.getItem(key);},
   setItem(key,value){(rememberSession?localStorage:sessionStorage).setItem(key,value);},
   removeItem(key){localStorage.removeItem(key);sessionStorage.removeItem(key);}
 };
@@ -5149,7 +5151,7 @@ async function boot(){
   if(!configured){ showOnly('setupScreen'); return; }
   const sessionResult=await Promise.race([
     supabase.auth.getSession(),
-    new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:new Error('Tempo limite ao consultar a sessão.')}),8000))
+    new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:new Error('Tempo limite ao consultar a sessão.')}),20000))
   ]);
   const {data:{session},error}=sessionResult;
   if(error) console.warn(error.message);

@@ -1,1 +1,1 @@
-45.0.49 - Fornecedor e campos da cotação manual editáveis.
+45.0.50 - Sessão persistente durante atualizações do aplicativo.
