@@ -1,1 +1,1 @@
-45.0.52 - Certidões vinculadas ao edital e órgão da pasta.
+45.0.53 - Certidões vinculadas ao edital e órgão da pasta.
