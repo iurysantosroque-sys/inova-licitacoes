@@ -1,1 +1,1 @@
-45.0.53 - Certidões vinculadas ao edital e órgão da pasta.
+45.0.54 - Importação de documentos nas pastas de Proposta e Habilitação Jurídica.
