@@ -1,1 +1,1 @@
-45.0.54 - Importação de documentos nas pastas de Proposta e Habilitação Jurídica.
+45.0.55 - Download ZIP das pastas de documentos.
