@@ -1,1 +1,1 @@
-45.0.62 - Valores de lucro sincronizados pelo banco de dados.
+45.0.63 - Dados de precificação sincronizados em uma única base compartilhada.

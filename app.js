@@ -8241,8 +8241,15 @@ function pricingResultsTableIsMissing(error){
 }
 
 async function loadPricingItemResults(itemIds=[]){
-  loadLocalPricingItemResults();
-  if(state.demo||!configured||!supabase||!itemIds.length||state.pricingItemResultsTableAvailable===false)return;
+  // Em modo online, o Supabase é a única fonte de verdade. Não use o
+  // localStorage específico deste navegador, pois isso fazia cada computador
+  // exibir um conjunto diferente de valores.
+  if(state.demo||!configured||!supabase){
+    loadLocalPricingItemResults();
+    return;
+  }
+  if(!itemIds.length)return;
+  state.pricingItemResults={};
 
   const ids=[...new Set(itemIds.map(id=>String(id||'').trim()).filter(Boolean))];
   const rows=[];
@@ -8255,7 +8262,10 @@ async function loadPricingItemResults(itemIds=[]){
       .select('tender_item_id,winning_unit_price')
       .in('tender_item_id',batch);
     if(error){
-      state.pricingItemResultsTableAvailable=false;
+      // Erros transitórios não devem bloquear novas tentativas nem deixar
+      // valores antigos locais misturados aos dados compartilhados.
+      state.pricingItemResults={};
+      state.pricingItemResultsTableAvailable=pricingResultsTableIsMissing(error)?false:null;
       if(pricingResultsTableIsMissing(error)){
         console.info('pricing_item_results indisponível; usando armazenamento local.');
       }else{
@@ -8275,6 +8285,7 @@ async function loadPricingItemResults(itemIds=[]){
       state.pricingItemResults[String(row.tender_item_id)]=Number(value);
     }
   });
+  // Mantém apenas um cache auxiliar; a leitura seguinte sempre vem do banco.
   persistLocalPricingItemResults();
 }
 
@@ -8300,7 +8311,7 @@ async function savePricingWinningUnit(itemId,value){
     .from('pricing_item_results')
     .upsert(payload,{onConflict:'tender_item_id'});
   if(error){
-    state.pricingItemResultsTableAvailable=false;
+    state.pricingItemResultsTableAvailable=pricingResultsTableIsMissing(error)?false:null;
     if(pricingResultsTableIsMissing(error))console.info('pricing_item_results indisponível; valor mantido neste navegador.');
     else console.warn('Salvar valor ganho:',error.message);
     return {server:false,local:localSaved,error};
