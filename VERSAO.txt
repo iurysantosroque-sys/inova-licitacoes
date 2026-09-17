@@ -1,1 +1,1 @@
-45.0.55 - Download ZIP das pastas de documentos.
+45.0.56 - Painel financeiro com balanço e gráfico corrigidos.
