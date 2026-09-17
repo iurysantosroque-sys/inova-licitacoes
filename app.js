@@ -8407,12 +8407,16 @@ function renderPricingExactModel(){
     const supplier=quote?state.fornecedores.find(row=>String(row.id)===String(quote.fornecedor_id)):null;
     const winningRaw=state.pricingItemResults?.[String(item.id)];
     const winningUnit=winningRaw==null||!Number.isFinite(Number(winningRaw))?null:Number(winningRaw);
-    const profit=winningUnit!=null&&quantity!=null&&costTotal!=null?(winningUnit*quantity)-costTotal:null;
+    // Mesmo quando a cotação ainda não tem frete/custo calculado, use o
+    // total recebido do fornecedor como base para que o lucro não fique
+    // indefinidamente como “Pendente”.
+    const profitBaseTotal=costTotal!=null?costTotal:(supplierTotal!=null?supplierTotal:null);
+    const profit=winningUnit!=null&&quantity!=null&&profitBaseTotal!=null?(winningUnit*quantity)-profitBaseTotal:null;
     const priceFor25=costUnit!=null?costUnit*1.25:null;
     const quoteAboveGovernment=governmentUnit!=null&&supplierUnit!=null&&supplierUnit>governmentUnit;
     const priceFor25AboveGovernment=governmentUnit!=null&&priceFor25!=null&&priceFor25>governmentUnit;
     const notWorthwhile=quoteAboveGovernment||priceFor25AboveGovernment;
-    return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,quoteSuppliers,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
+    return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,quoteSuppliers,supplierUnit,supplierTotal,costUnit,costTotal,profitBaseTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
   });
 
   shell.innerHTML=`
@@ -8469,7 +8473,7 @@ function renderPricingExactModel(){
             </thead>
             <tbody>
             ${pricingRows.length?pricingRows.map(row=>`
-                <tr class="${row.notWorthwhile?'pricing-row-not-worthwhile':''}" title="${row.notWorthwhile?'Não vale a pena: a cotação ou o preço para 25% ultrapassa o preço do governo.':''}" data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
+                <tr class="${row.notWorthwhile?'pricing-row-not-worthwhile':''}" title="${row.notWorthwhile?'Não vale a pena: a cotação ou o preço para 25% ultrapassa o preço do governo.':''}" data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.profitBaseTotal??''}">
                   <th class="pricing-sheet-code" scope="row"><input type="checkbox" class="pricing-item-check" data-pricing-item-check="${esc(row.item.id)}" aria-label="Selecionar item ${esc(row.item.numero)}"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
                   <td>${esc(row.item.unidade||'Pendente')}</td>

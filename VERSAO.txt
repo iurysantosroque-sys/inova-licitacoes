@@ -1,1 +1,1 @@
-45.0.63 - Dados de precificação sincronizados em uma única base compartilhada.
+45.0.64 - Lucro atualizado imediatamente ao informar o valor ganho.
