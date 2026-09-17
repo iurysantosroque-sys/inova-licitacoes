@@ -8267,6 +8267,8 @@ async function loadPricingItemResults(itemIds=[]){
   }
 
   state.pricingItemResultsTableAvailable=true;
+  const returnedIds=new Set(rows.map(row=>String(row.tender_item_id)));
+  ids.forEach(id=>{if(!returnedIds.has(String(id)))delete state.pricingItemResults[String(id)];});
   rows.forEach(row=>{
     const value=row.winning_unit_price;
     if(value!=null&&Number.isFinite(Number(value))&&Number(value)>=0){

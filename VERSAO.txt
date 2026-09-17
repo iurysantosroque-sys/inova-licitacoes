@@ -1,1 +1,1 @@
-45.0.61 - Seleção e exclusão em lote de itens na precificação.
+45.0.62 - Valores de lucro sincronizados pelo banco de dados.
