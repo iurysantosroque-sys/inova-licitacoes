@@ -8432,7 +8432,7 @@ function renderPricingExactModel(){
     </section>
 
     <section class="pricing-sheet-table-card" aria-labelledby="pricingItemsTitle">
-      <div class="pricing-sheet-table-title"><h2 id="pricingItemsTitle">Itens do edital</h2><div class="pricing-item-controls"><span>${items.length} ${items.length===1?'item':'itens'}</span><button type="button" class="action-btn" data-refresh-pricing-items>↻ Atualizar itens</button><button type="button" class="action-btn" data-pricing-undo ${state.pricingUndoStack?.length?'':'disabled'}>↶</button><button type="button" class="action-btn" data-pricing-redo ${state.pricingRedoStack?.length?'':'disabled'}>↷</button></div></div>
+      <div class="pricing-sheet-table-title"><h2 id="pricingItemsTitle">Itens do edital</h2><div class="pricing-item-controls"><span>${items.length} ${items.length===1?'item':'itens'}</span><label class="pricing-select-all"><input type="checkbox" data-select-all-pricing> Selecionar todos</label><button type="button" class="action-btn pricing-delete-selected" data-delete-selected-pricing disabled>Excluir selecionados</button><button type="button" class="action-btn" data-refresh-pricing-items>↻ Atualizar itens</button><button type="button" class="action-btn" data-pricing-undo ${state.pricingUndoStack?.length?'':'disabled'}>↶</button><button type="button" class="action-btn" data-pricing-redo ${state.pricingRedoStack?.length?'':'disabled'}>↷</button></div></div>
       ${tender?`
         <div class="pricing-sheet-scroll" tabindex="0" aria-label="Tabela de precificação; deslize horizontalmente para ver todas as colunas">
           <table class="pricing-sheet-table">
@@ -8457,7 +8457,7 @@ function renderPricingExactModel(){
             <tbody>
             ${pricingRows.length?pricingRows.map(row=>`
                 <tr class="${row.notWorthwhile?'pricing-row-not-worthwhile':''}" title="${row.notWorthwhile?'Não vale a pena: a cotação ou o preço para 25% ultrapassa o preço do governo.':''}" data-pricing-item="${esc(row.item.id)}" data-quantity="${row.quantity??''}" data-cost-total="${row.costTotal??''}">
-                  <th class="pricing-sheet-code" scope="row"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
+                  <th class="pricing-sheet-code" scope="row"><input type="checkbox" class="pricing-item-check" data-pricing-item-check="${esc(row.item.id)}" aria-label="Selecionar item ${esc(row.item.numero)}"><button type="button" class="pricing-remove-item" data-delete-pricing-item="${esc(row.item.id)}" title="Excluir item">×</button><span>${esc(row.item.numero)}</span></th>
                   <td class="pricing-sheet-description">${esc(row.item.descricao)}</td>
                   <td>${esc(row.item.unidade||'Pendente')}</td>
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -13027,9 +13027,10 @@ document.addEventListener('click',async e=>{const refresh=e.target.closest('[dat
 document.addEventListener('click',async e=>{
   const refresh=e.target.closest('[data-refresh-pricing-items]');
   const remove=e.target.closest('[data-delete-pricing-item]');
+  const bulk=e.target.closest('[data-delete-selected-pricing]');
   const undo=e.target.closest('[data-pricing-undo]');
   const redo=e.target.closest('[data-pricing-redo]');
-  if(!refresh&&!remove&&!undo&&!redo)return;
+  if(!refresh&&!remove&&!bulk&&!undo&&!redo)return;
   e.preventDefault();
   e.stopImmediatePropagation();
   const tenderId=String(state.pricingViewTenderId||'');
@@ -13092,7 +13093,23 @@ document.addEventListener('click',async e=>{
     restoreDeletePageScroll();
     return toast('Item ocultado da precificação.');
   }
+  if(bulk){
+    const selected=[...document.querySelectorAll('[data-pricing-item-check]:checked')].map(input=>String(input.dataset.pricingItemCheck||'')).filter(Boolean);
+    if(!selected.length)return toast('Marque pelo menos um item para excluir.','error');
+    if(!confirm(`Ocultar ${selected.length} item${selected.length===1?'':'ens'} da precificação?`))return;
+    const selectedSet=new Set(selected);const tenderItems=state.itens.filter(item=>selectedSet.has(String(item.id)));
+    state.pricingExcludedItems[tenderId]=Array.from(new Set([...(state.pricingExcludedItems[tenderId]||[]),...selected]));
+    persistPricingExcludedItems();state.pricingRedoStack=[];state.pricingUndoStack=state.pricingUndoStack||[];tenderItems.forEach(item=>state.pricingUndoStack.push({tenderId,itemId:String(item.id)}));
+    renderPricingExactModel();return toast(`${selected.length} item${selected.length===1?'':'ens'} ocultado${selected.length===1?'':'s'} da precificação.`);
+  }
 },true);
+
+document.addEventListener('change',e=>{
+  const all=e.target.closest('[data-select-all-pricing]');
+  if(all){document.querySelectorAll('[data-pricing-item-check]').forEach(input=>{input.checked=all.checked;});const button=document.querySelector('[data-delete-selected-pricing]');if(button)button.disabled=!all.checked;return;}
+  const check=e.target.closest('[data-pricing-item-check]');
+  if(check){const checks=[...document.querySelectorAll('[data-pricing-item-check]')];const selected=checks.filter(input=>input.checked);const allCheck=document.querySelector('[data-select-all-pricing]');if(allCheck)allCheck.checked=checks.length>0&&selected.length===checks.length;const button=document.querySelector('[data-delete-selected-pricing]');if(button)button.disabled=!selected.length;}
+});
 
 document.addEventListener('click',async e=>{
   const refresh=e.target.closest('[data-refresh-quote-items]');

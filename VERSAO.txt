@@ -1,1 +1,1 @@
-45.0.60 - Lucro calculado apenas sobre valores ganhos preenchidos.
+45.0.61 - Seleção e exclusão em lote de itens na precificação.
