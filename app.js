@@ -8463,7 +8463,7 @@ function renderPricingExactModel(){
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingGovernmentMoney(row.governmentUnit,row.governmentConfidential)}</td>
                   <td>${pricingGovernmentMoney(row.governmentTotal,row.governmentConfidential)}</td>
-                  <td class="pricing-sheet-supplier">${row.quoteSuppliers.length?`<select class="pricing-supplier-select" data-pricing-supplier="${esc(row.item.id)}" aria-label="Fornecedor do item ${esc(row.item.numero)}"><option value="">Selecione o fornecedor</option>${row.quoteSuppliers.map(candidate=>{const supplier=state.fornecedores.find(s=>String(s.id)===String(candidate.fornecedor_id));const supplierName=supplier?.nome_fantasia||supplier?.nome||'Fornecedor';const hasPrice=Number(candidate.preco||0)>0||String(candidate.fornecedor_id)===String(row.quote?.fornecedor_id);return `<option value="${esc(candidate.fornecedor_id)}" ${String(candidate.fornecedor_id)===String(row.quote?.fornecedor_id)?'selected':''}>${esc(supplierName)}${hasPrice?'':' — sem cotação'}</option>`;}).join('')}</select>${row.supplierUnit!=null?`<small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação para este fornecedor</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button></div>`}`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<button type="button" class="pricing-supplier-open" data-pricing-manual-quote="${esc(row.item.id)}" title="Abrir cotação manual e trocar fornecedor"><strong>${esc(row.supplier?.nome||'Fornecedor')}</strong><small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small></button>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -8557,6 +8557,17 @@ function renderPricingExactModel(){
     if(manualForm?.elements?.frete_rateado)manualForm.elements.frete_rateado.value='0';
     if(manualForm?.elements?.item_id)manualForm.elements.item_id.value=item.id;
     if(manualForm?.elements?.quantidade_cotada)manualForm.elements.quantidade_cotada.value=Number(item.quantidade||1);
+    const currentQuote=bestQuote(item.id);
+    if(currentQuote){
+      if(manualForm?.elements?.fornecedor_id)manualForm.elements.fornecedor_id.value=currentQuote.fornecedor_id||'';
+      if(manualForm?.elements?.source_description)manualForm.elements.source_description.value=currentQuote.supplier_description||currentQuote.apresentacao||item.descricao||'';
+      if(manualForm?.elements?.preco)manualForm.elements.preco.value=Number(currentQuote.preco||currentQuote.custoProduto||0);
+      if(manualForm?.elements?.marca)manualForm.elements.marca.value=currentQuote.marca||'';
+      if(manualForm?.elements?.apresentacao)manualForm.elements.apresentacao.value=currentQuote.apresentacao||'';
+      if(manualForm?.elements?.fator_equivalencia)manualForm.elements.fator_equivalencia.value=Number(currentQuote.fator_equivalencia||1);
+      if(manualForm?.elements?.quantidade_cotada)manualForm.elements.quantidade_cotada.value=Number(currentQuote.quantidade_cotada||item.quantidade||1);
+      if(manualForm?.elements?.frete_rateado)manualForm.elements.frete_rateado.value=Number(currentQuote.frete_rateado||0);
+    }
     const itemLabel=shell.querySelector('#pricingManualQuoteItem');
     const details=shell.querySelector('#pricingManualQuoteDetails');
     if(itemLabel)itemLabel.textContent=`${item.numero} • ${item.descricao}`;
@@ -8615,7 +8626,6 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
   shell.querySelectorAll('[data-pricing-manual-quote]').forEach(button=>button.addEventListener('click',()=>openManualQuote(button.dataset.pricingManualQuote)));
-  shell.querySelectorAll('[data-pricing-supplier]').forEach(select=>select.addEventListener('change',event=>{const scroll=shell.querySelector('.pricing-sheet-scroll');const left=scroll?.scrollLeft||0,top=scroll?.scrollTop||0;state.pricingSelectedSuppliers[String(event.target.dataset.pricingSupplier)]=event.target.value||'';renderPricingExactModel();requestAnimationFrame(()=>{const next=document.querySelector('.pricing-sheet-scroll');if(next){next.scrollLeft=left;next.scrollTop=top;}});}));
   manualForm?.elements?.fornecedor_id?.addEventListener('change',renderManualQuoteChoices);
   shell.querySelector('#pricingManualQuoteChoices')?.addEventListener('click',event=>{
     const button=event.target.closest('[data-select-pricing-source]'); if(!button)return;

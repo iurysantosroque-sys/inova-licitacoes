@@ -1,1 +1,1 @@
-45.0.58 - Troca de fornecedor após seleção na precificação.
+45.0.59 - Clique no fornecedor para editar a cotação.
