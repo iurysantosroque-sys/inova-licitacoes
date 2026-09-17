@@ -1,1 +1,1 @@
-45.0.59 - Clique no fornecedor para editar a cotação.
+45.0.60 - Lucro calculado apenas sobre valores ganhos preenchidos.
