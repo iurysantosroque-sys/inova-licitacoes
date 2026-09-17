@@ -483,7 +483,7 @@ function itemHasQuote(itemId){
   );
 }
 
-function bestQuote(itemId){
+function bestQuote(itemId,preferredSupplierId=''){
   const item=state.itens.find(
     i=>String(i.id)===String(itemId)
   );
@@ -498,7 +498,7 @@ function bestQuote(itemId){
       Number(p.real_unit_cost||0)>0
   );
 
-  if(server){
+  if(server&&(!preferredSupplierId||String(server.supplier_id)===String(preferredSupplierId))){
     const sourceQuote=quotesForItem(itemId).find(q=>String(q.fornecedor_id)===String(server.supplier_id));
     const storedFactor=Number(server.package_base_quantity||sourceQuote?.fator_equivalencia||0);
     const inferredFactor=quotePackageFactor(server.package_description||sourceQuote?.apresentacao||'',item?.unidade||'',sourceQuote?.supplier_description||'');
@@ -523,6 +523,7 @@ function bestQuote(itemId){
 
   const qs=quotesForItem(itemId)
     .filter(q=>Number(q.preco||0)>0)
+    .filter(q=>!preferredSupplierId||String(q.fornecedor_id)===String(preferredSupplierId))
     .map(q=>{
       const storedFactor=Number(q.fator_equivalencia||0);
       const inferredFactor=quotePackageFactor(q.apresentacao,q.origem_item_unidade||item?.unidade,q.supplier_description);
@@ -8376,12 +8377,16 @@ function renderPricingExactModel(){
   const deadlineRaw=tender?.proposalEndAt||tender?.raw?.dispute_at||combineDateTime(tender?.data,tender?.horario);
   const deadline=deadlineRaw?dateBR(deadlineRaw,true):'Pendente';
 
+  state.pricingSelectedSuppliers=state.pricingSelectedSuppliers||{};
   const pricingRows=items.map(item=>{
     const quantity=Number(item.quantidade)>0?Number(item.quantidade):null;
     const governmentUnit=governmentItemUnitPrice(item);
     const governmentTotal=governmentUnit!=null&&quantity!=null?governmentUnit*quantity:null;
     const governmentConfidential=Boolean(item.sigiloso);
-    const quote=bestQuote(item.id);
+    const selectedSupplierId=state.pricingSelectedSuppliers[String(item.id)]||'';
+    const quote=bestQuote(item.id,selectedSupplierId)||bestQuote(item.id);
+    const quoteSuppliers=[...new Map(quotesForItem(item.id).filter(q=>Number(q.preco||0)>0).map(q=>[String(q.fornecedor_id),q])).values()];
+    if(quote&&!quoteSuppliers.some(q=>String(q.fornecedor_id)===String(quote.fornecedor_id)))quoteSuppliers.unshift(quote);
     const supplierUnit=Number(quote?.custoEq)>0?Number(quote.custoEq):null;
     const supplierTotal=supplierUnit!=null&&quantity!=null?supplierUnit*quantity:null;
     const costUnit=supplierUnit!=null?supplierUnit*(1+tax/100):null;
@@ -8394,7 +8399,7 @@ function renderPricingExactModel(){
     const quoteAboveGovernment=governmentUnit!=null&&supplierUnit!=null&&supplierUnit>governmentUnit;
     const priceFor25AboveGovernment=governmentUnit!=null&&priceFor25!=null&&priceFor25>governmentUnit;
     const notWorthwhile=quoteAboveGovernment||priceFor25AboveGovernment;
-    return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
+    return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,quoteSuppliers,supplierUnit,supplierTotal,costUnit,costTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
   });
 
   shell.innerHTML=`
@@ -8458,7 +8463,7 @@ function renderPricingExactModel(){
                   <td>${row.quantity??'<span class="pricing-sheet-pending">Pendente</span>'}</td>
                   <td>${pricingGovernmentMoney(row.governmentUnit,row.governmentConfidential)}</td>
                   <td>${pricingGovernmentMoney(row.governmentTotal,row.governmentConfidential)}</td>
-                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<strong>${esc(row.supplier?.nome||'Melhor cotação')}</strong><small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
+                  <td class="pricing-sheet-supplier">${row.supplierUnit!=null?`<select class="pricing-supplier-select" data-pricing-supplier="${esc(row.item.id)}" aria-label="Fornecedor do item ${esc(row.item.numero)}">${row.quoteSuppliers.map(candidate=>{const supplierName=state.fornecedores.find(s=>String(s.id)===String(candidate.fornecedor_id))?.nome_fantasia||state.fornecedores.find(s=>String(s.id)===String(candidate.fornecedor_id))?.nome||'Fornecedor';return `<option value="${esc(candidate.fornecedor_id)}" ${String(candidate.fornecedor_id)===String(row.quote?.fornecedor_id)?'selected':''}>${esc(supplierName)}</option>`;}).join('')}</select><small>${row.quote?.origem==='catalogo'?'Sugestão do catálogo • ':''}${esc(row.quote?.apresentacao||'Cotação confirmada')}${Number(row.quote?.fator_equivalencia||1)>1?` • ${esc(row.quote.fator_equivalencia)} un/emb.`:''}</small>`:`<div class="pricing-manual-entry"><span class="pricing-sheet-pending">Sem cotação</span><button type="button" class="pricing-manual-quote-button" data-pricing-manual-quote="${esc(row.item.id)}">+ Inserir manualmente</button><small>Fornecedor, valor e marca</small></div>`}</td>
                   <td>${pricingSheetMoney(row.supplierUnit)}</td>
                   <td>${pricingSheetMoney(row.supplierTotal)}</td>
                   <td>${row.quote?.marca?esc(row.quote.marca):'<span class="pricing-sheet-pending">Pendente</span>'}</td>
@@ -8610,6 +8615,7 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
   shell.querySelectorAll('[data-pricing-manual-quote]').forEach(button=>button.addEventListener('click',()=>openManualQuote(button.dataset.pricingManualQuote)));
+  shell.querySelectorAll('[data-pricing-supplier]').forEach(select=>select.addEventListener('change',event=>{const scroll=shell.querySelector('.pricing-sheet-scroll');const left=scroll?.scrollLeft||0,top=scroll?.scrollTop||0;state.pricingSelectedSuppliers[String(event.target.dataset.pricingSupplier)]=event.target.value||'';renderPricingExactModel();requestAnimationFrame(()=>{const next=document.querySelector('.pricing-sheet-scroll');if(next){next.scrollLeft=left;next.scrollTop=top;}});}));
   manualForm?.elements?.fornecedor_id?.addEventListener('change',renderManualQuoteChoices);
   shell.querySelector('#pricingManualQuoteChoices')?.addEventListener('click',event=>{
     const button=event.target.closest('[data-select-pricing-source]'); if(!button)return;

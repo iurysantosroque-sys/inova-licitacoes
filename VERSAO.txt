@@ -1,1 +1,1 @@
-45.0.56 - Painel financeiro com balanço e gráfico corrigidos.
+45.0.57 - Fornecedor editável na precificação.
