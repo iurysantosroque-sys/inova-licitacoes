@@ -1,1 +1,1 @@
-45.0.65 - Renovação substitui documentos vencidos e remove o histórico.
+45.0.66 - Exibição de habilitação mostra somente a certidão vigente.

@@ -11527,7 +11527,7 @@ function renderQualification(){
       <td>${qualificationDateBR(document.issued_on)}</td>
       <td>${document.has_no_expiry?'Sem prazo':qualificationDateBR(document.expires_on)}</td>
       <td><span class="badge ${status.tone} qualification-status-label">${esc(status.label)}</span></td>
-      <td><div class="document-action-group"><button type="button" class="action-btn" data-download-qualification-document="${esc(document.id)}">Baixar</button>${canWrite?`<button type="button" class="action-btn" data-renew-qualification-document="${esc(document.document_series_id||document.id)}">Renovar</button>`:''}</div>${history?`<details class="qualification-history"><summary>Histórico (${versions.length-1})</summary><div class="qualification-history-list">${history}</div></details>`:''}</td>
+      <td><div class="document-action-group"><button type="button" class="action-btn" data-download-qualification-document="${esc(document.id)}">Baixar</button>${canWrite?`<button type="button" class="action-btn" data-renew-qualification-document="${esc(document.document_series_id||document.id)}">Renovar</button>`:''}</div></td>
     </tr>`;
   }).join('')}</tbody></table></div>`;
 }
