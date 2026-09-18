@@ -12606,11 +12606,29 @@ $('#qualificationDocumentForm')?.addEventListener('submit',async event=>{
     };
     const {error:metadataError}=await supabase.from('qualification_documents').insert(metadata);
     if(metadataError){await supabase.storage.from('qualification-files').remove([path]);throw metadataError;}
+    // Renovação substitui a certidão anterior. Remova versões antigas do
+    // catálogo e do Storage para que somente o documento novo fique
+    // disponível, sem histórico vencido na tela ou no arquivo da empresa.
+    if(version>1){
+      const oldVersions=versions.filter(row=>String(row.id)!==String(id));
+      const oldPaths=oldVersions.map(row=>row.storage_path).filter(Boolean);
+      const {error:oldMetadataError}=await supabase
+        .from('qualification_documents')
+        .delete()
+        .eq('company_id',currentCompanyId())
+        .eq('document_series_id',seriesId)
+        .neq('id',id);
+      if(oldMetadataError)throw oldMetadataError;
+      if(oldPaths.length){
+        const {error:oldStorageError}=await supabase.storage.from('qualification-files').remove(oldPaths);
+        if(oldStorageError)console.warn('Limpeza dos PDFs antigos:',oldStorageError.message||oldStorageError);
+      }
+    }
     cancelQualificationRenewal();
     await refreshAll();
     activateDocumentTab('habilitacao');
-    setQualificationDocumentStatus(version>1?'Documento renovado; a versão anterior foi preservada.':'Documento fiscal cadastrado com segurança.','success');
-    toast(version>1?'Documento renovado com histórico preservado.':'Documento fiscal cadastrado.');
+    setQualificationDocumentStatus(version>1?'Documento renovado; somente a versão nova está disponível.':'Documento fiscal cadastrado com segurança.','success');
+    toast(version>1?'Documento renovado; versão anterior removida.':'Documento fiscal cadastrado.');
   }catch(error){
     console.warn('Upload de habilitação fiscal:',error?.message||error);
     setQualificationDocumentStatus('Não foi possível cadastrar o documento. Verifique a configuração e tente novamente.','error');

@@ -1,1 +1,1 @@
-45.0.64 - Lucro atualizado imediatamente ao informar o valor ganho.
+45.0.65 - Renovação substitui documentos vencidos e remove o histórico.
