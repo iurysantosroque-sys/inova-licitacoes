@@ -1,1 +1,1 @@
-45.0.67 - Navegação simplificada por edital, com fluxo guiado e resumo de precificação.
+45.0.68 - Espaço de trabalho por edital, com etapas claras e ações avançadas separadas.

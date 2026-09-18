@@ -172,6 +172,7 @@ licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[],
 };
 
 state.quotedProducts=[];
+state.workflowStage='';
 state.catalogProducts=[];
 state.productQuoteSnapshots=[];
 state.productsCatalogFilter='active';
@@ -5596,6 +5597,8 @@ async function exportQuotePdf(tenderIdOverride=''){
 function renderQuotesWorkspace(){
   ensureQuoteWorkspaceStyles();
   const availableTenders=state.licitacoes;
+  const workspaceTenderId=workflowCurrentTenderId();
+  if(!state.quoteViewTenderId&&workspaceTenderId)state.quoteViewTenderId=workspaceTenderId;
   const exists=availableTenders.some(l=>String(l.id)===String(state.quoteViewTenderId));
   if(state.quoteViewTenderId&&!exists)state.quoteViewTenderId='';
   const tenderId=state.quoteViewTenderId||'';
@@ -8369,7 +8372,8 @@ function renderPricingExactModel(){
     return true;
   };
   const pricingTenderOptions=state.licitacoes.filter(pricingTenderMatches);
-  const requestedTenderId=state.pricingViewTenderId||'';
+  const requestedTenderId=state.pricingViewTenderId||workflowCurrentTenderId()||'';
+  if(!state.pricingViewTenderId&&requestedTenderId)state.pricingViewTenderId=String(requestedTenderId);
   const tenderId=pricingTenderOptions.some(row=>String(row.id)===String(requestedTenderId))
     ?requestedTenderId
     :(pricingTenderOptions[0]?.id||'');
@@ -8642,7 +8646,10 @@ function renderPricingExactModel(){
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
     state.pricingViewTenderId=event.target.value||'';
     state.workflowTenderId=state.pricingViewTenderId;
+    state.workflowStage='precificacao';
+    if(workflowStorageKey()&&state.workflowTenderId)localStorage.setItem(workflowStorageKey(),state.workflowTenderId);
     renderPricingExactModel();
+    renderWorkflowContext();
     const selected=state.licitacoes.find(row=>String(row.id)===String(state.pricingViewTenderId));
     const selectedItems=state.itens.filter(item=>String(item.licitacao_id)===String(state.pricingViewTenderId));
     const missingGovernmentPrice=selectedItems.some(item=>governmentItemUnitPrice(item)==null);
@@ -9501,6 +9508,36 @@ function renderTenderManagement(){
     section.insertBefore(shell,section.firstChild);
   }
 
+  const workspaceTender=state.workflowStage==='itens'
+    ? state.licitacoes.find(tender=>String(tender.id)===String(workflowCurrentTenderId()))
+    : null;
+  if(workspaceTender){
+    const workspaceItems=state.itens
+      .filter(item=>String(item.licitacao_id)===String(workspaceTender.id))
+      .sort((a,b)=>Number(a.numero||0)-Number(b.numero||0));
+    if(manualItemPanel){
+      manualItemPanel.style.display='block';
+      const tenderSelect=manualItemPanel.querySelector('#itemLicitacao');
+      if(tenderSelect)tenderSelect.value=String(workspaceTender.id);
+    }
+    shell.innerHTML=`
+      <div class="workspace-items-head">
+        <div><span>ETAPA 1 · ITENS</span><h2>Itens do edital</h2><p>Confira os itens importados antes de solicitar as cotações.</p></div>
+        <div class="workspace-items-actions">
+          ${workspaceTender.pncp_control?`<button type="button" class="tx-action" data-direct-pncp-sync="${esc(workspaceTender.id)}">↻ Atualizar itens</button>`:''}
+          <button type="button" class="tx-primary" data-workspace-open-quotes>Ir para cotações →</button>
+        </div>
+      </div>
+      <div class="workspace-items-summary"><span><strong>${workspaceItems.length}</strong> itens no edital</span><span><strong>${workspaceItems.filter(item=>bestQuote(item.id)).length}</strong> já cotados</span><span><strong>${workspaceItems.filter(item=>!bestQuote(item.id)).length}</strong> aguardando cotação</span></div>
+      <div class="workspace-items-table-wrap"><table class="workspace-items-table"><thead><tr><th>Item</th><th>Descrição</th><th>Unidade</th><th>Quantidade</th><th>Preço do edital</th><th>Status</th></tr></thead><tbody>${workspaceItems.length?workspaceItems.map(item=>`<tr><td><strong>${esc(item.numero||'-')}</strong></td><td>${esc(item.descricao||'Descrição não informada')}</td><td>${esc(item.unidade||'-')}</td><td>${esc(item.quantidade??'-')}</td><td>${item.valor_estimado!=null?money(item.valor_estimado):'Sigiloso / pendente'}</td><td><span class="tx-status ${bestQuote(item.id)?'good':'neutral'}">${bestQuote(item.id)?'Cotado':'Sem cotação'}</span></td></tr>`).join(''):'<tr><td colspan="6" class="workspace-items-empty">Nenhum item cadastrado neste edital.</td></tr>'}</tbody></table></div>`;
+    shell.querySelector('[data-workspace-open-quotes]')?.addEventListener('click',()=>{
+      state.workflowStage='cotacoes';
+      state.quoteViewTenderId=String(workspaceTender.id);
+      openMainWorkspace('cotacoes');
+    });
+    return;
+  }
+
   const getFiltered=()=>{
     const tenderView=state.tenderView||'all';
     const query=quoteNormalize(state.tenderSearch||'');
@@ -9726,6 +9763,7 @@ function renderTenderManagement(){
 
           <td>
             <div class="tx-actions">
+              <button type="button" class="tx-action tx-workspace-action" data-open-workspace="${esc(l.id)}">Abrir espaço</button>
               ${tenderDocument
                 ? `${tenderDocumentIsPdf(tenderDocument)?`<button type="button" class="tx-action" data-open-tender-document="${esc(tenderDocument.id)}" aria-label="Abrir PDF do edital ${esc(l.numero||'')} em nova aba">Abrir PDF</button>`:''}<button type="button" class="tx-action" data-download-tender-document="${esc(tenderDocument.id)}" aria-label="${esc(tenderDocumentDownloadLabel(tenderDocument))} do edital ${esc(l.numero||'')}">${esc(tenderDocumentDownloadLabel(tenderDocument))}</button>`
                 : currentMemberIsAdmin()?`<button type="button" class="tx-action" data-add-tender-document="${esc(l.id)}">Adicionar edital</button>`:''}
@@ -12078,9 +12116,25 @@ function workflowCurrentTenderId(){
   return candidates.find(id=>state.licitacoes.some(tender=>String(tender.id)===String(id)))||'';
 }
 
+function workflowStorageKey(){
+  const scope=state.company?.id||state.membership?.company_id||(state.demo?'demo':'');
+  return scope?`inova-workspace-tender:${scope}`:'';
+}
+
+function workflowActiveStage(){
+  const active=document.querySelector('.tab.active')?.id||'';
+  if(active==='licitacoes')return 'itens';
+  if(active==='cotacoes')return 'cotacoes';
+  if(active==='precificacao')return 'precificacao';
+  if(active==='arquivos')return 'documentos';
+  return state.workflowStage||'';
+}
+
 function openMainWorkspace(tab,documentTab=''){
+  state.workflowStage=tab==='licitacoes'?'itens':tab==='arquivos'?'documentos':tab;
   document.querySelector(`#mainTabs [data-tab="${tab}"]`)?.click();
   if(documentTab)activateDocumentTab(documentTab);
+  renderWorkflowContext();
 }
 
 function applyWorkflowTender(tenderId){
@@ -12092,38 +12146,67 @@ function applyWorkflowTender(tenderId){
   state.pricingTenderCategory='all';
   state.proposalTenderId=next;
   state.declarationTenderId=next;
+  const storageKey=workflowStorageKey();
+  if(storageKey){
+    if(next)localStorage.setItem(storageKey,next);
+    else localStorage.removeItem(storageKey);
+  }
   renderAll();
 }
 
 function renderWorkflowContext(){
   const target=$('#workflowContext');
   if(!target)return;
-  const tenderId=workflowCurrentTenderId();
+  let tenderId=workflowCurrentTenderId();
+  if(!tenderId){
+    const saved=workflowStorageKey()?localStorage.getItem(workflowStorageKey()):'';
+    if(state.licitacoes.some(tender=>String(tender.id)===String(saved))){
+      tenderId=String(saved);
+      state.workflowTenderId=tenderId;
+      state.quoteViewTenderId=tenderId;
+      state.pricingViewTenderId=tenderId;
+    }
+  }
   const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
   const items=tender?state.itens.filter(item=>String(item.licitacao_id)===String(tender.id)):[];
   const quoted=items.filter(item=>Boolean(bestQuote(item.id))).length;
   const priced=items.filter(item=>state.pricingItemResults?.[String(item.id)]!=null).length;
   const deadline=tender?.proposalEndAt?dateBR(tender.proposalEndAt,true):'';
+  const activeStage=workflowActiveStage();
+  const inWorkspace=Boolean(tender)&&['itens','cotacoes','precificacao','documentos'].includes(activeStage);
+  target.hidden=!inWorkspace;
+  if(!inWorkspace){target.innerHTML='';return;}
   target.innerHTML=`
-    <div class="workflow-context-main">
-      <label>Licitação em trabalho
+    <div class="workspace-context-main">
+      <button type="button" class="workspace-back" data-workspace-back>← Todos os editais</button>
+      <div class="workspace-context-copy">
+        <span>EDITAL EM TRABALHO</span>
+        <strong>${esc(tender.numero||'Edital')}</strong>
+        <p>${esc(tender.orgao||'Órgão não informado')}${tender.cidade?` · ${esc(tender.cidade)}`:''}${deadline?` · Prazo: ${esc(deadline)}`:''}</p>
+      </div>
+      <label class="workspace-tender-picker">Trocar edital
         <select data-workflow-tender aria-label="Selecionar licitação em trabalho">
-          <option value="">Escolha uma licitação</option>
           ${state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')}
         </select>
       </label>
-      ${tender?`<div class="workflow-context-info"><strong>${esc(tender.numero)}</strong><span>${esc(tender.orgao||'Órgão não informado')}${deadline?` · Prazo: ${esc(deadline)}`:''}</span></div>`:'<p>Escolha um edital para seguir o fluxo completo.</p>'}
     </div>
-    <div class="workflow-steps" role="navigation" aria-label="Etapas da licitação">
-      <button type="button" data-workflow-step="licitacoes"><b>1</b><span>Dados e itens</span>${tender?`<small>${items.length} itens</small>`:''}</button>
-      <button type="button" data-workflow-step="cotacoes" ${tender?'':'disabled'}><b>2</b><span>Cotações</span>${tender?`<small>${quoted}/${items.length} cotados</small>`:''}</button>
-      <button type="button" data-workflow-step="precificacao" ${tender?'':'disabled'}><b>3</b><span>Precificação</span>${tender?`<small>${priced}/${items.length} com valor</small>`:''}</button>
-      <button type="button" data-workflow-step="documentos" ${tender?'':'disabled'}><b>4</b><span>Documentos e proposta</span></button>
+    <div class="workspace-steps" role="tablist" aria-label="Etapas do edital">
+      <button type="button" class="${activeStage==='itens'?'active':''}" data-workflow-step="itens" role="tab" aria-selected="${activeStage==='itens'}"><span>Itens</span><small>${items.length} cadastrados</small></button>
+      <button type="button" class="${activeStage==='cotacoes'?'active':''}" data-workflow-step="cotacoes" role="tab" aria-selected="${activeStage==='cotacoes'}"><span>Cotações</span><small>${quoted}/${items.length} cotados</small></button>
+      <button type="button" class="${activeStage==='precificacao'?'active':''}" data-workflow-step="precificacao" role="tab" aria-selected="${activeStage==='precificacao'}"><span>Precificação</span><small>${priced}/${items.length} concluídos</small></button>
+      <button type="button" class="${activeStage==='documentos'?'active':''}" data-workflow-step="documentos" role="tab" aria-selected="${activeStage==='documentos'}"><span>Documentos</span><small>proposta e arquivos</small></button>
     </div>`;
   target.querySelector('[data-workflow-tender]')?.addEventListener('change',event=>applyWorkflowTender(event.target.value));
+  target.querySelector('[data-workspace-back]')?.addEventListener('click',()=>{
+    state.workflowStage='';
+    document.querySelector('#mainTabs [data-tab="licitacoes"]')?.click();
+    renderWorkflowContext();
+  });
   target.querySelectorAll('[data-workflow-step]').forEach(button=>button.addEventListener('click',()=>{
     const step=button.dataset.workflowStep;
-    if(step==='documentos')openMainWorkspace('arquivos','propostas');
+    state.workflowStage=step;
+    if(step==='itens')openMainWorkspace('licitacoes');
+    else if(step==='documentos')openMainWorkspace('arquivos','controle');
     else openMainWorkspace(step);
   }));
 }
@@ -12814,6 +12897,16 @@ $('#teamInviteForm')?.addEventListener('submit',event=>{
 $('#profilePhotoInput')?.addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){toast('Escolha uma imagem de até 5 MB.','error');event.target.value='';return;}try{const avatar=await resizeProfilePhoto(file);if(state.demo){state.profile={...(state.profile||{}),avatar_url:avatar};localStorage.setItem('inova-demo-avatar',avatar);}else{const {error}=await supabase.from('profiles').update({avatar_url:avatar,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:avatar};}renderProfilePhoto();await refreshAll();toast('Foto de perfil atualizada.','success');}catch(error){toast(`Não foi possível salvar a foto: ${error.message||error}`,'error');}event.target.value='';});
 $('#removeProfilePhotoBtn')?.addEventListener('click',async()=>{if(!confirm('Remover sua foto de perfil?'))return;try{if(state.demo){state.profile={...(state.profile||{}),avatar_url:''};localStorage.removeItem('inova-demo-avatar');}else{const {error}=await supabase.from('profiles').update({avatar_url:null,updated_at:new Date().toISOString()}).eq('id',state.user.id);if(error)throw error;state.profile={...(state.profile||{}),avatar_url:''};}renderProfilePhoto();await refreshAll();toast('Foto removida.','success');}catch(error){toast(`Não foi possível remover a foto: ${error.message||error}`,'error');}});
 document.addEventListener('click',async e=>{
+  const openWorkspace=e.target.closest('[data-open-workspace]');
+  if(openWorkspace){
+    const tenderId=openWorkspace.dataset.openWorkspace||'';
+    if(!state.licitacoes.some(tender=>String(tender.id)===String(tenderId)))return;
+    state.workflowStage='itens';
+    applyWorkflowTender(tenderId);
+    openMainWorkspace('licitacoes');
+    return;
+  }
+
   const directSync=e.target.closest('[data-direct-pncp-sync]');
   if(directSync){
     if(state.demo || !configured || !supabase || !state.user){
@@ -13003,6 +13096,15 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-delete]');if(!btn)return;if(!confirm('Deseja excluir este registro?'))return;if(state.demo){if(btn.dataset.delete==='licitacao'){const tenderItems=state.itens.filter(i=>String(i.licitacao_id)===String(btn.dataset.id)).map(i=>String(i.id));state.licitacoes=state.licitacoes.filter(x=>String(x.id)!==String(btn.dataset.id));state.itens=state.itens.filter(x=>String(x.licitacao_id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>!tenderItems.includes(String(x.item_id)));}else{state.fornecedores=state.fornecedores.filter(x=>String(x.id)!==String(btn.dataset.id));state.cotacoes=state.cotacoes.filter(x=>String(x.fornecedor_id)!==String(btn.dataset.id));}renderAll();return toast('Registro removido da demonstração.');}const {error}=await supabase.from(btn.dataset.delete==='licitacao'?'tenders':'suppliers').delete().eq('id',btn.dataset.id);if(error)return toast(error.message,'error');await refreshAll();
 });
 document.querySelectorAll('.tabs button[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{const target=$('#'+btn.dataset.tab);if(!target)return;document.querySelectorAll('.tabs button[data-tab],.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');target.classList.add('active');}));
+document.querySelectorAll('.tabs button[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+  requestAnimationFrame(()=>renderWorkflowContext());
+}));
+$('#workspaceEntryButton')?.addEventListener('click',()=>{
+  const tenderId=workflowCurrentTenderId();
+  if(!tenderId)return toast('Abra um edital na lista para iniciar o espaço de trabalho.','error');
+  state.workflowStage='itens';
+  openMainWorkspace('licitacoes');
+});
 function initGroupedNavigation(){
   let closeTimer=null;
   const triggers=[...document.querySelectorAll('[data-menu]')];
@@ -13453,6 +13555,8 @@ document.addEventListener('click',async e=>{
 $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   state.quoteViewTenderId=e.target.value||'';
   state.workflowTenderId=state.quoteViewTenderId;
+  state.workflowStage='cotacoes';
+  if(workflowStorageKey()&&state.workflowTenderId)localStorage.setItem(workflowStorageKey(),state.workflowTenderId);
   const importTender=$('#quoteImportTender');
   if(importTender)importTender.value=state.quoteViewTenderId;
   clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente para revisar os itens corretos.');
@@ -13460,6 +13564,7 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   state.quoteWorkspaceSection='import';
   renderQuotesWorkspace();
   startAutomaticQuoteImport();
+  renderWorkflowContext();
 });
 $('#quoteHeaderCosts')?.addEventListener('click',()=>renderCostSettings());
 $('#quoteManageSuppliers')?.addEventListener('click',()=>openMainWorkspace('fornecedores'));
