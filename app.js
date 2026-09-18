@@ -168,7 +168,7 @@ function initAppearanceControls(){
 
 let state = {
   user:null, profile:null, membership:null, company:null, config:null,
-licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', pricingViewTenderId:'', pricingTenderCategory:'all', pricingOnlyMissing:false, pricingExcludedItems:{}, pricingUndoStack:[], pricingRedoStack:[], dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
+licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[], pricingItemResults:{}, pricingItemResultsLoadedFor:'', pricingItemResultsTableAvailable:null, documentos:[], tenderDocuments:[], tenderDocumentsError:'', documentTab:'editais', declarationTenderId:'', declarationTemplateId:'', declarationTemplateIds:[], controlFolderFiles:{}, proposalTenderId:'', proposalIssueDate:'', proposalValidityDays:'60', qualificationDocuments:[], qualificationError:'', qualificationFilter:'all', qualificationRenewSeriesId:'', equipe:[], teamInvitePreview:null, pncpPreview:null, tenderView:'all', tenderSearch:'', tenderStatusFilter:'all', tenderSort:'deadline', tenderPage:0, tenderNewPanelOpen:false, quoteImportRows:[], quoteImportContext:null, quoteImportRunToken:'', quoteImportBusy:false, quoteImportLastError:false, quoteViewTenderId:'', quoteWorkspaceMode:'import', quoteWorkspaceSection:'import', quoteWorkspaceSearch:'', quoteWorkspaceFilter:'all', quoteImportFilter:'', quoteImportTab:'automatic', quoteOnlyUnrelated:false, quoteSupplierSearches:{}, quoteExcludedItems:{}, quoteUndoStack:[], quoteRedoStack:[], quoteDocumentEditingId:'', workflowTenderId:'', pricingViewTenderId:'', pricingAdvanced:false, pricingTenderCategory:'all', pricingOnlyMissing:false, pricingExcludedItems:{}, pricingUndoStack:[], pricingRedoStack:[], dashboardCalendarDate:null, dashboardTaskPage:0, dashboardDeadlinePage:0, pricingTargets:{}, pricingTargetsLoadedFor:'', pricingSimulations:{}, pricingSimulationItemId:'', financePeriod:'all', financeTenderId:'', financeEditalId:'', costConfig:{frete_fixo:0,gasolina:0,outros_impostos:0}, bidAgentTenderId:'', bidAgentItemId:'', bidAgentBestBid:'', bidAgentStopPrice:'', bidAgentDecrement:'', bidAgentDesiredPosition:1, bidAgentOnlyAtEnd:false, bidAgentCandidate:null, bidAgentRecommendationValid:false, bidAgentRecommendationReason:'', bidAgentRecommendationKey:'', bidAgentImportedStrategies:[], bidAgentHistory:[], bidAgentLocalStateLoadedFor:'', bidAgentStopped:false, chatMessages:[], chatLoadedFor:'', chatUnread:0, chatOpen:false, chatChannel:null, chatDraft:'', chatTypingUsers:{}, chatTypingTimer:null, chatSoundEnabled:localStorage.getItem('inova-chat-sound')!=='off', demo:false
 };
 
 state.quotedProducts=[];
@@ -8352,7 +8352,7 @@ function renderPricingExactModel(){
 
   section.querySelector('.pricing-side')?.remove();
   section.classList.remove('pricing-exact');
-  shell.className='pricing-sheet-shell';
+  shell.className=`pricing-sheet-shell${state.pricingAdvanced?' pricing-advanced':''}`;
   loadLocalPricingItemResults();
 
   const todayStart=new Date(); todayStart.setHours(0,0,0,0);
@@ -8418,6 +8418,14 @@ function renderPricingExactModel(){
     const notWorthwhile=quoteAboveGovernment||priceFor25AboveGovernment;
     return {item,quantity,governmentUnit,governmentTotal,governmentConfidential,quote,quoteSuppliers,supplierUnit,supplierTotal,costUnit,costTotal,profitBaseTotal,priceFor25,supplier,winningUnit,profit,notWorthwhile};
   });
+  const pricingSummary={
+    total:pricingRows.length,
+    quoted:pricingRows.filter(row=>row.supplierUnit!=null).length,
+    won:pricingRows.filter(row=>row.winningUnit!=null).length,
+    cost:pricingRows.reduce((total,row)=>total+(Number(row.costTotal)||0),0),
+    winning:pricingRows.reduce((total,row)=>total+(row.winningUnit!=null?(Number(row.winningUnit)||0)*(Number(row.quantity)||0):0),0),
+    profit:pricingRows.reduce((total,row)=>total+(Number(row.profit)||0),0)
+  };
 
   shell.innerHTML=`
     <header class="pricing-sheet-head">
@@ -8438,15 +8446,22 @@ function renderPricingExactModel(){
               :'<option value="" disabled>Nenhuma licitação cadastrada</option>'}
           </select>
         </label>
-        <button id="pricingCostSettingsButton" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
+        <button id="pricingCostSettingsButton" class="pricing-advanced-action" type="button" title="Configurar imposto, frete e outros custos">⚙ Custos e margens</button>
         <button id="pricingPdfExportButton" type="button" title="Baixar a lista desta licitação em PDF">⇩ Baixar PDF</button>
         <button id="pricingAddItemButton" type="button" ${tender?'':'disabled'}>＋ Abrir cotação</button>
+        <button id="pricingMoreOptionsButton" class="pricing-more-options" type="button" aria-expanded="${state.pricingAdvanced?'true':'false'}">${state.pricingAdvanced?'− Menos opções':'+ Mais opções'}</button>
       </div>
     </header>
 
     <section class="pricing-sheet-meta" aria-label="Dados da licitação selecionada">
       <dl><div><dt>MUNICÍPIO</dt><dd>${esc(municipality)}</dd></div><div><dt>EDITAL</dt><dd>${esc(tender?.numero||'Pendente')}</dd></div><div><dt>DATA FINAL</dt><dd>${esc(deadline)}</dd></div></dl>
     </section>
+    ${tender?`<section class="pricing-workflow-summary" aria-label="Resumo da precificação">
+      <article><span>Itens</span><strong>${pricingSummary.total}</strong><small>${pricingSummary.quoted} cotados</small></article>
+      <article><span>Valores ganhos</span><strong>${pricingSummary.won}/${pricingSummary.total}</strong><small>${pricingSummary.total-pricingSummary.won} pendentes</small></article>
+      <article><span>Custo total</span><strong>${money(pricingSummary.cost)}</strong><small>itens com cotação</small></article>
+      <article class="pricing-profit-summary"><span>Lucro estimado</span><strong>${money(pricingSummary.profit)}</strong><small>sobre os valores ganhos</small></article>
+    </section>`:''}
 
     <section class="pricing-sheet-table-card" aria-labelledby="pricingItemsTitle">
       <div class="pricing-sheet-table-title"><h2 id="pricingItemsTitle">Itens do edital</h2><div class="pricing-item-controls"><span>${items.length} ${items.length===1?'item':'itens'}</span><label class="pricing-select-all"><input type="checkbox" data-select-all-pricing> Selecionar todos</label><button type="button" class="action-btn pricing-delete-selected" data-delete-selected-pricing disabled>Excluir selecionados</button><button type="button" class="action-btn" data-refresh-pricing-items>↻ Atualizar itens</button><button type="button" class="action-btn" data-pricing-undo ${state.pricingUndoStack?.length?'':'disabled'}>↶</button><button type="button" class="action-btn" data-pricing-redo ${state.pricingRedoStack?.length?'':'disabled'}>↷</button></div></div>
@@ -8544,6 +8559,7 @@ function renderPricingExactModel(){
 
   const goToQuotes=itemId=>{
     state.quoteViewTenderId=tenderId;
+    state.workflowTenderId=tenderId;
     state.quoteWorkspaceSection='import';
     document.querySelector('#mainTabs [data-tab="cotacoes"]')?.click();
     setTimeout(()=>{
@@ -8625,6 +8641,7 @@ function renderPricingExactModel(){
 
   shell.querySelector('#pricingSheetTender')?.addEventListener('change',event=>{
     state.pricingViewTenderId=event.target.value||'';
+    state.workflowTenderId=state.pricingViewTenderId;
     renderPricingExactModel();
     const selected=state.licitacoes.find(row=>String(row.id)===String(state.pricingViewTenderId));
     const selectedItems=state.itens.filter(item=>String(item.licitacao_id)===String(state.pricingViewTenderId));
@@ -8640,6 +8657,10 @@ function renderPricingExactModel(){
     renderPricingExactModel();
   }));
   shell.querySelector('#pricingCostSettingsButton')?.addEventListener('click',()=>renderCostSettings());
+  shell.querySelector('#pricingMoreOptionsButton')?.addEventListener('click',()=>{
+    state.pricingAdvanced=!state.pricingAdvanced;
+    renderPricingExactModel();
+  });
   shell.querySelector('#pricingPdfExportButton')?.addEventListener('click',()=>exportPricingPdf(tenderId));
   shell.querySelectorAll('[data-pricing-go-quotes]').forEach(button=>button.addEventListener('click',()=>goToQuotes(button.dataset.pricingGoQuotes)));
   shell.querySelectorAll('[data-pricing-manual-quote]').forEach(button=>button.addEventListener('click',()=>openManualQuote(button.dataset.pricingManualQuote)));
@@ -12052,6 +12073,61 @@ async function importBidAgentJson(file){
   }
 }
 
+function workflowCurrentTenderId(){
+  const candidates=[state.workflowTenderId,state.pricingViewTenderId,state.quoteViewTenderId,state.proposalTenderId,state.declarationTenderId];
+  return candidates.find(id=>state.licitacoes.some(tender=>String(tender.id)===String(id)))||'';
+}
+
+function openMainWorkspace(tab,documentTab=''){
+  document.querySelector(`#mainTabs [data-tab="${tab}"]`)?.click();
+  if(documentTab)activateDocumentTab(documentTab);
+}
+
+function applyWorkflowTender(tenderId){
+  const valid=state.licitacoes.some(tender=>String(tender.id)===String(tenderId));
+  const next=valid?String(tenderId):'';
+  state.workflowTenderId=next;
+  state.quoteViewTenderId=next;
+  state.pricingViewTenderId=next;
+  state.pricingTenderCategory='all';
+  state.proposalTenderId=next;
+  state.declarationTenderId=next;
+  renderAll();
+}
+
+function renderWorkflowContext(){
+  const target=$('#workflowContext');
+  if(!target)return;
+  const tenderId=workflowCurrentTenderId();
+  const tender=state.licitacoes.find(row=>String(row.id)===String(tenderId));
+  const items=tender?state.itens.filter(item=>String(item.licitacao_id)===String(tender.id)):[];
+  const quoted=items.filter(item=>Boolean(bestQuote(item.id))).length;
+  const priced=items.filter(item=>state.pricingItemResults?.[String(item.id)]!=null).length;
+  const deadline=tender?.proposalEndAt?dateBR(tender.proposalEndAt,true):'';
+  target.innerHTML=`
+    <div class="workflow-context-main">
+      <label>Licitação em trabalho
+        <select data-workflow-tender aria-label="Selecionar licitação em trabalho">
+          <option value="">Escolha uma licitação</option>
+          ${state.licitacoes.map(row=>`<option value="${esc(row.id)}" ${String(row.id)===String(tenderId)?'selected':''}>${esc(row.numero)} • ${esc(row.orgao)}</option>`).join('')}
+        </select>
+      </label>
+      ${tender?`<div class="workflow-context-info"><strong>${esc(tender.numero)}</strong><span>${esc(tender.orgao||'Órgão não informado')}${deadline?` · Prazo: ${esc(deadline)}`:''}</span></div>`:'<p>Escolha um edital para seguir o fluxo completo.</p>'}
+    </div>
+    <div class="workflow-steps" role="navigation" aria-label="Etapas da licitação">
+      <button type="button" data-workflow-step="licitacoes"><b>1</b><span>Dados e itens</span>${tender?`<small>${items.length} itens</small>`:''}</button>
+      <button type="button" data-workflow-step="cotacoes" ${tender?'':'disabled'}><b>2</b><span>Cotações</span>${tender?`<small>${quoted}/${items.length} cotados</small>`:''}</button>
+      <button type="button" data-workflow-step="precificacao" ${tender?'':'disabled'}><b>3</b><span>Precificação</span>${tender?`<small>${priced}/${items.length} com valor</small>`:''}</button>
+      <button type="button" data-workflow-step="documentos" ${tender?'':'disabled'}><b>4</b><span>Documentos e proposta</span></button>
+    </div>`;
+  target.querySelector('[data-workflow-tender]')?.addEventListener('change',event=>applyWorkflowTender(event.target.value));
+  target.querySelectorAll('[data-workflow-step]').forEach(button=>button.addEventListener('click',()=>{
+    const step=button.dataset.workflowStep;
+    if(step==='documentos')openMainWorkspace('arquivos','propostas');
+    else openMainWorkspace(step);
+  }));
+}
+
 function renderAll(){
   const companyNameEl=$('#companyName');
   if(companyNameEl) companyNameEl.textContent=state.company?.name || state.company?.nome || 'Modo demonstração';
@@ -12121,6 +12197,7 @@ function renderAll(){
     importSupplier.innerHTML=fornOpts;
     if([...importSupplier.options].some(option=>String(option.value)===String(selectedSupplier)))importSupplier.value=selectedSupplier;
   }
+  renderWorkflowContext();
   renderQuotesWorkspace();
   renderPricingByTender();
   renderBidAgent();
@@ -13375,6 +13452,7 @@ document.addEventListener('click',async e=>{
 
 $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   state.quoteViewTenderId=e.target.value||'';
+  state.workflowTenderId=state.quoteViewTenderId;
   const importTender=$('#quoteImportTender');
   if(importTender)importTender.value=state.quoteViewTenderId;
   clearQuoteImportPreview('O edital mudou. Leia o arquivo novamente para revisar os itens corretos.');
@@ -13384,6 +13462,7 @@ $('#quoteWorkspaceTender')?.addEventListener('change',e=>{
   startAutomaticQuoteImport();
 });
 $('#quoteHeaderCosts')?.addEventListener('click',()=>renderCostSettings());
+$('#quoteManageSuppliers')?.addEventListener('click',()=>openMainWorkspace('fornecedores'));
 $('#quoteHeaderPdf')?.addEventListener('click',()=>exportQuotePdf());
 $('#quoteHeaderAdd')?.addEventListener('click',()=>{
   if(!state.quoteViewTenderId)return toast('Selecione uma licitação primeiro.','error');

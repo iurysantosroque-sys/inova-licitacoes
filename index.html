@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.json?v=36.91.0" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.91.0" />
   <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.91.0" />
-  <link rel="stylesheet" href="styles.css?v=45.0.66" />
+  <link rel="stylesheet" href="styles.css?v=45.0.67" />
   <script src="./app-config.js?v=36.91.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -90,28 +90,27 @@
       </div>
 
       <nav class="tabs tabs-v27" id="mainTabs">
-        <button data-tab="dashboard" class="active"><span>Dashboard</span></button>
-        <button type="button" data-menu="central"><span>Central de Licitações</span><i class="menu-chevron">⌄</i></button>
-        <button type="button" data-menu="cadastros"><span>Cadastros</span><i class="menu-chevron">⌄</i></button>
-        <button type="button" data-menu="gestao"><span>Gestão</span><i class="menu-chevron">⌄</i></button>
+        <button data-tab="dashboard" class="active"><span>Início</span></button>
+        <button data-tab="licitacoes"><span>Licitações</span></button>
+        <button data-tab="cotacoes"><span>Cotações</span></button>
+        <button data-tab="precificacao"><span>Precificação</span></button>
         <button type="button" data-menu="documentacao"><span>Documentação</span><i class="menu-chevron">⌄</i></button>
+        <button type="button" data-menu="configuracoes"><span>Configurações</span><i class="menu-chevron">⌄</i></button>
+        <button type="button" data-menu="mais"><span>Mais opções</span><i class="menu-chevron">⌄</i></button>
         <span hidden aria-hidden="true">
           <button data-tab="licitacoes"></button><button data-tab="cotacoes"></button><button data-tab="precificacao"></button><button data-tab="produtos"></button>
           <button data-tab="agente-lances"></button><button data-tab="fornecedores"></button><button data-tab="financeiro"></button>
           <button data-tab="arquivos"></button><button data-tab="equipe"></button>
         </span>
       </nav>
-      <div class="nav-menu-popover" data-popover="central" hidden>
-        <button data-menu-tab="licitacoes">Editais e Licitações</button><button data-menu-tab="cotacoes">Cotações</button><button data-menu-tab="precificacao">Precificação</button><button data-menu-tab="produtos">Produtos cotados</button><button data-menu-tab="agente-lances">Agente de Lances</button>
-      </div>
-      <div class="nav-menu-popover nav-menu-popover-small" data-popover="cadastros" hidden>
-        <button data-menu-tab="fornecedores">Fornecedores</button><button data-menu-tab="equipe">Equipe</button>
-      </div>
-      <div class="nav-menu-popover nav-menu-popover-small" data-popover="gestao" hidden>
-        <button data-menu-tab="financeiro">Financeiro</button>
-      </div>
       <div class="nav-menu-popover" data-popover="documentacao" hidden>
         <button data-document-menu-tab="editais">Editais</button><button data-document-menu-tab="habilitacao">Habilitação fiscal</button><button data-document-menu-tab="propostas">Propostas</button><button data-document-menu-tab="declaracoes">Declarações</button><button data-document-menu-tab="controle">Controle de Documentos</button>
+      </div>
+      <div class="nav-menu-popover nav-menu-popover-small" data-popover="configuracoes" hidden>
+        <button data-menu-tab="fornecedores">Fornecedores</button><button data-menu-tab="financeiro">Financeiro</button><button data-menu-tab="equipe">Equipe</button>
+      </div>
+      <div class="nav-menu-popover nav-menu-popover-small" data-popover="mais" hidden>
+        <button data-menu-tab="produtos">Produtos cotados</button><button data-menu-tab="agente-lances">Agente de Lances</button>
       </div>
 
       <div class="top-actions">
@@ -122,6 +121,7 @@
     </header>
 
     <main>
+      <section id="workflowContext" class="workflow-context" aria-label="Fluxo da licitação"></section>
       <section id="dashboard" class="tab active">
         <div class="cards">
           <article class="card"><span>Licitações</span><strong id="kpiLicitacoes">0</strong></article>
@@ -234,7 +234,7 @@
             <h1>Cotações</h1>
             <p>Selecione o edital para consultar os itens e preparar sua cotação.</p>
           </div>
-          <div class="quote-workspace-actions"><label class="quote-tender-field" for="quoteWorkspaceTender">Licitação<select id="quoteWorkspaceTender" aria-describedby="quoteWorkspaceSummary"></select></label><button type="button" id="quoteHeaderPdf" class="quote-toolbar-button">⇩ Baixar PDF</button></div>
+          <div class="quote-workspace-actions"><label class="quote-tender-field" for="quoteWorkspaceTender">Licitação<select id="quoteWorkspaceTender" aria-describedby="quoteWorkspaceSummary"></select></label><button type="button" id="quoteManageSuppliers" class="quote-toolbar-button">Fornecedores</button><button type="button" id="quoteHeaderPdf" class="quote-toolbar-button">⇩ Baixar PDF</button></div>
         </header>
 
         <div id="quoteWorkspaceSummary" class="quote-summary quote-summary-direct" aria-live="polite"></div>
@@ -643,7 +643,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 45.0.66</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 45.0.67</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -659,6 +659,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=45.0.66"></script>
+  <script type="module" src="./app.js?v=45.0.67"></script>
 </body>
 </html>
