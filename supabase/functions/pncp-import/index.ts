@@ -87,12 +87,12 @@ function friendlyError(error:unknown){
   return 'Não foi possível consultar o PNCP neste momento. Tente novamente.'
 }
 
-async function getJson(url:string,deadline:number,metrics:Metrics){
+async function getJson(url:string,deadline:number,metrics:Metrics,timeoutMs=FETCH_TIMEOUT_MS){
   const remaining=deadline-Date.now()
   if(remaining<800)throw new BudgetExceeded()
   metrics.fetches++
   const controller=new AbortController()
-  const timer=setTimeout(()=>controller.abort(),Math.min(FETCH_TIMEOUT_MS,Math.max(250,remaining-250)))
+  const timer=setTimeout(()=>controller.abort(),Math.min(timeoutMs,Math.max(250,remaining-250)))
   try{
     // O PNCP alterna entre os hosts principal e www. Tratamos o Location de
     // forma explícita porque o runtime pode devolver o 301 sem segui-lo.
@@ -174,17 +174,13 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   // O PNCP alterna entre os hosts principal e www. Consultar os dois em
   // paralelo evita esperar o limite inteiro quando um deles está lento.
   try{
-    // Alguns editais do PNCP deixam o endpoint de detalhes preso por dezenas
-    // de segundos, embora a lista de itens esteja disponível. Não bloqueie a
-    // importação por causa desse endpoint secundário.
-    // Editais recentes podem levar cerca de 12 segundos para responder no
-    // endpoint de detalhes. Aguarde esse intervalo, mas ainda preserve o
-    // fallback de itens caso um edital específico esteja indisponível.
-    const quickDeadline=Math.min(deadline,Date.now()+14_000)
-    tender=await Promise.race([
-      Promise.any(detailUrls.map(url=>getJson(url,quickDeadline,metrics))),
-      new Promise((_,reject)=>setTimeout(()=>reject(new BudgetExceeded()),14_000))
-    ])
+    // Em alguns editais o PNCP libera os itens imediatamente, mas mantém o
+    // cabeçalho aberto por mais de 15 segundos. Dar pouco tempo aqui fazia a
+    // tela importar somente os itens mesmo quando o portal possuía os dados.
+    // O limite maior continua dentro do orçamento total da função e preserva
+    // uma janela para buscar os itens depois que o cabeçalho responder.
+    const detailsDeadline=Math.min(deadline,Date.now()+32_000)
+    tender=await Promise.any(detailUrls.map(url=>getJson(url,detailsDeadline,metrics,30_000)))
   }catch(error){
     lastError=error instanceof AggregateError ? error.errors?.[0] : error
   }
