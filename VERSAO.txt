@@ -1,1 +1,1 @@
-45.0.67 - Navegação simplificada por edital, com fluxo guiado e resumo de precificação.
+45.0.66 - Exibição de habilitação mostra somente a certidão vigente.
