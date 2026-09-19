@@ -13,8 +13,9 @@ const API='https://pncp.gov.br/api'
 // consulta consiga concluir antes de o cliente aplicar suas tentativas de retry.
 // O PNCP costuma demorar mais de 7 segundos para liberar editais recentes.
 // O limite anterior abortava uma consulta válida antes de a API responder.
-const TOTAL_BUDGET_MS=45_000
+const TOTAL_BUDGET_MS=75_000
 const FETCH_TIMEOUT_MS=15_000
+const DETAIL_TIMEOUT_MS=55_000
 const SEARCH_CONCURRENCY=4
 const PAGE_SIZE=100
 const MODALITIES=[6,8,9,4,5,7,12,1,2,3,10,11,13]
@@ -166,8 +167,8 @@ async function getLicitanetItems(url:string,deadline:number,metrics:Metrics){
 async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
   const detailPath=`/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   const detailUrls=[
-    `${API}${detailPath}`,
     `https://www.pncp.gov.br/api${detailPath}`,
+    `${API}${detailPath}`,
     `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   ]
   let tender:any=null,lastError:unknown=null
@@ -179,8 +180,8 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
     // tela importar somente os itens mesmo quando o portal possuía os dados.
     // O limite maior continua dentro do orçamento total da função e preserva
     // uma janela para buscar os itens depois que o cabeçalho responder.
-    const detailsDeadline=Math.min(deadline,Date.now()+32_000)
-    tender=await Promise.any(detailUrls.map(url=>getJson(url,detailsDeadline,metrics,30_000)))
+    const detailsDeadline=Math.min(deadline,Date.now()+DETAIL_TIMEOUT_MS)
+    tender=await Promise.any(detailUrls.map(url=>getJson(url,detailsDeadline,metrics,DETAIL_TIMEOUT_MS)))
   }catch(error){
     lastError=error instanceof AggregateError ? error.errors?.[0] : error
   }
