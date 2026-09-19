@@ -1202,6 +1202,27 @@ async function invokePncpWithRetry(body,onAttempt,maxAttempts=1,delayMs=700){
   return lastResponse;
 }
 
+async function loadPncpDetailWithHeaderRetry(body,loadingLabel='Consultando o PNCP'){
+  const maxHeaderAttempts=3;
+  let lastResponse={data:null,error:null};
+
+  for(let attempt=1;attempt<=maxHeaderAttempts;attempt++){
+    lastResponse=await invokePncpWithRetry(
+      body,
+      ()=>setPncpStatus(`${loadingLabel}… tentativa ${attempt} de ${maxHeaderAttempts}`,'loading')
+    );
+    const detail=lastResponse?.data;
+    const headerPending=detail?.mode==='detail'&&detail?.tender?._detailsUnavailable===true;
+
+    if(lastResponse?.error||detail?.error||!headerPending)return lastResponse;
+    if(attempt<maxHeaderAttempts){
+      setPncpStatus(`O PNCP enviou os itens, mas ainda está liberando os dados do edital. Aguardando para tentar novamente (${attempt+1} de ${maxHeaderAttempts})…`,'loading');
+      await new Promise(resolve=>setTimeout(resolve,1800));
+    }
+  }
+  return lastResponse;
+}
+
 function clearPncpPreview(){
   state.pncpPreview=null;
   const el=$('#pncpPreview');
@@ -1377,24 +1398,26 @@ function normalizePncpItem(item,index=0){
 }
 
 async function searchPncp(query){
+  if(state.pncpLoading)return;
+  state.pncpLoading=true;
   clearPncpPreview();
   const results=$('#pncpSearchResults');
   if(results)results.innerHTML='';
 
   if(!pncpLinkParts(query)){
     setPncpStatus('Cole o link completo do edital no PNCP. Exemplo: https://pncp.gov.br/app/editais/CNPJ/ANO/NÚMERO','warn');
+    state.pncpLoading=false;
     return;
   }
 
   if(state.demo || !configured || !supabase || !state.user){
     setPncpStatus('A consulta ao PNCP exige uma sessão online. No modo demonstração, use os editais fictícios já carregados.','warn');
+    state.pncpLoading=false;
     return;
   }
 
-  const {data,error}=await invokePncpWithRetry(
-    {query},
-    ()=>setPncpStatus('Consultando o PNCP…','loading')
-  );
+  const {data,error}=await loadPncpDetailWithHeaderRetry({query});
+  state.pncpLoading=false;
 
   if(error){
     setPncpStatus(`Não foi possível consultar o PNCP: ${error.message}`,'error');
@@ -1406,6 +1429,10 @@ async function searchPncp(query){
   }
 
   if(data?.mode==='detail'){
+    if(data?.tender?._detailsUnavailable){
+      setPncpStatus('O PNCP respondeu apenas com os itens após três tentativas. Aguarde um pouco e carregue novamente para trazer os dados completos do edital.','warn');
+      return;
+    }
     setPncpStatus(`Edital encontrado. Confira os dados antes de importar.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');
     renderPncpPreview(data);
     return;
@@ -1439,10 +1466,7 @@ async function openPncpResult(btn){
     ? {query:control}
     : {query:'detalhe',cnpj:btn.dataset.pncpCnpj,ano:Number(btn.dataset.pncpYear),sequencial:Number(btn.dataset.pncpSeq)};
 
-  const {data,error}=await invokePncpWithRetry(
-    payload,
-    ()=>setPncpStatus('Carregando dados e itens do edital…','loading')
-  );
+  const {data,error}=await loadPncpDetailWithHeaderRetry(payload,'Carregando dados e itens do edital');
   if(error){
     setPncpStatus(`Erro ao abrir edital: ${error.message}`,'error');
     return;
@@ -1453,6 +1477,10 @@ async function openPncpResult(btn){
   }
   if(data?.mode!=='detail'){
     setPncpStatus('O PNCP não retornou os detalhes desse edital. Tente novamente em instantes.','error');
+    return;
+  }
+  if(data?.tender?._detailsUnavailable){
+    setPncpStatus('O PNCP respondeu apenas com os itens após três tentativas. Aguarde um pouco e carregue novamente para trazer os dados completos do edital.','warn');
     return;
   }
   setPncpStatus(`Dados carregados. Revise e importe quando estiver pronto.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');

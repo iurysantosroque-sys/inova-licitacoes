@@ -1,1 +1,1 @@
-45.0.69 - Restauração da interface do backup anterior.
+45.0.70 - Nova tentativa automática para carregar o cabeçalho do edital no PNCP.
