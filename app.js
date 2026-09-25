@@ -1223,7 +1223,46 @@ async function loadPncpDetailWithHeaderRetry(body,loadingLabel='Consultando o PN
   return lastResponse;
 }
 
+function pncpHeaderPending(data){
+  return Boolean(data?.tender?._detailsUnavailable);
+}
+
+async function refreshPncpHeader(query,{automatic=false}={}){
+  if(!query || state.pncpHeaderLoading)return;
+  const token=state.pncpLoadToken;
+  const preview=state.pncpPreview;
+  if(!preview?.tender || !pncpHeaderPending(preview))return;
+
+  state.pncpHeaderLoading=true;
+  const maxAttempts=automatic?3:1;
+  try{
+    for(let attempt=1;attempt<=maxAttempts;attempt++){
+      if(token!==state.pncpLoadToken)return;
+      setPncpStatus(`Itens carregados. Buscando os dados completos do edital no PNCP… tentativa ${attempt} de ${maxAttempts}`,'loading');
+      const {data,error}=await invokePncpWithRetry({query,phase:'header'});
+      if(token!==state.pncpLoadToken)return;
+      if(!error && !data?.error && data?.mode==='detail' && !pncpHeaderPending(data)){
+        const current=state.pncpPreview;
+        const merged={...data,items:Array.isArray(current?.items)?current.items:data.items,has_more:Boolean(current?.has_more||data?.has_more)};
+        renderPncpPreview(merged);
+        setPncpStatus(`Dados completos do edital carregados. Confira e importe quando estiver pronto.${merged?.has_more?' A lista de itens pode estar parcial.':''}`,merged?.has_more?'warn':'success');
+        return;
+      }
+      if(attempt<maxAttempts){
+        setPncpStatus(`O PNCP ainda não liberou o cabeçalho. Os itens continuam disponíveis; nova tentativa em instantes (${attempt+1} de ${maxAttempts}).`,'loading');
+        await new Promise(resolve=>setTimeout(resolve,1800));
+      }
+    }
+    setPncpStatus('Os itens foram carregados, mas o PNCP ainda não liberou os dados completos do edital. A importação fica bloqueada até isso acontecer; use “Atualizar dados do edital” para tentar novamente.','warn');
+  }finally{
+    if(token===state.pncpLoadToken)state.pncpHeaderLoading=false;
+  }
+}
+
 function clearPncpPreview(){
+  state.pncpLoadToken=(Number(state.pncpLoadToken)||0)+1;
+  state.pncpHeaderLoading=false;
+  state.pncpQueryActive='';
   state.pncpPreview=null;
   const el=$('#pncpPreview');
   if(el){el.hidden=true;el.innerHTML='';}
@@ -1277,6 +1316,7 @@ function renderPncpPreview(data){
   const orgao=t.orgaoEntidade?.razaoSocial || '-';
   const cidade=[t.unidadeOrgao?.municipioNome,t.unidadeOrgao?.ufSigla].filter(Boolean).join('/') || '-';
   const control=t.numeroControlePNCP||'';
+  const headerPending=Boolean(t._detailsUnavailable);
   const parts=pncpControlParts(control);
   const portalLink=parts ? `https://pncp.gov.br/app/editais/${parts.cnpj}/${parts.ano}/${parts.sequencial}` : '';
 
@@ -1290,9 +1330,13 @@ function renderPncpPreview(data){
       </div>
       <div class="pncp-preview-actions">
         ${portalLink?`<a href="${portalLink}" target="_blank" rel="noopener">Abrir no PNCP</a>`:''}
-        <button type="button" id="pncpImportBtn">Importar licitação + ${items.length} item${items.length===1?'':'s'}</button>
+        ${headerPending
+          ?'<button type="button" id="pncpHeaderRetry">Atualizar dados do edital</button><button type="button" id="pncpImportBtn" disabled title="Aguarde os dados completos do edital">Aguardando dados do edital…</button>'
+          :`<button type="button" id="pncpImportBtn">Importar licitação + ${items.length} item${items.length===1?'':'s'}</button>`}
       </div>
     </div>
+
+    ${headerPending?'<div class="pncp-status loading" role="status">Itens disponíveis. O PNCP ainda está carregando órgão, processo, datas e objeto. A importação será liberada quando os dados completos chegarem.</div>':''}
 
     <div class="pncp-detail-grid">
       <div><span>Processo</span><strong>${esc(t.processo||'-')}</strong></div>
@@ -1329,7 +1373,8 @@ function renderPncpPreview(data){
     </div>
   `;
 
-  $('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
+  if(!headerPending)$('#pncpImportBtn')?.addEventListener('click',importPncpPreview);
+  $('#pncpHeaderRetry')?.addEventListener('click',()=>refreshPncpHeader(state.pncpQueryActive));
 }
 
 function pncpNumber(value){
@@ -1416,7 +1461,11 @@ async function searchPncp(query){
     return;
   }
 
-  const {data,error}=await loadPncpDetailWithHeaderRetry({query});
+  state.pncpQueryActive=query;
+  const loadToken=state.pncpLoadToken;
+  setPncpStatus('Carregando os itens do edital no PNCP…','loading');
+  const {data,error}=await invokePncpWithRetry({query,phase:'items'},
+    (attempt,max)=>setPncpStatus(`Carregando os itens do edital no PNCP… tentativa ${attempt} de ${max}`,'loading'),2,900);
   state.pncpLoading=false;
 
   if(error){
@@ -1429,12 +1478,14 @@ async function searchPncp(query){
   }
 
   if(data?.mode==='detail'){
-    if(data?.tender?._detailsUnavailable){
-      setPncpStatus('O PNCP respondeu apenas com os itens após três tentativas. Aguarde um pouco e carregue novamente para trazer os dados completos do edital.','warn');
+    renderPncpPreview(data);
+    if(pncpHeaderPending(data)){
+      setPncpStatus(`Itens carregados (${data.items?.length||0}). Buscando órgão, processo, datas e objeto em segundo plano…`,'loading');
+      // Não espera este processo: os itens ficam visíveis e a tela continua responsiva.
+      refreshPncpHeader(query,{automatic:true}).catch(error=>console.warn('Cabeçalho PNCP:',error));
       return;
     }
     setPncpStatus(`Edital encontrado. Confira os dados antes de importar.${data?.message?' '+data.message:''}`,data?.has_more?'warn':'success');
-    renderPncpPreview(data);
     return;
   }
 
@@ -1491,6 +1542,9 @@ async function importPncpPreview(){
   const data=state.pncpPreview;
   const t=data?.tender;
   if(!t || state.demo)return toast('Entre no modo online para importar.','error');
+  if(pncpHeaderPending(data)){
+    return toast('Aguarde os dados completos do edital. Os itens já foram carregados, mas órgão, processo, datas e objeto ainda estão sendo confirmados no PNCP.','error');
+  }
 
   const importedNumber=normalizeTenderNumber(t.numeroCompra||t.processo||t.numeroControlePNCP||'PNCP','',t.numeroControlePNCP||'',t.anoCompra||'');
   const duplicate=state.licitacoes.find(l=>

@@ -56,7 +56,25 @@ function decodeHtmlAttribute(value:string){
   return value.replace(/&quot;/g,'"').replace(/&#039;|&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
 }
 function brMoney(value:unknown){
-  const clean=String(value??'').replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.')
+  // Valores JSON do PNCP já chegam como número: não remova o separador decimal.
+  if(typeof value==='number')return Number.isFinite(value)?value:null
+  if(value===null||value===undefined)return null
+  const raw=String(value).trim().replace(/[^\d,.-]/g,'')
+  if(!raw||raw==='-'||raw==='.'||raw===',')return null
+  const comma=raw.lastIndexOf(',')
+  const dot=raw.lastIndexOf('.')
+  let clean=raw
+  if(comma>=0&&dot>=0){
+    const decimal=comma>dot?',':'.'
+    const thousand=decimal===','?'.':','
+    clean=raw.replaceAll(thousand,'').replace(decimal,'.')
+  }else if(comma>=0){
+    clean=raw.replace(/\./g,'').replace(',','.')
+  }else if(dot>=0){
+    const dots=(raw.match(/\./g)||[]).length
+    const fraction=raw.length-dot-1
+    clean=dots>1||(dots===1&&fraction===3)?raw.replace(/\./g,''):raw
+  }
   const parsed=Number(clean)
   return Number.isFinite(parsed)?parsed:null
 }
@@ -164,39 +182,35 @@ async function getLicitanetItems(url:string,deadline:number,metrics:Metrics){
   finally{clearTimeout(timer)}
 }
 
-async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
+function pendingTender(cnpj:string,ano:number,sequencial:number){
+  return {
+    numeroCompra:`${String(sequencial).padStart(3,'0')}/${ano}`,
+    numeroControlePNCP:'',anoCompra:ano,sequencialCompra:sequencial,
+    orgaoEntidade:{cnpj},unidadeOrgao:{},
+    linkSistemaOrigem:`https://pncp.gov.br/app/editais/${cnpj}/${ano}/${sequencial}`,
+    _detailsUnavailable:true
+  }
+}
+
+async function fetchTenderHeader(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
   const detailPath=`/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   const detailUrls=[
     `https://www.pncp.gov.br/api${detailPath}`,
     `${API}${detailPath}`,
     `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}`
   ]
-  let tender:any=null,lastError:unknown=null
-  // O PNCP alterna entre os hosts principal e www. Consultar os dois em
-  // paralelo evita esperar o limite inteiro quando um deles está lento.
   try{
-    // Em alguns editais o PNCP libera os itens imediatamente, mas mantém o
-    // cabeçalho aberto por mais de 15 segundos. Dar pouco tempo aqui fazia a
-    // tela importar somente os itens mesmo quando o portal possuía os dados.
-    // O limite maior continua dentro do orçamento total da função e preserva
-    // uma janela para buscar os itens depois que o cabeçalho responder.
+    // Cabeçalho e itens têm tempos muito diferentes no PNCP. Esta consulta é
+    // usada isoladamente pelo cliente depois que os itens já foram exibidos.
     const detailsDeadline=Math.min(deadline,Date.now()+DETAIL_TIMEOUT_MS)
-    tender=await Promise.any(detailUrls.map(url=>getJson(url,detailsDeadline,metrics,DETAIL_TIMEOUT_MS)))
-  }catch(error){
-    lastError=error instanceof AggregateError ? error.errors?.[0] : error
+    return await Promise.any(detailUrls.map(url=>getJson(url,detailsDeadline,metrics,DETAIL_TIMEOUT_MS)))
+  }catch{
+    return pendingTender(cnpj,ano,sequencial)
   }
-  if(!tender){
-    // Identificação mínima para permitir a importação quando só o endpoint de
-    // itens estiver respondendo. O vínculo oficial continua sendo preservado.
-    tender={
-      numeroCompra:`${String(sequencial).padStart(3,'0')}/${ano}`,
-      numeroControlePNCP:'',
-      anoCompra:ano,sequencialCompra:sequencial,
-      orgaoEntidade:{cnpj},unidadeOrgao:{},
-      linkSistemaOrigem:`https://pncp.gov.br/app/editais/${cnpj}/${ano}/${sequencial}`,
-      _detailsUnavailable:true
-    }
-  }
+}
+
+async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
+  const tender=await fetchTenderHeader(cnpj,ano,sequencial,deadline,metrics)
 
   const realCnpj=String(tender?.orgaoEntidade?.cnpj||cnpj).replace(/\D/g,'')
   const realAno=Number(tender?.anoCompra||ano)
@@ -280,6 +294,69 @@ async function detail(cnpj:string,ano:number,sequencial:number,deadline:number,m
   }
 }
 
+// A primeira etapa da importação não depende do cabeçalho. Assim a tela pode
+// mostrar os itens logo que o endpoint próprio deles responde, sem aguardar o
+// recurso de detalhes (que é o mais lento e instável do PNCP).
+async function itemsOnly(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
+  const items:any[]=[]
+  const seen=new Set<string>()
+  let partial=false,itemSourceWorked=false
+  const sources=[
+    `${API}/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/itens`,
+    `${API}/consulta/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/itens`
+  ]
+  for(const source of sources){
+    let sourceHadRows=false
+    let sourceFailed=false
+    for(let page=1;page<=100;page++){
+      if(Date.now()>deadline-900){partial=true;break}
+      try{
+        const url=new URL(source)
+        url.searchParams.set('pagina',String(page))
+        url.searchParams.set('tamanhoPagina','500')
+        const payload=await getJson(url.toString(),deadline,metrics)
+        const rows=rowsFromPayload(payload)
+        if(rows.length){sourceHadRows=true;itemSourceWorked=true}
+        for(const [index,row] of rows.entries()){
+          const estimated=estimatedValues(row,row?.quantidade??row?.quantidadeItem??row?.qtd??row?.quantity??1)
+          const normalized={
+            ...row,
+            numeroItem:Number(row?.numeroItem??row?.numero??row?.item??row?.itemNumero??((page-1)*500+index+1)),
+            descricao:String(row?.descricao??row?.descricaoItem??row?.nome??row?.nomeItem??row?.description??'Item PNCP'),
+            quantidade:row?.quantidade??row?.quantidadeItem??row?.qtd??row?.quantity??1,
+            unidadeMedida:String(row?.unidadeMedida??row?.unidade??row?.unidadeFornecimento??row?.unit??'UN'),
+            valorUnitarioEstimado:estimated.unit,
+            valorTotal:estimated.total
+          }
+          const key=String(normalized.numeroItem)
+          if(!seen.has(key)){seen.add(key);items.push(normalized)}
+        }
+        const pages=Number(payload?.totalPaginas??payload?.totalPages??payload?.pagination?.totalPages)
+        if(!rows.length||(Number.isFinite(pages)&&pages>0&&page>=pages))break
+        if(page===100)partial=true
+      }catch{sourceFailed=true;break}
+    }
+    if(sourceHadRows&&!sourceFailed)break
+  }
+  if(!itemSourceWorked)partial=true
+  return {
+    mode:'detail',tender:pendingTender(cnpj,ano,sequencial),items,has_more:partial,
+    header_pending:true,
+    message:'Itens carregados. Os dados completos do edital estão sendo consultados no PNCP.'
+  }
+}
+
+async function headerOnly(cnpj:string,ano:number,sequencial:number,deadline:number,metrics:Metrics){
+  const tender=await fetchTenderHeader(cnpj,ano,sequencial,deadline,metrics)
+  return {
+    mode:'detail',tender,items:[],has_more:false,
+    header_pending:Boolean(tender?._detailsUnavailable),
+    message:tender?._detailsUnavailable
+      ?'O PNCP ainda não liberou os dados completos do edital.'
+      :'Dados completos do edital carregados.'
+  }
+}
+
 async function searchPublished(query:string,year:number,uf:string,deadline:number,metrics:Metrics){
   const normalized=normalize(query)
   const parsed=parseEditalNumber(query)
@@ -355,9 +432,21 @@ Deno.serve(async(req)=>{
     if(query.length<2)return json({error:'Informe ao menos dois caracteres, um link ou o número de controle PNCP.'},400)
     const direct=controlParts(query)
     let result:any
-    if(direct)result=await detail(direct.cnpj,direct.ano,direct.sequencial,deadline,metrics)
+    const phase=body?.phase==='items'||body?.phase==='header'?body.phase:'detail'
+    if(direct){
+      result=phase==='items'
+        ?await itemsOnly(direct.cnpj,direct.ano,direct.sequencial,deadline,metrics)
+        :phase==='header'
+          ?await headerOnly(direct.cnpj,direct.ano,direct.sequencial,deadline,metrics)
+          :await detail(direct.cnpj,direct.ano,direct.sequencial,deadline,metrics)
+    }
     else if(body?.cnpj&&body?.ano&&body?.sequencial){
-      result=await detail(String(body.cnpj).replace(/\D/g,''),Number(body.ano),Number(body.sequencial),deadline,metrics)
+      const cnpj=String(body.cnpj).replace(/\D/g,''),ano=Number(body.ano),sequencial=Number(body.sequencial)
+      result=phase==='items'
+        ?await itemsOnly(cnpj,ano,sequencial,deadline,metrics)
+        :phase==='header'
+          ?await headerOnly(cnpj,ano,sequencial,deadline,metrics)
+          :await detail(cnpj,ano,sequencial,deadline,metrics)
     }else return json({error:'Cole o link completo do edital no PNCP para carregar os dados e os itens.'})
     console.info(JSON.stringify({event:'pncp_complete',requestId,mode:result?.mode,durationMs:Date.now()-started,fetches:metrics.fetches,failures:metrics.failures,resultCount:result?.results?.length||0,itemCount:result?.items?.length||0,partial:Boolean(result?.has_more)}))
     return json(result)

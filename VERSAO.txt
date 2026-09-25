@@ -1,1 +1,1 @@
-45.0.70 - Nova tentativa automática para carregar o cabeçalho do edital no PNCP.
+45.0.71 - Corrigida a leitura de valores decimais do PNCP na importação de editais.
