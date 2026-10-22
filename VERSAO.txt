@@ -1,1 +1,1 @@
-45.1.0 - Nova aba INOVA Docs em Documentação, com documentos compartilhados, versões e exportações.
+45.1.1 - INOVA Docs com 24 modelos prontos, busca por categoria e paleta escura/dourada do sistema.

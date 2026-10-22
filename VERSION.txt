@@ -1,4 +1,8 @@
-INOVA V45.1.0
+INOVA V45.1.1
+
+- Biblioteca ampliada para 24 modelos prontos, com busca e filtro por categoria.
+- INOVA Docs usa a paleta escura/dourada do sistema, mantendo a folha de edição branca.
+- Seleção de modelo utiliza o tipo correto e preserva contexto, texto e modelos personalizados.
 
 - INOVA Docs: documentos compartilhados, modelos, edição, versões, anexos privados e exportação PDF/DOCX.
 - Assistente de IA com autorização empresarial, fontes verificadas e campos pendentes explícitos.

@@ -14,6 +14,10 @@ Nova aba em **Documentação → INOVA Docs**, integrada à sessão e à empresa
 
 Meus documentos tem busca por título, tipo, contexto e conteúdo, filtros de situação/período e indicadores reais dos documentos carregados. São exibidos até os 500 documentos mais recentes por empresa; organizações com volume superior exigem paginação de consulta adicional. Modelos permitem criação, favoritos, duplicação e arquivamento. Variáveis ausentes ficam `[PREENCHER]`.
 
+Na versão 45.1.1, a biblioteca inclui 24 modelos prontos: cinco de disputa, cinco de julgamento/habilitação, sete de contratação/fornecimento, cinco empresariais e dois de mensagens. Busca sem acentos e filtro por categoria podem ser combinados. Escolher um modelo sincroniza categoria e tipo, preserva o contexto e não substitui o texto antes da confirmação ao gerar. Os modelos personalizados existentes são mantidos; cópias reconhecem o tipo pelo nome, com fallback para o primeiro tipo da categoria em modelos legados sem correspondência. Nenhuma migração de banco é necessária.
+
+A interface acompanha a paleta escura/dourada do INOVA. Somente a folha do documento fica branca, com texto, títulos e tabelas escuros.
+
 ## Instalação e publicação
 
 Frontend: HTML/CSS/ES modules compatíveis com GitHub Pages e Vite. Inclua `inova-docs.js`, `inova-docs-core.js`, `inova-docs-export.js` e `inova-docs.css` junto com `app.js` e `index.html`. Não há segredo no navegador.
