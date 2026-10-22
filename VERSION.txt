@@ -1,4 +1,7 @@
-INOVA V45.0.71
+INOVA V45.1.0
+
+- INOVA Docs: documentos compartilhados, modelos, edição, versões, anexos privados e exportação PDF/DOCX.
+- Assistente de IA com autorização empresarial, fontes verificadas e campos pendentes explícitos.
 
 - Numeração completa do edital PNCP aplicada em todas as abas e seletores do sistema.
 

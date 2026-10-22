@@ -1,1 +1,1 @@
-45.0.71 - Corrigida a leitura de valores decimais do PNCP na importação de editais.
+45.1.0 - Nova aba INOVA Docs em Documentação, com documentos compartilhados, versões e exportações.

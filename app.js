@@ -1,4 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm';
+import { initInovaDocs } from './inova-docs.js?v=45.1.0-final';
 
 const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
@@ -172,6 +173,7 @@ licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[],
 };
 
 state.quotedProducts=[];
+const inovaDocsWorkspace=initInovaDocs({supabase,getState:()=>state,toast});
 state.catalogProducts=[];
 state.productQuoteSnapshots=[];
 state.productsCatalogFilter='active';
@@ -13053,6 +13055,7 @@ function initGroupedNavigation(){
   });
   document.querySelectorAll('[data-menu-tab]').forEach(item=>item.addEventListener('click',()=>{
     document.querySelector(`#mainTabs [data-tab="${item.dataset.menuTab}"]`)?.click();
+    if(item.dataset.menuTab==='inova-docs')inovaDocsWorkspace?.open();
     closeAll();
   }));
   document.querySelectorAll('[data-document-menu-tab]').forEach(item=>item.addEventListener('click',()=>{
