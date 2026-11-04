@@ -1,4 +1,4 @@
-INOVA V46.0.0
+INOVA V46.1.0
 
 - Central de Documentos com sete subabas superiores, cadastro confirmado, PDFs privados e histórico preservado.
 - Minutas de declaração com revisão nominal, checklist por edital e pacote ZIP com manifesto e hashes.

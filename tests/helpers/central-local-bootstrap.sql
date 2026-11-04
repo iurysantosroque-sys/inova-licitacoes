@@ -1,0 +1,25 @@
+-- Ambiente local descartável. Não executar este bootstrap no Supabase.
+create role anon;
+create role authenticated;
+create role service_role bypassrls;
+create schema auth;
+create schema private;
+create schema storage;
+create schema extensions;
+create extension pgcrypto with schema extensions;
+create table auth.users(id uuid primary key,aud text,role text,email text,raw_app_meta_data jsonb,raw_user_meta_data jsonb);
+create function auth.uid() returns uuid language sql stable as $$select (nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid$$;
+create table public.companies(id uuid primary key default gen_random_uuid(),name text not null,created_by uuid references auth.users(id));
+create table public.company_members(company_id uuid references public.companies(id),user_id uuid references auth.users(id),role text,primary key(company_id,user_id));
+create table public.tenders(id uuid primary key default gen_random_uuid(),company_id uuid not null references public.companies(id),number text,agency text,created_by uuid references auth.users(id),unique(id,company_id));
+create function private.is_company_member(c uuid,u uuid default auth.uid()) returns boolean language sql stable security definer set search_path='' as $$select exists(select 1 from public.company_members where company_id=c and user_id=u)$$;
+create function private.is_company_admin(c uuid,u uuid default auth.uid()) returns boolean language sql stable security definer set search_path='' as $$select exists(select 1 from public.company_members where company_id=c and user_id=u and role='admin')$$;
+create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text references storage.buckets(id),name text,metadata jsonb,created_at timestamptz default now(),unique(bucket_id,name));
+alter table storage.objects enable row level security;
+create function storage.extension(name text) returns text language sql immutable as $$select substring(name from '\.([^./]+)$')$$;
+grant usage on schema public,auth,private,storage to authenticated,anon,service_role;
+grant select on public.companies,public.company_members,public.tenders to authenticated;
+grant all on storage.objects to authenticated,service_role;
+grant all on all tables in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;

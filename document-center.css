@@ -1,6 +1,7 @@
 #documentos-central{min-width:0;color:var(--text);font:14px/1.5 system-ui,sans-serif}
 #documentos-central *{box-sizing:border-box}
 #documentos-central [hidden]{display:none!important}
+#documentos-central .dc-connector-dates{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:6px 12px;font-size:12px}#documentos-central .dc-connector-dates dt{color:var(--muted)}#documentos-central .dc-connector-dates dd{margin:0;overflow-wrap:anywhere}#documentos-central .dc-connector-grid .dc-model{display:flex;flex-direction:column;gap:8px}#documentos-central .dc-connector-grid details{margin-top:auto}#documentos-central .dc-connector-grid .dc-actions{align-items:stretch}#documentos-central .dc-connector-grid .dc-actions button{flex:1 1 140px}
 #documentos-central .dc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
 #documentos-central h1{font-size:27px;color:var(--gold);margin:0 0 5px}#documentos-central h2{font-size:19px;color:var(--gold);margin:0 0 14px}#documentos-central h3{font-size:16px;margin:0 0 8px}
 #documentos-central p{margin:6px 0 12px}#documentos-central .dc-muted{color:var(--muted);font-size:13px}

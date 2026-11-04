@@ -1,0 +1,7 @@
+export const OPERATIONS=['consultar','emitir','validar'];
+export function assistedConnector(source){
+ const intervention=(operation='consultar')=>({mode:'ASSISTIDO',status:'intervencao_necessaria',official_url:operation==='validar'?source.validationUrl||source.url:source.emissionUrl||source.url,reason:source.limitation,official_result:null});
+ return {source,capabilities:{MANUAL:true,ASSISTIDO:!!source.url,AUTOMATICO_AUTORIZADO:false},consultarSituacao:async()=>intervention('consultar'),verificarEmissao:async()=>intervention('consultar'),solicitarEmissao:async()=>intervention('emitir'),baixarDocumento:async()=>intervention('consultar'),validarAutenticidade:async()=>intervention('validar'),identificarIntervencao:intervention};
+}
+export function requireConfirmedProfile(profile){if(!profile?.confirmed_at||!profile.company_id||!/^[A-Z0-9]{12}[0-9]{2}$/.test(profile.cnpj||''))throw Error('Confirme o cadastro real da empresa em Configurações.');return profile;}
+export const OUTCOME_LABELS={intervention_required:'Intervenção necessária',configuration_required:'Configuração pendente',queued:'Aguardando execução',running:'Em execução',official_found:'Certidão oficial localizada',official_issued:'Certidão oficial recebida — revisão pendente',not_issued:'Certidão não emitida',failed:'Falha na operação',profile_changed:'Cadastro alterado — solicitar novamente',uncertain:'Resultado incerto — conferir no órgão',candidate:'PDF oficial aguardando conferência',confirmed:'Versão confirmada pelo responsável',retry:'Nova tentativa programada'};

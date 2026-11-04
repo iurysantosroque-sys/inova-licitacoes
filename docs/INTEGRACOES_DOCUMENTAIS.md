@@ -4,7 +4,7 @@ Revisão técnica de fontes: 04/11/2026. A disponibilidade de um portal público
 
 | Fonte | Modo entregue | Operação e limite |
 |---|---|---|
-| RFB / PGFN | ASSISTIDO | Abrir serviço oficial, emitir/consultar e importar o PDF. Nenhuma API de emissão foi homologada para a empresa. |
+| RFB / PGFN | ASSISTIDO + adaptador Serpro preparado | Portal oficial disponível. A API comercial Consulta CND exige contratação, segredos, autorização de consumo/emissão e teste real; não está homologada para esta empresa. |
 | FGTS / CRF — CAIXA | ASSISTIDO | Consulta e verificação pelo usuário no portal. Não contornar CAPTCHA, login ou acesso por certificado. |
 | CNDT — TST | ASSISTIDO | Emitir e validar no portal do TST, depois importar e registrar conferência humana. |
 | TCU | ASSISTIDO | Consultas no portal oficial; conferir abrangência e eventual apontamento. |
@@ -24,8 +24,10 @@ Revisão técnica de fontes: 04/11/2026. A disponibilidade de um portal público
 
 ## Contrato padronizado
 
+Na etapa 2, o transporte de servidor está em `supabase/functions/document-center-official/serpro.js`; os conectores assistidos continuam independentes em `document-connectors/`. Consulte `CENTRAL_DOCUMENTOS_ETAPA2.md` para ativação. Nenhuma consulta de teste com CNPJ real foi realizada nesta implementação.
+
 `officialConnector(id)` expõe `consultarSituacao`, `verificarEmissao`, `solicitarEmissao`, `baixarDocumento`, `validarAutenticidade` e `identificarIntervencao`.
 
-Na entrega atual os métodos retornam orientação de **intervenção necessária**, modo assistido e URL da fonte; `official_result` é sempre `null`. A interface nunca trata isso como resultado oficial. `AUTOMATICO_AUTORIZADO` está desabilitado também no esquema do banco, não apenas no botão.
+Nos métodos assistidos, o retorno é orientação de **intervenção necessária** e URL da fonte; `official_result` é sempre `null`. A interface nunca trata isso como resultado oficial. A API Serpro usa autorização separada e exclusiva do servidor; o modo legado `AUTOMATICO_AUTORIZADO` permanece bloqueado no banco.
 
 Para ativar um conector automático futuro: documentar autorização/contrato do órgão, termos e limites; implementar autenticação exclusivamente no servidor; testar emissão/validação com retorno real; guardar evidência sem segredos; mapear falhas e intervenção; rever permissões e obter autorização específica de ativação. CAPTCHA, login interativo e certificado não podem ser contornados. Uma tentativa falha não apaga nem invalida a certidão anterior.

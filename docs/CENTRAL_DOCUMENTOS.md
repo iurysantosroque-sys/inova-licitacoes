@@ -1,5 +1,7 @@
 # Central Inteligente de Certidões e Declarações — INOVA 46
 
+Etapa 2 (46.1.0): painel por órgão, tentativas, candidatos oficiais e agendamento condicionado. Consulte `CENTRAL_DOCUMENTOS_ETAPA2.md` para configuração, ativação e limites reais dos conectores. As seções abaixo documentam a base da primeira etapa.
+
 ## Arquitetura e preservação
 
 Implementação incremental em HTML/CSS/JavaScript, com sete subabas horizontais dentro de **Documentos**. Os módulos `document-center*.js` não substituem os fluxos de editais, cotações, precificação, dashboard ou INOVA Docs. O estado de autenticação e a empresa ativa vêm do cliente existente.

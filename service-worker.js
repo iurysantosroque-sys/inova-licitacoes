@@ -1,8 +1,10 @@
-const CACHE='inova-licitacoes-v46.0.0';
+const CACHE='inova-licitacoes-v46.1.0';
 const CORE=[
-  './','./index.html','./styles.css?v=46.0.0','./app.js?v=46.0.0','./manifest.json?v=46.0.0',
+  './','./index.html','./styles.css?v=46.0.0','./app.js?v=46.1.0','./manifest.json?v=46.0.0',
   './inova-docs.js?v=46.0.0','./inova-docs-core.js?v=46.0.0','./inova-docs-autofill.js?v=46.0.0','./inova-docs-export.js?v=46.0.0','./inova-docs.css?v=46.0.0',
-  './document-center.js?v=46.0.0','./document-center-core.js?v=46.0.0','./document-center-service.js?v=46.0.0','./document-center-connectors.js?v=46.0.0','./document-center.css?v=46.0.0',
+  './document-center.js?v=46.1.0','./document-center-core.js?v=46.0.0','./document-center-service.js?v=46.1.0','./document-center-connectors.js?v=46.1.0','./document-center.css?v=46.1.0',
+  './document-center-official-ui.js?v=46.1.0','./document-center-core.js','./document-center-connectors.js',
+  './document-connectors/common.js','./document-connectors/rfb-pgfn.js','./document-connectors/fgts-crf.js','./document-connectors/cndt-tst.js',
   './assets/vendor/docx-9.5.1.js',
   './assets/logo.png','./assets/papel-timbrado.png','./assets/papel-timbrado-paisagem.pdf','./assets/papel-timbrado-paisagem.png','./icons/icon-192-v2.png?v=46.0.0','./icons/icon-512-v2.png?v=46.0.0'
 ];

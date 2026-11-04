@@ -1,0 +1,4 @@
+import {assistedConnector} from './common.js';
+export const FGTS_SOURCE={id:'fgts',typeId:'fgts',name:'CAIXA — FGTS / CRF',url:'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf',documentationUrl:'https://www.caixa.gov.br/Downloads/fgts-manuais-e-cartilhas-operacionais/Manual_de_Regularidade_do_Empregador_v19.pdf',limitation:'Consulta, emissão e conferência no portal CAIXA. CAPTCHA ou acesso restrito exigem intervenção. Não há convênio/API homologado para esta empresa; renovação usual apenas nos cinco dias anteriores ao vencimento.'};
+export const fgtsConnector=()=>assistedConnector(FGTS_SOURCE);
+export function fgtsRenewalAllowed(expiresOn,today){if(!expiresOn)return false;const date=s=>Date.parse(s+'T00:00:00Z');const days=(date(expiresOn)-date(today))/86400000;return Number.isFinite(days)&&days<=5;}

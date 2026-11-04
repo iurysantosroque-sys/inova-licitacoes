@@ -1,7 +1,7 @@
 import {sha256,validateVersion,safeName,civilToday,alertKey,currentVersions,dayNumber} from './document-center-core.js?v=46.0.0';
 const DEMO_KEY='inova-central-documentos-demo-v1';
-const empty=()=>({profile:null,representatives:[],versions:[],validations:[],declarations:[],declarationVersions:[],reviews:[],requirements:[],links:[],rules:[],runs:[],notifications:[],audit:[],templates:[],permissions:[]});
-const TABLES={representatives:'central_legal_representatives',versions:'qualification_documents',validations:'central_validations',declarations:'central_generated_declarations',declarationVersions:'central_declaration_versions',reviews:'central_reviews',requirements:'central_tender_requirements',links:'central_tender_documents',rules:'central_automation_rules',runs:'central_automation_runs',notifications:'central_notifications',audit:'central_audit_log',templates:'central_declaration_templates',permissions:'central_permissions'};
+const empty=()=>({profile:null,representatives:[],versions:[],validations:[],declarations:[],declarationVersions:[],reviews:[],requirements:[],links:[],rules:[],runs:[],notifications:[],audit:[],templates:[],permissions:[],integrations:[],connectorTasks:[],connectorAttempts:[],artifacts:[]});
+const TABLES={representatives:'central_legal_representatives',versions:'qualification_documents',validations:'central_validations',declarations:'central_generated_declarations',declarationVersions:'central_declaration_versions',reviews:'central_reviews',requirements:'central_tender_requirements',links:'central_tender_documents',rules:'central_automation_rules',runs:'central_automation_runs',notifications:'central_notifications',audit:'central_audit_log',templates:'central_declaration_templates',permissions:'central_permissions',integrations:'central_integrations',connectorTasks:'central_connector_tasks',connectorAttempts:'central_connector_attempts',artifacts:'central_connector_artifacts'};
 export function createDocumentService(supabase,getState){
  let demoData=null;const demoFiles=new Map();
  const key=()=>`${!!getState().demo}:${getState().company?.id}:${getState().user?.id||getState().user?.email}`;
@@ -32,5 +32,11 @@ export function createDocumentService(supabase,getState){
  if(getState().demo){if(!demoData)await load();const version=Math.max(0,...demoData.versions.filter(v=>v.document_series_id===series).map(v=>v.version))+1;const row={...data,version,created_at:new Date().toISOString()};demoData.versions.unshift(row);demoFiles.set(id,file);audit('certificate','PDF fictício cadastrado');persist();return row;}
  await result(supabase.storage.from('qualification-files').upload(path,file,{contentType:'application/pdf',upsert:false}));try{check(origin);return await rpc('central_register_version',{p_series_id:series,p_expected_version:previous?.version||0,p_data:data});}catch(error){await supabase.storage.from('qualification-files').remove([path]);throw error;}}
  async function download(version){const origin=key();if(getState().demo){const file=demoFiles.get(version.id);if(!file)throw Error('O PDF de demonstração não sobrevive à recarga. Importe novamente; os metadados fictícios foram preservados.');return file;}if(version.company_id!==company())throw Error('Documento de outra empresa.');const blob=await result(supabase.storage.from('qualification-files').download(version.storage_path));check(origin);if(version.sha256&&await sha256(await blob.arrayBuffer())!==version.sha256)throw Error('O hash do arquivo não corresponde à versão registrada.');return blob;}
- return {load,rpc,upload,download,key,check};
+ async function requestOfficial(source,operation,transport='assistido',billableConfirmed=false){
+  if(getState().demo)throw Error('Operações oficiais não são executadas na demonstração.');
+  const origin=key(),taskId=await rpc('central_request_connector',{p_source_id:source,p_operation:operation,p_transport:transport,p_billable_confirmed:billableConfirmed});check(origin);
+  if(transport==='serpro'){const response=await supabase.functions.invoke('document-center-official',{body:{task_id:taskId,company_id:company()}});check(origin);if(response.error){let body;try{body=await response.error.context?.json();}catch{}throw Error(body?.error||'Operação não concluída. Confira o histórico antes de repetir uma consulta cobrada.');}return response.data;}
+  return {outcome:'intervention_required',task_id:taskId};
+ }
+ return {load,rpc,upload,download,key,check,requestOfficial};
 }

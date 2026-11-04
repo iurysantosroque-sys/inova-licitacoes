@@ -1,0 +1,3 @@
+import {assistedConnector} from './common.js';
+export const RFB_SOURCE={id:'rfb',typeId:'rfb-pgfn',name:'RFB / PGFN',url:'https://www.gov.br/pt-br/servicos/emitir-certidao-de-regularidade-fiscal',validationUrl:'https://servicos.receitafederal.gov.br/servico/certidoes/#/home',documentationUrl:'https://apicenter.estaleiro.serpro.gov.br/documentacao/consulta-cnd/pt/',limitation:'Portal assistido. API comercial Serpro exige contrato, credenciais no servidor, autorização de cobrança/emissão e homologação real. A própria consulta pode emitir e ser cobrada.'};
+export const rfbConnector=()=>assistedConnector(RFB_SOURCE);

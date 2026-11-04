@@ -9,3 +9,6 @@ verify_jwt = true
 
 [functions.document-center-analyze]
 verify_jwt = true
+
+[functions.document-center-official]
+verify_jwt = true

@@ -1,1 +1,1 @@
-46.0.0 - Central de Documentos: cadastro confirmado, certidões privadas versionadas, minutas revisáveis e pacotes por edital. Alertas internos persistentes; integrações automáticas dependem de homologação.
+46.1.0 - Central de Documentos: painel de conectores RFB/PGFN, FGTS/CRF e CNDT, tentativas auditadas, PDFs candidatos com revisão e agendamento condicionado à configuração autorizada.
