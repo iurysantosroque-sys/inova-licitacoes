@@ -1,7 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm';
 import { initInovaDocs } from './inova-docs.js?v=46.0.0';
 import { pricingDocumentSource } from './inova-docs-autofill.js?v=46.0.0';
-import { initDocumentCenter } from './document-center.js?v=46.1.0';
+import { initDocumentCenter } from './document-center.js?v=46.1.1';
 
 const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));

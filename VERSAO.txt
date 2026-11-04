@@ -1,1 +1,1 @@
-46.1.0 - Central de Documentos: painel de conectores RFB/PGFN, FGTS/CRF e CNDT, tentativas auditadas, PDFs candidatos com revisão e agendamento condicionado à configuração autorizada.
+46.1.1 - Central de Documentos: monitoramento gratuito, integração Serpro e emissão separados; execução interna comprovada, saúde do agendador e atualização segura do painel.

@@ -1,8 +1,9 @@
 import {TABS,TYPES,esc,civilToday,validity,currentVersions,metrics,validateProfile,metadataSuggestions,DECLARATION_MODELS,fillDeclaration,assertApprovable,sha256,safeName,packageManifest} from './document-center-core.js?v=46.0.0';
-import {createDocumentService} from './document-center-service.js?v=46.1.0';
+import {createDocumentService} from './document-center-service.js?v=46.1.1';
 import {OFFICIAL_SOURCES,officialConnector} from './document-center-connectors.js?v=46.1.0';
 import {makeDocx,makePdf} from './inova-docs-export.js?v=46.0.0';
-import {connectorPanel,connectorHistory} from './document-center-official-ui.js?v=46.1.0';
+import {connectorPanel,connectorHistory} from './document-center-official-ui.js?v=46.1.1';
+import {shouldRefreshMonitoring} from './document-center-monitoring.js?v=46.1.1';
 import {fgtsRenewalAllowed} from './document-connectors/fgts-crf.js';
 const field=(name,label,value='',type='text',extra='')=>`<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${name==='cnpj'?extra.replace('inputmode="numeric"','inputmode="text" autocapitalize="characters"'):extra}></label>`;
 const select=(name,label,values,value='',extra='')=>`<label>${label}<select name="${name}" ${extra}>${values.map(([id,text])=>`<option value="${esc(id)}" ${String(id)===String(value)?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
@@ -84,7 +85,8 @@ export function initDocumentCenter({supabase,getState,toast}){
  if(kind==='template'){await service.rpc('central_save_template',{p_data:values});await reload();}
  if(kind==='requirement'){await service.rpc('central_save_requirement',{p_data:{...values,tender_id:selectedTender,source_sha256:sourceHash||null}});await reload();}
  if(kind==='rule'){await service.rpc('central_save_rule',{p_data:{...values,enabled:true}});await reload();}
- if(kind==='connector'){if(demo()||!isAdmin()||!data.profile?.confirmed_at)throw Error('Configuração exige administrador e cadastro real confirmado.');await service.rpc('central_configure_connector',{p_source_id:values.source_id,p_daily_checks:values.daily_checks==='on',p_api_enabled:values.api_enabled==='on',p_daily_api_authorized:values.daily_api_authorized==='on',p_authorization_reference:values.authorization_reference||null,p_billable_confirmed:values.billable_confirmed==='on'});await reload();notify('Configuração salva. Homologação e dispatcher dependem de configuração segura no servidor.');}
+ if(kind==='monitoring'){if(demo()||!isAdmin()||!data.profile?.confirmed_at)throw Error('Monitoramento exige administrador e cadastro real confirmado.');await service.rpc('central_configure_monitoring',{p_source_id:values.source_id,p_daily_checks:values.daily_checks==='on'});await reload();notify('Monitoramento interno salvo. Autorizações de serviços pagos foram preservadas.');}
+ if(kind==='connector'){if(demo()||!isAdmin()||!data.profile?.confirmed_at)throw Error('Configuração exige administrador e cadastro real confirmado.');await service.rpc('central_configure_connector',{p_source_id:values.source_id,p_daily_checks:data.integrations.find(i=>i.source_id===values.source_id)?.daily_checks===true,p_api_enabled:values.api_enabled==='on',p_daily_api_authorized:values.daily_api_authorized==='on',p_authorization_reference:values.authorization_reference||null,p_billable_confirmed:values.billable_confirmed==='on'});await reload();notify('Integração salva. Homologação e dispatcher dependem de configuração segura no servidor.');}
  });});
  root.innerHTML='<p role="status">Abra Documentos para carregar a Central.</p>';
  new MutationObserver(()=>{if(view!=='tenders'||!data||!selectedTender||root.querySelector('#dc-package-declarations'))return;const declarations=data.declarations.filter(d=>d.tender_id===selectedTender);root.querySelector('#dc-page')?.insertAdjacentHTML('beforeend',`<section class="dc-panel" id="dc-package-declarations"><h2>Declarações para o pacote</h2><p class="dc-muted">Selecione explicitamente as revisões aprovadas. Rascunhos não entram como declarações finalizadas.</p>${declarations.map(d=>`<label class="dc-check"><input type="checkbox" data-dc-declaration="${esc(d.id)}" ${d.state!=='approved'?'disabled':''} ${selectedDeclarations.has(d.id)?'checked':''}>${esc(d.title)} · revisão ${d.revision} · ${esc(d.state)}</label>`).join('')||empty('Nenhuma declaração vinculada a este edital.')}<p>${btn('package','Baixar pacote ZIP + manifesto',!canWrite())}</p></section>`);}).observe(root,{childList:true});
@@ -92,5 +94,6 @@ export function initDocumentCenter({supabase,getState,toast}){
  new MutationObserver(()=>{if(root.classList.contains('active')&&identity!==service.key())run(open);}).observe(root,{attributes:true,attributeFilter:['class']});
  supabase?.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'){data=null;draft=null;identity='';selected.clear();pages=[];root.innerHTML='';}});
  window.addEventListener('beforeunload',event=>{if(dirty||busy){event.preventDefault();event.returnValue='';}});
+ setInterval(()=>{if(!data||identity!==service.key()||!shouldRefreshMonitoring({active:root.classList.contains('active')&&['automation','history'].includes(view),visible:!document.hidden,dirty,busy,demo:demo(),openSettings:!!root.querySelector('details[open]')}))return;run(async()=>{const origin=service.key(),fresh=await service.loadMonitoring();service.check(origin);data={...data,...fresh};render();});},30000);
  return {open:()=>run(open),reload:()=>run(reload)};
 }

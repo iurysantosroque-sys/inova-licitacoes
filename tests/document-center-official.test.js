@@ -49,7 +49,7 @@ test('FGTS respeita janela usual de cinco dias e ausência de data exige interve
  assert.equal(fgtsRenewalAllowed('2026-11-10','2026-11-04'),false);assert.equal(fgtsRenewalAllowed('2026-11-09','2026-11-04'),true);assert.equal(fgtsRenewalAllowed(null,'2026-11-04'),false);
 });
 test('painel não inventa última consulta nem próxima data; demo desabilita operações oficiais',()=>{
- const data={profile:null,integrations:[],connectorTasks:[],connectorAttempts:[],validations:[],artifacts:[]};const html=connectorPanel(data,{demo:true,canWrite:true,canReview:true,isAdmin:true});assert.match(html,/Nenhum CNPJ fictício será enviado/);assert.match(html,/Sem retorno real homologado/);assert.match(html,/Agendamento não ativado/);assert.match(html,/data-dc-action="official-consult" disabled/);
+ const data={profile:null,integrations:[],connectorTasks:[],connectorAttempts:[],validations:[],artifacts:[]};const html=connectorPanel(data,{demo:true,canWrite:true,canReview:true,isAdmin:true});assert.match(html,/Nenhum CNPJ fictício será enviado/);assert.match(html,/Sem retorno real homologado/);assert.match(html,/Monitoramento desativado/);assert.match(html,/data-dc-action="official-consult" disabled/);
 });
 test('serviço nunca aciona conector real a partir da demonstração',async()=>{
  let calls=0;const service=createDocumentService({rpc:()=>calls++},()=>({demo:true,company:{id:company}}));await assert.rejects(service.requestOfficial('rfb','consultar','serpro',true),/demonstração/);assert.equal(calls,0);
