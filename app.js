@@ -1,5 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm';
-import { initInovaDocs } from './inova-docs.js?v=45.1.1';
+import { initInovaDocs } from './inova-docs.js?v=46.0.0';
+import { pricingDocumentSource } from './inova-docs-autofill.js?v=46.0.0';
+import { initDocumentCenter } from './document-center.js?v=46.0.0';
 
 const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
@@ -173,7 +175,8 @@ licitacoes:[], itens:[], fornecedores:[], quotes:[], cotacoes:[], pricingMap:[],
 };
 
 state.quotedProducts=[];
-const inovaDocsWorkspace=initInovaDocs({supabase,getState:()=>state,toast});
+const inovaDocsWorkspace=initInovaDocs({supabase,getState:()=>state,toast,getAutofillSource:tenderId=>pricingDocumentSource(state,tenderId,item=>bestQuote(item.id,state.pricingSelectedSuppliers?.[String(item.id)]||''))});
+const documentCenterWorkspace=initDocumentCenter({supabase,getState:()=>state,toast});
 state.catalogProducts=[];
 state.productQuoteSnapshots=[];
 state.productsCatalogFilter='active';
@@ -12690,29 +12693,12 @@ $('#qualificationDocumentForm')?.addEventListener('submit',async event=>{
     };
     const {error:metadataError}=await supabase.from('qualification_documents').insert(metadata);
     if(metadataError){await supabase.storage.from('qualification-files').remove([path]);throw metadataError;}
-    // Renovação substitui a certidão anterior. Remova versões antigas do
-    // catálogo e do Storage para que somente o documento novo fique
-    // disponível, sem histórico vencido na tela ou no arquivo da empresa.
-    if(version>1){
-      const oldVersions=versions.filter(row=>String(row.id)!==String(id));
-      const oldPaths=oldVersions.map(row=>row.storage_path).filter(Boolean);
-      const {error:oldMetadataError}=await supabase
-        .from('qualification_documents')
-        .delete()
-        .eq('company_id',currentCompanyId())
-        .eq('document_series_id',seriesId)
-        .neq('id',id);
-      if(oldMetadataError)throw oldMetadataError;
-      if(oldPaths.length){
-        const {error:oldStorageError}=await supabase.storage.from('qualification-files').remove(oldPaths);
-        if(oldStorageError)console.warn('Limpeza dos PDFs antigos:',oldStorageError.message||oldStorageError);
-      }
-    }
+    // Renovação é uma nova versão. Histórico e PDFs anteriores são preservados.
     cancelQualificationRenewal();
     await refreshAll();
     activateDocumentTab('habilitacao');
-    setQualificationDocumentStatus(version>1?'Documento renovado; somente a versão nova está disponível.':'Documento fiscal cadastrado com segurança.','success');
-    toast(version>1?'Documento renovado; versão anterior removida.':'Documento fiscal cadastrado.');
+    setQualificationDocumentStatus(version>1?'Documento renovado; histórico preservado na Central de Documentos.':'Documento fiscal cadastrado com segurança.','success');
+    toast(version>1?'Documento renovado; versão anterior preservada.':'Documento fiscal cadastrado.');
   }catch(error){
     console.warn('Upload de habilitação fiscal:',error?.message||error);
     setQualificationDocumentStatus('Não foi possível cadastrar o documento. Verifique a configuração e tente novamente.','error');

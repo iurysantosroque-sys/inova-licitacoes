@@ -6,3 +6,6 @@ verify_jwt = true
 
 [functions.docs-assistant]
 verify_jwt = true
+
+[functions.document-center-analyze]
+verify_jwt = true

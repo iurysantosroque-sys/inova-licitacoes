@@ -1,1 +1,1 @@
-45.1.1 - INOVA Docs com 24 modelos prontos, busca por categoria e paleta escura/dourada do sistema.
+46.0.0 - Central de Documentos: cadastro confirmado, certidões privadas versionadas, minutas revisáveis e pacotes por edital. Alertas internos persistentes; integrações automáticas dependem de homologação.

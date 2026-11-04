@@ -1,4 +1,8 @@
-INOVA V45.1.1
+INOVA V46.0.0
+
+- Central de Documentos com sete subabas superiores, cadastro confirmado, PDFs privados e histórico preservado.
+- Minutas de declaração com revisão nominal, checklist por edital e pacote ZIP com manifesto e hashes.
+- Alertas internos e fila persistente; integrações externas automáticas dependem de homologação.
 
 - Biblioteca ampliada para 24 modelos prontos, com busca e filtro por categoria.
 - INOVA Docs usa a paleta escura/dourada do sistema, mantendo a folha de edição branca.

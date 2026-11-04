@@ -88,6 +88,9 @@
 #inova-docs .idocs-template button{font-size:11px;padding:7px 10px}
 #inova-docs .idocs-empty{text-align:center;background:var(--panel2);border:1px dashed var(--line);border-radius:12px;padding:50px 25px;color:var(--muted)}
 #inova-docs .idocs-loading{padding:70px;text-align:center;color:var(--muted)}
+#inova-docs .idocs-autofill{padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);min-width:0}
+#inova-docs .idocs-autofill button{margin-top:12px;white-space:normal;text-align:left}
+#inova-docs .idocs-autofill p{margin:10px 0 0;overflow-wrap:anywhere}
 #inova-docs .idocs-history>div{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding:10px 0}
 #inova-docs .idocs-history p,#inova-docs #idocs-dirty{font-size:12px;color:var(--muted)}
 @media(max-width:1000px){#inova-docs .idocs-layout{grid-template-columns:170px minmax(0,1fr)}#inova-docs .idocs-main{padding:20px}#inova-docs .idocs-mode{white-space:normal;max-width:190px}#inova-docs .idocs-template-grid{grid-template-columns:1fr}}

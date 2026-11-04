@@ -9,8 +9,9 @@
   <link rel="manifest" href="manifest.json?v=36.91.0" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192-v2.png?v=36.91.0" />
   <link rel="apple-touch-icon" href="icons/icon-192-v2.png?v=36.91.0" />
-  <link rel="stylesheet" href="styles.css?v=45.1.1" />
-  <link rel="stylesheet" href="inova-docs.css?v=45.1.1" />
+  <link rel="stylesheet" href="styles.css?v=46.0.0" />
+  <link rel="stylesheet" href="inova-docs.css?v=46.0.0" />
+  <link rel="stylesheet" href="document-center.css?v=46.0.0" />
   <script src="./app-config.js?v=36.91.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -92,6 +93,7 @@
 
       <nav class="tabs tabs-v27" id="mainTabs">
         <button data-tab="dashboard" class="active"><span>Dashboard</span></button>
+        <button type="button" data-tab="documentos-central"><span>Documentos</span></button>
         <button type="button" data-menu="central"><span>Central de Licitações</span><i class="menu-chevron">⌄</i></button>
         <button type="button" data-menu="cadastros"><span>Cadastros</span><i class="menu-chevron">⌄</i></button>
         <button type="button" data-menu="gestao"><span>Gestão</span><i class="menu-chevron">⌄</i></button>
@@ -124,6 +126,7 @@
     </header>
 
     <main>
+      <section id="documentos-central" class="tab" aria-label="Central de Documentos"></section>
       <section id="dashboard" class="tab active">
         <div class="cards">
           <article class="card"><span>Licitações</span><strong id="kpiLicitacoes">0</strong></article>
@@ -646,7 +649,7 @@
         <img src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
         <div><strong>INOVA LICITAÇÕES</strong><span>CONSTRUÇÕES, MANUTENÇÕES, SERVIÇOS E COMÉRCIO LTDA</span></div>
       </div>
-          <div class="footer-status"><span>Versão 45.1.1</span><i></i><span>Instalação disponível para toda a equipe</span></div>
+          <div class="footer-status"><span>Versão 46.0.0</span><i></i><span>Instalação disponível para toda a equipe</span></div>
     </footer>
   </div>
 
@@ -662,6 +665,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=45.1.1"></script>
+  <script type="module" src="./app.js?v=46.0.0"></script>
 </body>
 </html>
