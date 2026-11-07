@@ -1,6 +1,6 @@
-const CACHE='inova-licitacoes-v46.1.1';
+const CACHE='inova-licitacoes-v46.1.1-sso1';
 const CORE=[
-  './','./index.html','./styles.css?v=46.0.0','./app.js?v=46.1.1','./manifest.json?v=46.0.0',
+  './','./index.html','./styles.css?v=46.0.0','./app.js?v=46.1.1-sso1','./sso-client.js','./manifest.json?v=46.0.0',
   './inova-docs.js?v=46.0.0','./inova-docs-core.js?v=46.0.0','./inova-docs-autofill.js?v=46.0.0','./inova-docs-export.js?v=46.0.0','./inova-docs.css?v=46.0.0',
   './document-center.js?v=46.1.1','./document-center-core.js?v=46.0.0','./document-center-service.js?v=46.1.1','./document-center-connectors.js?v=46.1.0','./document-center.css?v=46.1.1',
   './document-center-official-ui.js?v=46.1.1','./document-center-monitoring.js?v=46.1.1','./document-center-core.js','./document-center-connectors.js',
@@ -16,7 +16,7 @@ self.addEventListener('install',event=>{
 self.addEventListener('activate',event=>{
   event.waitUntil(
     caches.keys()
-      .then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key))))
+      .then(keys=>Promise.all(keys.filter(key=>key.startsWith('inova-licitacoes-')&&key!==CACHE).map(key=>caches.delete(key))))
       .then(()=>self.clients.claim())
   );
 });
@@ -25,6 +25,8 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin)return;
+  const publicAssets=CORE.map(item=>new URL(item,self.registration.scope).pathname);
+  if(!publicAssets.includes(url.pathname)&&!url.pathname.endsWith('/app-config.js'))return;
 
   // Configuração e navegação sempre tentam a rede primeiro para evitar
   // manter uma URL/chave pública antiga depois de uma publicação.

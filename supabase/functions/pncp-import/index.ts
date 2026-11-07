@@ -1,3 +1,4 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
 const cors={
@@ -420,6 +421,12 @@ async function searchPublished(query:string,year:number,uf:string,deadline:numbe
 Deno.serve(async(req)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors})
   if(req.method!=='POST')return json({error:'Método não permitido'},405)
+  const api=Deno.env.get('SUPABASE_URL'), publicKey=Deno.env.get('SUPABASE_ANON_KEY');
+  const authorization=req.headers.get('authorization');
+  if(!api||!publicKey||!authorization?.startsWith('Bearer '))return json({error:'Sessão inválida'},401);
+  const client=createClient(api,publicKey,{global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:allowed,error}=await client.rpc('inova_sso_allowed');
+  if(error||allowed!==true)return json({error:'Sessão INOVA expirada'},401);
   if(Number(req.headers.get('content-length')||0)>65_536)return json({error:'Requisição muito grande'},413)
   const requestId=crypto.randomUUID(),started=Date.now(),deadline=started+TOTAL_BUDGET_MS
   const metrics:Metrics={fetches:0,failures:0}
