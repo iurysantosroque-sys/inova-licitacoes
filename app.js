@@ -1,3 +1,4 @@
+import { createInovaSso } from './sso-client.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm';
 import { initInovaDocs } from './inova-docs.js?v=46.0.0';
 import { pricingDocumentSource } from './inova-docs-autofill.js?v=46.0.0';
@@ -7,6 +8,7 @@ const $ = (s) => document.querySelector(s);
 const money = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cfg = window.INOVA_CONFIG || {};
+const integrated = cfg.INOVA_SSO_ENABLED === true;
 const configured = Boolean(cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY && createClient);
 const REMEMBER_SESSION_KEY='inovaRememberSession';
 let rememberSession=localStorage.getItem(REMEMBER_SESSION_KEY)!=='0';
@@ -27,7 +29,7 @@ function setRememberSession(value){
     }
   }
 }
-const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}) : null;
+const supabase = configured ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY,{auth:integrated?{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}) : null;
 
 
 const APPEARANCE_STORAGE_KEY = 'inovaAppearanceV1';
@@ -244,7 +246,7 @@ function tenderDocumentDownloadLabel(document){
 function tenderDocumentIsPdf(document){
   return tenderDocumentExtension(document)==='pdf';
 }
-function showOnly(id){ ['setupScreen','authScreen','companyScreen','appShell'].forEach(x=>$('#'+x).hidden=x!==id); }
+function showOnly(id){ ['setupScreen','authScreen','companyScreen','appShell','ssoScreen'].forEach(x=>$('#'+x).hidden=x!==id); }
 function table(headers,rows){
   if(!rows.length) return '<p class="hint">Nenhum registro ainda.</p>';
   return `<table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
@@ -5235,8 +5237,64 @@ async function ensureProfile(){
   state.profile=data || {id:state.user.id,name,email:state.user.email};
 }
 
+let portalAccess;
+function showPortalStatus(message) {
+  state.user = null;
+  $('#inovaSsoPairForm').hidden = true;
+  $('#inovaSsoStatus').textContent = message;
+  showOnly('ssoScreen');
+}
+async function openPortalSession(session) {
+  state.user = session.user;
+  await ensureProfile();
+  await loadMembershipAndData();
+}
+function showPairing() {
+  $('#inovaSsoStatus').textContent = 'Confirme sua conta de Licitações uma vez para ativar o acesso pelo portal.';
+  $('#inovaSsoPairForm').hidden = false;
+}
+$('#inovaSsoPairForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!portalAccess) return;
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  const email = form.elements.email.value;
+  const password = form.elements.password.value;
+  form.elements.password.value = '';
+  button.disabled = true;
+  try {
+    const session = await portalAccess.pair(email,password);
+    form.reset();
+    form.hidden = true;
+    await openPortalSession(session);
+  } catch {
+    $('#inovaSsoStatus').textContent = 'Não foi possível vincular. Confira os dados ou volte ao portal para tentar novamente.';
+  } finally {
+    button.disabled = false;
+  }
+});
 async function boot(){
   if(!configured){ showOnly('setupScreen'); return; }
+  if(integrated){
+    showPortalStatus('Validando sua sessão no INOVA Sistemas…');
+    try {
+      portalAccess = createInovaSso(cfg,supabase,showPortalStatus,showPairing,() =>
+        createClient(cfg.SUPABASE_URL,cfg.SUPABASE_PUBLISHABLE_KEY,{
+          auth:{storageKey:'inova-sso-pair-proof',persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+        })
+      );
+      const back = $('#inovaPortalBack');
+      back.href = portalAccess.portal;
+      back.hidden = false;
+      $('#inovaSsoRetry').href = portalAccess.portal;
+      const session = await portalAccess.enter();
+      if (!session) return;
+      await openPortalSession(session);
+    } catch {
+      showPortalStatus('Acesso indisponível. Volte ao portal e tente novamente.');
+    }
+    return;
+  }
   const sessionResult=await Promise.race([
     supabase.auth.getSession(),
     new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:new Error('Tempo limite ao consultar a sessão.')}),20000))
@@ -5250,7 +5308,7 @@ async function loadMembershipAndData(){
   const {data:membership,error}=await supabase.from('company_members').select('company_id,user_id,role,created_at').eq('user_id',state.user.id).maybeSingle();
   if(error)return toast(error.message,'error');
   state.membership=membership;
-  if(!membership){ showOnly('companyScreen');applyIncomingCompanyInvite();return; }
+  if(!membership){ if(integrated){showPortalStatus('A conta precisa de um vínculo de empresa definido pela administração.');return;} showOnly('companyScreen');applyIncomingCompanyInvite();return; }
   const {data:company,error:companyError}=await supabase.from('companies').select('*').eq('id',membership.company_id).single();
   if(companyError)return toast(companyError.message,'error');
   state.company=company; await refreshAll(); showOnly('appShell');
@@ -11736,6 +11794,15 @@ async function openPrivateTenderPdf(documentId,button){
   const oldText=button?.textContent||'Abrir PDF';
   if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Abrindo…';}
   try{
+    if(integrated){
+      const {data,error}=await supabase.storage.from('tender-files').download(document.storage_path);
+      if(error||!data)throw error||new Error('PDF indisponível.');
+      if(popup.closed)throw new Error('A nova aba foi fechada.');
+      const objectUrl=URL.createObjectURL(data);
+      popup.location.replace(objectUrl);
+      setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+      return;
+    }
     const {data,error}=await supabase.storage.from('tender-files').createSignedUrl(document.storage_path,60);
     if(error||!data?.signedUrl)throw error||new Error('URL temporária indisponível.');
     if(popup.closed)throw new Error('A nova aba foi fechada.');
@@ -11817,7 +11884,7 @@ async function loadChatMessages(){
   if(error){console.warn('Chat geral:',error.message);return;}
   state.chatMessages=chatVisibleMessages(data||[]);renderGlobalChat();
   state.chatChannel?.unsubscribe?.();
-  state.chatChannel=supabase.channel(`company-chat-${cid}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'company_chat_messages',filter:`company_id=eq.${cid}`},payload=>{
+  state.chatChannel=supabase.channel(`company-chat-${cid}`,integrated?{config:{private:true}}:{}).on('postgres_changes',{event:'INSERT',schema:'public',table:'company_chat_messages',filter:`company_id=eq.${cid}`},payload=>{
     const message=payload.new;if(!message||String(message.company_id)!==String(cid))return;state.chatMessages=[...(state.chatMessages||[]),message].slice(-100);if(String(message.sender_id)!==String(state.user?.id)){state.chatUnread=(state.chatUnread||0)+1;chatBeep();}renderGlobalChat();
   }).on('broadcast',{event:'typing'},({payload})=>{
     const sender=payload?.sender_id;if(!sender||String(sender)===String(state.user?.id))return;state.chatTypingUsers={...(state.chatTypingUsers||{})};if(payload.typing)state.chatTypingUsers[sender]=Date.now()+4500;else delete state.chatTypingUsers[sender];renderGlobalChat();clearTimeout(state.chatTypingTimer);state.chatTypingTimer=setTimeout(()=>renderGlobalChat(),4600);
@@ -12296,7 +12363,7 @@ $('#signupForm').addEventListener('submit',async e=>{
 });
 $('#createCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.rpc('create_company_with_owner',{p_name:f.nome});if(error)return toast(error.message,'error');toast(`Empresa criada. Código: ${data?.[0]?.invite_code||''}`);await loadMembershipAndData();});
 $('#joinCompanyForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const {error}=await supabase.rpc('join_company_by_invite',{p_invite_code:f.codigo});if(error)return toast(error.message,'error');clearPendingCompanyInvite();toast('Você entrou na empresa.');await loadMembershipAndData();});
-async function logout(){if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
+async function logout(){if(integrated&&portalAccess){location.assign(portalAccess.logout);return;}if(state.demo){location.reload();return;}await supabase.auth.signOut();location.reload();} $('#logoutBtn').addEventListener('click',logout);$('#logoutCompanyBtn').addEventListener('click',logout);
 
 $('#licitacaoForm').addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));const parts=(f.cidade||'').split('/').map(x=>x.trim());const manualDate=combineDateTime(f.data,f.horario);const linkText=String(f.link_pncp||'').trim();const linkParts=linkText?pncpLinkParts(linkText):null;if(linkText&&!linkParts)return toast('Informe um link válido de edital do PNCP.','error');const sourceUrl=linkParts?`https://pncp.gov.br/app/editais/${linkParts.cnpj}/${linkParts.ano}/${linkParts.sequencial}`:'';if(state.demo){state.licitacoes.push({id:crypto.randomUUID(),numero:f.numero,orgao:f.orgao,cidade:f.cidade||'',data:f.data||'',horario:f.horario||'',plataforma:f.plataforma||'',objeto:f.objeto||'',source_url:sourceUrl,proposalEndAt:manualDate});e.target.reset();renderAll();return toast('Licitação adicionada à demonstração.');}const row={company_id:currentCompanyId(),number:f.numero,agency:f.orgao,city:parts[0]||null,state:parts[1]||null,platform:f.plataforma||null,object:f.objeto||null,dispute_at:manualDate,proposal_end_at:manualDate,source_url:sourceUrl||null,created_by:state.user.id};const {error}=await supabase.from('tenders').insert(row);if(error)return toast(error.message,'error');e.target.reset();toast('Licitação cadastrada.');await refreshAll();});
 $('#itemForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.target;const f=Object.fromEntries(new FormData(form));const submit=form.querySelector('[type="submit"]');if(submit){submit.disabled=true;submit.dataset.originalText=submit.textContent;submit.textContent='Adicionando…';}try{if(state.demo){state.itens.push({id:crypto.randomUUID(),licitacao_id:f.licitacao_id,numero:Number(f.numero),descricao:f.descricao,quantidade:Number(f.quantidade),unidade:f.unidade,valor_estimado:Number(f.valor_estimado||0)});form.reset();renderAll();toast('Item adicionado.');return;}const {data:inserted,error}=await supabase.from('tender_items').insert({tender_id:f.licitacao_id,item_number:Number(f.numero),description:f.descricao,quantity:Number(f.quantidade),unit:f.unidade,estimated_unit_price:Number(f.valor_estimado||0)}).select('*').single();if(error)throw error;state.itens.push({id:inserted.id,licitacao_id:inserted.tender_id,numero:inserted.item_number,descricao:inserted.description,quantidade:Number(inserted.quantity),unidade:inserted.unit||'',valor_estimado:Number(inserted.estimated_unit_price||0),raw:inserted});form.reset();renderAll();toast('Item adicionado.');}catch(error){toast(error?.message||'Não foi possível adicionar o item.','error');}finally{if(submit){submit.disabled=false;submit.textContent=submit.dataset.originalText||'Adicionar item';delete submit.dataset.originalText;}}});
@@ -13416,7 +13483,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',async()=>{
     });
   }catch(err){console.warn('Service worker:',err?.message||err);}
 });
-if(configured)supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')showOnly('authScreen');if(event==='SIGNED_IN'&&session)state.user=session.user;});
+if(configured)supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')showOnly(integrated?'ssoScreen':'authScreen');if(event==='SIGNED_IN'&&session)state.user=session.user;});
 
 $('#simItem')?.addEventListener('change', () => {
   const item = state.itens.find(i => i.id === $('#simItem').value);

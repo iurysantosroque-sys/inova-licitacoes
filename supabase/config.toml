@@ -12,3 +12,6 @@ verify_jwt = true
 
 [functions.document-center-official]
 verify_jwt = true
+
+[functions.inova-sso]
+verify_jwt = false

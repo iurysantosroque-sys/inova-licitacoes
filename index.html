@@ -35,6 +35,19 @@
     </div>
   </section>
 
+  <section id="ssoScreen" class="auth-shell" hidden>
+    <div class="auth-card">
+      <h1>INOVA Sistemas</h1>
+      <img class="auth-logo" src="assets/logo.png" alt="INOVA">
+      <p id="inovaSsoStatus" role="status"></p>
+      <form id="inovaSsoPairForm" class="form-grid" hidden>
+        <label>E-mail da conta de Licitações<input name="email" type="email" autocomplete="username" required></label>
+        <label>Senha da conta de Licitações<input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="btn primary">Confirmar vínculo</button>
+      </form>
+      <a id="inovaSsoRetry" class="link-btn" href="./">Voltar ao INOVA Sistemas</a>
+    </div>
+  </section>
   <section id="authScreen" class="auth-shell">
     <div class="auth-card">
       <img class="auth-logo" src="assets/logo.png" alt="INOVA Construções, Manutenções, Serviços e Comércio LTDA">
@@ -119,6 +132,7 @@
       </div>
 
       <div class="top-actions">
+        <a id="inovaPortalBack" class="link-btn" hidden>Voltar ao INOVA Sistemas</a>
         <button id="forceRefreshBtn" class="secondary" type="button" title="Atualizar dados sem recarregar a página">↻ Atualizar</button>
         <button id="installBtn" class="secondary" type="button">Instalar App</button>
         <div class="user-pill"><span id="userName">Usuário</span><button id="logoutBtn" class="link-btn">Sair</button></div>
@@ -665,6 +679,6 @@
     <option value="Declaração art. 7º, XXXIII"></option>
     <option value="Outro"></option>
   </datalist>
-  <script type="module" src="./app.js?v=46.1.1"></script>
+  <script type="module" src="./app.js?v=46.1.1-sso1"></script>
 </body>
 </html>
