@@ -28,11 +28,12 @@ create function auth.uid() returns uuid language sql stable as $$select (auth.jw
 create function realtime.topic() returns text language sql stable as $$select current_setting('realtime.topic',true)$$;
 create table realtime.messages(extension text);
 alter table realtime.messages enable row level security;
-create table private.application_users(user_id uuid primary key,username text,credential_version int,active boolean,credential_pending boolean);
+create table private.application_users(user_id uuid primary key,username text,credential_version int,active boolean,credential_pending boolean,is_admin boolean default false);
 create table private.access_sessions(session_id uuid,user_id uuid,credential_version int);
 create table private.access_events(actor_id uuid,target_id uuid,event text);
 create function private.require_access_admin() returns void language plpgsql as $$begin raise exception 'admin necessário'; end$$;
-create table public.company_members(user_id uuid,company_id uuid);
+create table public.companies(id uuid primary key);
+create table public.company_members(user_id uuid,company_id uuid,role text default 'member');
 create table public.business_fixture(id int primary key,company_id uuid);
 create table storage.objects(name text primary key,company_id uuid);
 alter table public.company_members enable row level security;
@@ -66,9 +67,10 @@ try{
  const [subject,local,other,central,session,legacy,companyA,companyB]=Array.from({length:8},randomUUID);
  for(const user of [subject,local,other])await q("insert into auth.users values($1,$2,now(),null,'{\"inova_password_set\":true}')",[user,user+'@test.invalid']);
  for(const [id,user] of [[central,subject],[session,local],[legacy,other]])await q('insert into auth.sessions(id,user_id) values($1,$2)',[id,user]);
- await q("insert into private.application_users values($1,'titular',1,true,false)",[subject]);
+ await q("insert into private.application_users values($1,'titular',1,true,false,true)",[subject]);
  await q('insert into private.access_sessions values($1,$2,1)',[central,subject]);
- await q('insert into public.company_members values($1,$2),($3,$4)',[local,companyA,other,companyB]);
+ await q('insert into public.companies values($1),($2)',[companyA,companyB]);
+ await q("insert into public.company_members values($1,$2,'admin'),($3,$4,'member')",[local,companyA,other,companyB]);
  await q('insert into public.business_fixture values(1,$1),(2,$2)',[companyA,companyB]);
  await q("insert into storage.objects values('ficticio-a.pdf',$1),('ficticio-b.pdf',$2)",[companyA,companyB]);
  await q('insert into inova_sso.links(central_user,local_user) values($1,$2)',[subject,local]);
@@ -168,6 +170,29 @@ try{
    assert.deepEqual((await q('select id from public.business_fixture')).rows,[{id:2}]);
    assert.deepEqual((await q('select name from storage.objects')).rows,[{name:'ficticio-b.pdf'}]);
   });
+ });
+ await check('cadastro integrado exige rota de empresa e marcador administrativo, sem elevar cargo',async()=>{
+  const employee=randomUUID(),destination=randomUUID();
+  const enroll=[employee,companyB];
+  const finish=[...enroll,destination];
+  assert.equal((await q('select * from public.inova_sso_enrollment($1,$2)',enroll)).rowCount,0);
+  await q('insert into inova_sso.company_routes values($1,$2)',[companyB,companyA]);
+  assert.equal(await call('inova_sso_finish_enrollment',finish),false);
+  assert.equal(await call('inova_sso_finish_enrollment',[...enroll,local]),false);
+  await q("insert into auth.users values($1,$2,now(),null,$3)",[destination,'sso-'+employee+'@inova.invalid',JSON.stringify({inova_sso_employee:employee})]);
+  await assert.rejects(as(other,legacy,()=>call('inova_sso_finish_enrollment',finish)),/permission denied/i);
+  assert.equal(await call('inova_sso_finish_enrollment',finish),true);
+  assert.equal(await call('inova_sso_finish_enrollment',finish),true);
+  assert.deepEqual((await q('select company_id,role from public.company_members where user_id=$1',[destination])).rows,[{company_id:companyA,role:'member'}]);
+  assert.equal((await q('select local_user from inova_sso.links where central_user=$1',[employee])).rows[0].local_user,destination);
+  assert.equal((await q('select role from public.company_members where user_id=$1',[local])).rows[0].role,'admin');
+ });
+ await check('a prova administrativa exige sessão central vigente e administrador',async()=>{
+  await q("update private.application_users set credential_version=1,active=true where user_id=$1",[subject]);
+  assert.equal(await call('inova_sso_admin_session',[subject,central]),true);
+  assert.equal(await call('inova_sso_admin_session',[subject,legacy]),false);
+  await q("update private.application_users set is_admin=false where user_id=$1",[subject]);
+  assert.equal(await call('inova_sso_admin_session',[subject,central]),false);
  });
  console.log(passed+' verificações SQL passaram no PostgreSQL isolado.');
 }finally{

@@ -13,3 +13,10 @@ O pareamento automático é opcional durante a transição e começa desligado e
 O pareamento mantém UUIDs, cargos e dados das empresas. Quando houver só uma das contas, a administração precisa provisionar a identidade e conceder a membresia ausente explicitamente. O broker emite sessões AAL1. Contas com MFA verificado no destino ficam fora do corte até homologar um fluxo que preserve o fator. Verifique a cobertura antes de fechar o login legado ou marcar `require_sso=true`. Desligue o pareamento após a transição. O usuário já vinculado precisa apenas da credencial do portal.
 
 Verifique também `node --test tests/inova-sso-browser.test.mjs` para o fluxo do cliente com navegador e broker simulados.
+
+
+## Cadastro coordenado e reversão
+
+A migração adiciona `inova_sso.company_routes`. Cadastre somente pares de empresas conferidos por um operador autorizado. O broker só aceita o pedido de um administrador central com sessão vigente e cria a conta de destino como `member`. A criação é idempotente, preserva contas legadas e não usa e-mail ou nome para localizar uma conta existente. O painel central é o ponto de cadastro e de retomada de uma pendência.
+
+Em caso de rollback, mantenha contas, UUIDs e membros. Desabilite o pareamento, revogue as concessões e retire somente os vínculos do piloto após revisar o inventário. Se houver contas novas criadas exclusivamente pelo SSO, prepare um caminho administrativo de acesso antes de reabrir o modo legado.

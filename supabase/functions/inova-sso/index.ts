@@ -44,6 +44,31 @@ Deno.serve(async request => {
         await checked(service.rpc('inova_sso_revoke',{p_central_user:message.user,p_cutoff:message.cutoff}));
         return json({ok:true});
       }
+      if (message.action === 'enroll' && uuid(message.session) && uuid(message.employee) &&
+          uuid(message.company) && typeof message.name === 'string' &&
+          message.name.trim().length > 0 && message.name.length <= 100 && message.user !== message.employee) {
+        const proof = await backchannel(centralUrl,secret,'licitacoes-to-central',{
+          action:'admin',user:message.user,session:message.session,
+        });
+        if (proof.authorized !== true) return json({},403);
+        const args = {p_central_user:message.employee,p_central_company:message.company};
+        const lookup = async () => (await checked(service.rpc('inova_sso_enrollment',args)))[0];
+        const route = await lookup();
+        if (!route) return json({},403);
+        let localUser = route.candidate;
+        if (!localUser) {
+          const created = await service.auth.admin.createUser({
+            email:'sso-'+message.employee+'@inova.invalid',password:random(),email_confirm:true,
+            app_metadata:{inova_sso_employee:message.employee},user_metadata:{nome:message.name.trim()},
+          });
+          // Retry can recover a partially created identity solely by the trusted
+          // app_metadata marker and exact synthetic identifier.
+          localUser = created.error ? (await lookup())?.candidate : created.data.user?.id;
+        }
+        if (!uuid(localUser)) return json({},409);
+        const finished = await checked(service.rpc('inova_sso_finish_enrollment',{...args,p_local_user:localUser}));
+        return finished ? json({ok:true}) : json({},409);
+      }
       if (message.action !== 'issue' || !uuid(message.session) || !opaque(message.challenge)) return json({},400);
       const startedAt = await active(message.user,message.session);
       const code = random();

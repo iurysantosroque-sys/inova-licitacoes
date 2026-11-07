@@ -247,4 +247,57 @@ create policy inova_sso_chat_write on realtime.messages for insert to authentica
 alter role authenticator set pgrst.db_pre_request='public.inova_sso_pre_request';
 notify pgrst,'reload config';
 notify pgrst,'reload schema';
+-- Explicit organization routes delegate ordinary employee enrollment to the
+-- portal's verified administrators. Existing membership and roles stay intact.
+create table inova_sso.company_routes (
+  central_company uuid primary key,
+  target_company uuid not null references public.companies(id)
+);
+alter table inova_sso.company_routes enable row level security;
+revoke all on inova_sso.company_routes from public,anon,authenticated;
+
+create function public.inova_sso_enrollment(p_central_user uuid,p_central_company uuid)
+returns table(candidate uuid)
+language sql stable security definer set search_path = '' as $$
+  select u.id
+  from inova_sso.company_routes r
+  left join auth.users u on u.email='sso-'||p_central_user::text||'@inova.invalid'
+    and u.raw_app_meta_data->>'inova_sso_employee'=p_central_user::text
+  where r.central_company=p_central_company
+    and not exists (select 1 from inova_sso.links l where l.central_user=p_central_user and l.local_user is distinct from u.id)
+$$;
+
+create function public.inova_sso_finish_enrollment(p_central_user uuid,p_central_company uuid,p_local_user uuid)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare destination uuid; existing uuid;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('inova-sso:'||p_central_user::text,0));
+  select r.target_company into destination from inova_sso.company_routes r
+    where r.central_company=p_central_company for share;
+  if destination is null or not exists (
+    select 1 from auth.users u where u.id=p_local_user
+      and u.email='sso-'||p_central_user::text||'@inova.invalid'
+      and u.raw_app_meta_data->>'inova_sso_employee'=p_central_user::text
+      and u.email_confirmed_at is not null
+      and (u.banned_until is null or u.banned_until<=now())
+  ) then return false; end if;
+
+  select l.local_user into existing from inova_sso.links l where l.central_user=p_central_user;
+  if existing is not null then
+    return existing=p_local_user and exists (
+      select 1 from public.company_members m where m.user_id=p_local_user and m.company_id=destination
+    );
+  end if;
+  if exists(select 1 from public.company_members m where m.user_id=p_local_user) then return false; end if;
+  insert into inova_sso.links(central_user,local_user) values(p_central_user,p_local_user) on conflict do nothing;
+  if not found then return false; end if;
+  insert into public.company_members(company_id,user_id,role) values(destination,p_local_user,'member');
+  return true;
+end $$;
+
+revoke all on function public.inova_sso_enrollment(uuid,uuid),
+  public.inova_sso_finish_enrollment(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.inova_sso_enrollment(uuid,uuid),
+  public.inova_sso_finish_enrollment(uuid,uuid,uuid) to service_role;
+
 commit;
